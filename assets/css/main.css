@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600;
+  }
+  
+  .btn-ghost {
+    @apply btn text-gray-600 hover:bg-gray-100 focus:ring-gray-500 dark:text-gray-400 dark:hover:bg-gray-800;
+  }
+  
+  .input {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100;
+  }
+  
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700;
+  }
+  
+  .tag {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Reader mode typography */
+.reader-content {
+  @apply text-lg leading-relaxed;
+}
+
+.reader-content h1 {
+  @apply text-3xl font-bold mb-6 mt-8;
+}
+
+.reader-content h2 {
+  @apply text-2xl font-bold mb-4 mt-6;
+}
+
+.reader-content h3 {
+  @apply text-xl font-semibold mb-3 mt-5;
+}
+
+.reader-content p {
+  @apply mb-4;
+}
+
+.reader-content ul,
+.reader-content ol {
+  @apply mb-4 pl-6;
+}
+
+.reader-content li {
+  @apply mb-2;
+}
+
+.reader-content ul li {
+  @apply list-disc;
+}
+
+.reader-content ol li {
+  @apply list-decimal;
+}
+
+.reader-content blockquote {
+  @apply border-l-4 border-primary-500 pl-4 italic my-4;
+}
+
+.reader-content pre {
+  @apply bg-gray-100 dark:bg-gray-800 rounded-lg p-4 overflow-x-auto my-4;
+}
+
+.reader-content code {
+  @apply bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.reader-content pre code {
+  @apply bg-transparent p-0;
+}
+
+.reader-content img {
+  @apply rounded-lg my-6 max-w-full;
+}
+
+.reader-content a {
+  @apply text-primary-600 hover:text-primary-700 underline;
+}
+
+.reader-content table {
+  @apply w-full border-collapse my-4;
+}
+
+.reader-content th,
+.reader-content td {
+  @apply border border-gray-300 dark:border-gray-600 px-4 py-2 text-left;
+}
+
+.reader-content th {
+  @apply bg-gray-100 dark:bg-gray-800 font-semibold;
+}
