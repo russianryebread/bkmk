@@ -171,11 +171,16 @@
               <div v-if="result.type === 'bookmark'" class="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
                 <span>{{ result.source_domain }}</span>
                 <span v-if="result.tags && result.tags.length > 0" class="flex gap-1">
-                  <span v-for="tag in result.tags.slice(0, 3)" :key="tag" class="tag">{{ tag }}</span>
+                  <span 
+                    v-for="tag in (result.tags ?? []).slice(0, 3)" 
+                    :key="tag" 
+                    class="px-2 py-0.5 text-xs rounded-full"
+                    :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
+                  >{{ tag }}</span>
                 </span>
               </div>
               <div v-else class="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <span>Updated {{ formatDate(result.updated_at) }}</span>
+                <span>Updated {{ formatDate(result.updated_at ?? "") }}</span>
               </div>
             </div>
             
@@ -247,6 +252,7 @@
 
 <script setup lang="ts">
 const router = useRouter()
+const { loadAllTags, getTagColor } = useTagColors()
 
 // Stats
 const stats = ref({
@@ -473,6 +479,7 @@ function formatDate(dateString: string): string {
 // Global keyboard shortcut to focus search
 onMounted(() => {
   fetchStats()
+  loadAllTags()
   
   // Auto-focus search on page load
   nextTick(() => {

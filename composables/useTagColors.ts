@@ -1,8 +1,7 @@
-export interface Tag {
-  id: string
-  name: string
-  color?: string
-}
+// Tag interface imported from useTags.ts to avoid duplication
+// Re-export for use in components
+
+export type { Tag } from './useTags'
 
 const tagColorsMap: Record<string, { bg: string; text: string }> = {
   red: { bg: '#fee2e2', text: '#991b1b' },
@@ -18,12 +17,14 @@ const tagColorsMap: Record<string, { bg: string; text: string }> = {
 const defaultColors = Object.values(tagColorsMap)
 
 export function useTagColors() {
-  const allTags = useState<Tag[]>('allTags', () => [])
+  // Import Tag from useTags to share the interface
+  const { tags: allTagsData } = useTags()
+  const allTags = useState<{ id: string; name: string; color?: string }[]>('allTagsColor', () => [])
   
   async function loadAllTags() {
     if (allTags.value.length > 0) return
     try {
-      const response = await $fetch<{ tags: Tag[] }>('/api/tags')
+      const response = await $fetch<{ tags: { id: string; name: string; color?: string }[] }>('/api/tags')
       allTags.value = response.tags
     } catch (e) {
       console.error('Failed to load tags:', e)

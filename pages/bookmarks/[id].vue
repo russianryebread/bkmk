@@ -58,12 +58,13 @@
           </div>
         </div>
 
-        <!-- Tags display -->
+        <!-- Tags display with colors -->
         <div v-if="bookmark.tags && bookmark.tags.length > 0" class="flex flex-wrap gap-2">
           <span
             v-for="tag in bookmark.tags"
             :key="tag"
-            class="tag"
+            class="px-2.5 py-0.5 text-xs rounded-full"
+            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
           >
             {{ tag }}
           </span>
@@ -92,7 +93,13 @@
       <!-- Content -->
       <div class="prose dark:prose-invert max-w-none">
         <!-- Reader Mode -->
-        <div v-if="currentMode === 'reader'" class="reader-content" v-html="renderedMarkdown"></div>
+        <div 
+          v-if="currentMode === 'reader'" 
+          class="reader-content"
+          :class="readerClasses"
+          :style="{ fontSize: readerSettings.fontSize + 'px' }"
+          v-html="renderedMarkdown"
+        ></div>
         
         <!-- Snapshot Mode -->
         <div v-else-if="currentMode === 'snapshot'" class="card p-6">
@@ -138,17 +145,18 @@
           </button>
         </div>
         
-        <!-- Current tags -->
+        <!-- Current tags with colors -->
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Tags</label>
           <div class="flex flex-wrap gap-2">
             <span
               v-for="tag in bookmarkTags"
               :key="tag"
-              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full"
+              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
             >
               {{ tag }}
-              <button @click="removeTag(tag)" class="hover:text-red-600">
+              <button @click="removeTag(tag)" class="hover:opacity-75">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -235,6 +243,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const { fetchBookmark, updateBookmark } = useBookmarks()
+const { loadAllTags, getTagColor } = useTagColors()
 
 interface Tag {
   id: string
@@ -260,9 +269,33 @@ const modes = [
 
 const { render } = useMarkdown()
 
+// Reader settings from localStorage
+const readerSettings = ref({
+  fontSize: 16,
+  fontFamily: 'sans-serif',
+  lineHeight: 'normal',
+})
+
 const renderedMarkdown = computed(() => {
   if (!bookmark.value?.cleaned_markdown) return ''
   return render(bookmark.value.cleaned_markdown)
+})
+
+const readerClasses = computed(() => {
+  const classes = []
+  if (readerSettings.value.fontFamily === 'serif') {
+    classes.push('font-serif')
+  } else {
+    classes.push('font-sans')
+  }
+  if (readerSettings.value.lineHeight === 'compact') {
+    classes.push('leading-tight')
+  } else if (readerSettings.value.lineHeight === 'relaxed') {
+    classes.push('leading-relaxed')
+  } else {
+    classes.push('leading-normal')
+  }
+  return classes.join(' ')
 })
 
 const wordCount = computed(() => {
@@ -278,8 +311,24 @@ const availableTags = computed(() => {
   return allTags.value.filter(t => !bookmarkTags.value.includes(t.name))
 })
 
+function loadReaderSettings() {
+  const saved = localStorage.getItem('readerSettings')
+  if (saved) {
+    const settings = JSON.parse(saved)
+    readerSettings.value = {
+      fontSize: settings.fontSize || 16,
+      fontFamily: settings.fontFamily || 'sans-serif',
+      lineHeight: settings.lineHeight || 'normal',
+    }
+  }
+}
+
 async function loadBookmark() {
   loading.value = true
+  
+  // Load tags first so colors are available
+  await loadAllTags()
+  
   const id = route.params.id as string
   bookmark.value = await fetchBookmark(id)
   loading.value = false
@@ -293,18 +342,6 @@ async function loadBookmark() {
   if (bookmark.value && !bookmark.value.is_read) {
     await updateBookmark(id, { is_read: true })
     bookmark.value.is_read = true
-  }
-  
-  // Load all tags
-  await loadAllTags()
-}
-
-async function loadAllTags() {
-  try {
-    const response = await $fetch<{ tags: Tag[] }>('/api/tags')
-    allTags.value = response.tags
-  } catch (e) {
-    console.error('Failed to load tags:', e)
   }
 }
 
@@ -408,6 +445,7 @@ function formatDate(dateString: string): string {
 }
 
 onMounted(() => {
+  loadReaderSettings()
   loadBookmark()
 })
 </script>

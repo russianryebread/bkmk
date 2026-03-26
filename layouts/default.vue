@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     <!-- Header -->
     <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <!-- Logo -->
           <NuxtLink to="/" class="flex items-center space-x-2">
@@ -12,47 +12,132 @@
             <span class="text-xl font-bold text-gray-900 dark:text-white">Bookmark App</span>
           </NuxtLink>
 
-          <!-- Navigation -->
-          <nav class="hidden md:flex items-center space-x-4">
-            <NuxtLink 
-              to="/" 
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-            >
-              Home
-            </NuxtLink>
-            <NuxtLink 
-              to="/bookmarks" 
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-            >
-              Bookmarks
-            </NuxtLink>
-            <NuxtLink 
-              to="/notes" 
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-            >
-              Notes
-            </NuxtLink>
-            <NuxtLink 
-              to="/secrets" 
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-            >
-              Secrets
-            </NuxtLink>
-            <NuxtLink 
-              to="/tags" 
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
-            >
-              Tags
-            </NuxtLink>
-          </nav>
-
-          <!-- Actions -->
+          <!-- Actions - Right aligned -->
           <div class="flex items-center space-x-3">
+            <!-- Settings Dropdown (Gear icon) -->
+            <div class="relative">
+              <button 
+                @click="settingsOpen = !settingsOpen"
+                class="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Settings"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              
+              <!-- Dropdown Panel -->
+              <div v-if="settingsOpen" class="absolute right-0 mt-2 w-72 card p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+                <h3 class="font-semibold text-gray-900 dark:text-white mb-3">Settings</h3>
+                
+                <!-- Dark Mode Toggle -->
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <span class="text-sm text-gray-700 dark:text-gray-300">Dark Mode</span>
+                  <button 
+                    @click="toggleDarkMode"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                    :class="isDark ? 'bg-primary-600' : 'bg-gray-300'"
+                  >
+                    <span 
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                      :class="isDark ? 'translate-x-6' : 'translate-x-1'"
+                    />
+                  </button>
+                </div>
+                
+                <!-- Reader Settings (only show on reader pages) -->
+                <div v-if="isReaderPage">
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Reader Settings</p>
+                  
+                  <!-- Font Size -->
+                  <div class="mb-3">
+                    <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                      Font Size: {{ readerFontSize }}px
+                    </label>
+                    <input
+                      v-model.number="readerFontSize"
+                      type="range"
+                      min="12"
+                      max="24"
+                      step="1"
+                      class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                      @change="saveReaderSettings"
+                    />
+                  </div>
+                  
+                  <!-- Font Family -->
+                  <div class="mb-3">
+                    <span class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Font Family</span>
+                    <div class="flex gap-2">
+                      <button
+                        @click="readerFontFamily = 'sans-serif'; saveReaderSettings()"
+                        :class="[
+                          'flex-1 py-1.5 text-sm rounded border transition-colors',
+                          readerFontFamily === 'sans-serif'
+                            ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        Sans
+                      </button>
+                      <button
+                        @click="readerFontFamily = 'serif'; saveReaderSettings()"
+                        :class="[
+                          'flex-1 py-1.5 text-sm rounded border transition-colors',
+                          readerFontFamily === 'serif'
+                            ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        Serif
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Line Height -->
+                  <div>
+                    <span class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Line Height</span>
+                    <div class="flex gap-2">
+                      <button
+                        @click="readerLineHeight = 'compact'; saveReaderSettings()"
+                        :class="[
+                          'flex-1 py-1.5 text-xs rounded border transition-colors',
+                          readerLineHeight === 'compact'
+                            ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        Compact
+                      </button>
+                      <button
+                        @click="readerLineHeight = 'normal'; saveReaderSettings()"
+                        :class="[
+                          'flex-1 py-1.5 text-xs rounded border transition-colors',
+                          readerLineHeight === 'normal'
+                            ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        Normal
+                      </button>
+                      <button
+                        @click="readerLineHeight = 'relaxed'; saveReaderSettings()"
+                        :class="[
+                          'flex-1 py-1.5 text-xs rounded border transition-colors',
+                          readerLineHeight === 'relaxed'
+                            ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                        ]"
+                      >
+                        Relaxed
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Mobile menu button -->
             <button 
               @click="mobileMenuOpen = !mobileMenuOpen"
@@ -65,6 +150,45 @@
             </button>
           </div>
         </div>
+
+        <!-- Desktop Navigation - Right aligned -->
+        <nav class="hidden md:flex items-center space-x-1 pb-3">
+          <NuxtLink 
+            to="/" 
+            class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            Home
+          </NuxtLink>
+          <NuxtLink 
+            to="/bookmarks" 
+            class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            Bookmarks
+          </NuxtLink>
+          <NuxtLink 
+            to="/notes" 
+            class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            Notes
+          </NuxtLink>
+          <NuxtLink 
+            to="/secrets" 
+            class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            Secrets
+          </NuxtLink>
+          <NuxtLink 
+            to="/tags" 
+            class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            Tags
+          </NuxtLink>
+        </nav>
       </div>
 
       <!-- Mobile Navigation -->
@@ -110,12 +234,55 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <slot />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+const route = useRoute()
 const mobileMenuOpen = ref(false)
+const settingsOpen = ref(false)
+const { isDark, toggle: toggleDarkMode } = useDarkMode()
+
+// Reader settings
+const readerFontSize = ref(16)
+const readerFontFamily = ref('sans-serif')
+const readerLineHeight = ref('normal')
+
+// Check if we're on a reader page
+const isReaderPage = computed(() => {
+  return route.path.includes('/bookmarks/') && route.params.id
+})
+
+function loadReaderSettings() {
+  const saved = localStorage.getItem('readerSettings')
+  if (saved) {
+    const settings = JSON.parse(saved)
+    readerFontSize.value = settings.fontSize || 16
+    readerFontFamily.value = settings.fontFamily || 'sans-serif'
+    readerLineHeight.value = settings.lineHeight || 'normal'
+  }
+}
+
+function saveReaderSettings() {
+  localStorage.setItem('readerSettings', JSON.stringify({
+    fontSize: readerFontSize.value,
+    fontFamily: readerFontFamily.value,
+    lineHeight: readerLineHeight.value,
+  }))
+}
+
+// Close dropdown when clicking outside
+onMounted(() => {
+  loadReaderSettings()
+  
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('.relative')) {
+      settingsOpen.value = false
+    }
+  })
+})
 </script>
