@@ -1,8 +1,3 @@
-// Tag interface imported from useTags.ts to avoid duplication
-// Re-export for use in components
-
-export type { Tag } from './useTags'
-
 const tagColorsMap: Record<string, { bg: string; text: string }> = {
   red: { bg: '#fee2e2', text: '#991b1b' },
   orange: { bg: '#ffedd5', text: '#9a3412' },
