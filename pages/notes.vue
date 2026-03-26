@@ -24,14 +24,14 @@
       </button>
       <button
         v-for="tag in allTags"
-        :key="tag"
-        @click="filterTag = tag"
+        :key="tag.name"
+        @click="filterTag = tag.name"
         class="px-3 py-1 text-sm rounded-full transition-colors"
-        :class="filterTag === tag 
+        :class="filterTag === tag.name 
           ? 'bg-primary-600 text-white' 
           : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
       >
-        {{ tag }}
+        {{ tag.name }}
       </button>
     </div>
 
@@ -92,7 +92,8 @@
           <span
             v-for="tag in note.tags"
             :key="tag"
-            class="px-2 py-0.5 text-xs rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+            class="px-2 py-0.5 text-xs rounded-full"
+            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
           >
             {{ tag }}
           </span>
@@ -134,12 +135,13 @@
             <span
               v-for="tag in editorTags"
               :key="tag"
-              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full"
+              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
             >
               {{ tag }}
               <button
                 @click="removeTag(tag)"
-                class="hover:text-red-600 dark:hover:text-red-400"
+                class="hover:opacity-75"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -213,6 +215,7 @@
 
 <script setup lang="ts">
 const { render } = useMarkdown()
+const { allTags, loadAllTags, getTagColor } = useTagColors()
 
 interface Note {
   id: string
@@ -233,13 +236,15 @@ const editorTags = ref<string[]>([])
 const editingNote = ref<Note | null>(null)
 const newTag = ref('')
 const filterTag = ref('')
-const allTags = ref<string[]>([])
 
 const renderedPreview = computed(() => render(editorContent.value))
 
 // Suggested tags based on all available tags minus current editor tags
 const suggestedTags = computed(() => {
-  return allTags.value.filter(tag => !editorTags.value.includes(tag)).slice(0, 5)
+  return allTags.value
+    .map(t => t.name)
+    .filter(tag => !editorTags.value.includes(tag))
+    .slice(0, 5)
 })
 
 async function loadNotes() {
@@ -250,13 +255,6 @@ async function loadNotes() {
       : '/api/notes/markdown'
     const response = await $fetch<{ notes: Note[] }>(url)
     notes.value = response.notes
-    
-    // Extract all unique tags
-    const tagSet = new Set<string>()
-    response.notes.forEach(note => {
-      note.tags?.forEach(tag => tagSet.add(tag))
-    })
-    allTags.value = Array.from(tagSet).sort()
   } catch (e) {
     console.error('Failed to load notes:', e)
   } finally {
@@ -346,12 +344,6 @@ async function deleteNoteConfirm(note: Note) {
     try {
       await $fetch(`/api/notes/markdown/${note.id}`, { method: 'DELETE' })
       notes.value = notes.value.filter(n => n.id !== note.id)
-      // Update allTags
-      const tagSet = new Set<string>()
-      notes.value.forEach(n => {
-        n.tags?.forEach(tag => tagSet.add(tag))
-      })
-      allTags.value = Array.from(tagSet).sort()
     } catch (e) {
       console.error('Failed to delete note:', e)
     }
@@ -377,5 +369,6 @@ watch(filterTag, () => {
 
 onMounted(() => {
   loadNotes()
+  loadAllTags()
 })
 </script>

@@ -56,6 +56,7 @@ export default defineEventHandler(async (event) => {
       title,
       url,
       description,
+      cleaned_markdown,
       is_favorite,
       is_read,
       sort_order,
@@ -75,6 +76,10 @@ export default defineEventHandler(async (event) => {
     if (description !== undefined) {
       updates.push('description = ?')
       params.push(description)
+    }
+    if (cleaned_markdown !== undefined) {
+      updates.push('cleaned_markdown = ?')
+      params.push(cleaned_markdown)
     }
     if (is_favorite !== undefined) {
       updates.push('is_favorite = ?')

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="bookmark" class="max-w-4xl mx-auto">
+    <div v-if="bookmark" class="max-w-6xl mx-auto">
       <!-- Header -->
       <div class="mb-6">
         <div class="flex items-start justify-between mb-4">
@@ -42,7 +42,7 @@
               Tags
             </button>
             
-            <button @click="showEditModal = true" class="btn-secondary">
+            <button @click="showEditModal = true" class="btn-primary">
               <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
@@ -198,41 +198,34 @@
       </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="card max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Edit Content</h2>
-          <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <!-- Edit Modal - Full Screen -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-gray-900 flex flex-col z-50">
+      <div class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
+        <h2 class="text-xl font-bold text-white">Edit Content</h2>
+        <div class="flex gap-2">
+          <button @click="showEditModal = false" class="px-4 py-2 text-gray-300 hover:text-white">
+            Cancel
+          </button>
+          <button @click="saveEdit" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700" :disabled="saving">
+            {{ saving ? 'Saving...' : 'Save' }}
           </button>
         </div>
-        
-        <div class="flex-1 overflow-hidden flex">
-          <div class="flex-1 p-4 flex flex-col">
-            <textarea
-              v-model="editContent"
-              class="w-full h-full resize-none bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg p-4 font-mono text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Edit markdown content..."
-            ></textarea>
-            <div class="text-sm text-gray-500 mt-2">
-              {{ wordCount }} words • {{ charCount }} characters
-            </div>
-          </div>
+      </div>
+      
+      <div class="flex-1 p-4 overflow-hidden">
+        <textarea
+          v-model="editContent"
+          class="w-full h-full resize-none bg-gray-800 border border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          placeholder="Edit markdown content..."
+        ></textarea>
+      </div>
+      
+      <div class="p-4 bg-gray-800 border-t border-gray-700 flex justify-between items-center">
+        <div class="text-sm text-gray-400">
+          {{ wordCount }} words • {{ charCount }} characters
         </div>
-        
-        <div class="flex justify-between p-4 border-t border-gray-200 dark:border-gray-700">
-          <div class="text-sm text-gray-500">
-            Tip: Remove unwanted elements like navigation, ads, etc.
-          </div>
-          <div class="flex gap-2">
-            <button @click="showEditModal = false" class="btn-secondary">Cancel</button>
-            <button @click="saveEdit" class="btn-primary" :disabled="saving">
-              {{ saving ? 'Saving...' : 'Save' }}
-            </button>
-          </div>
+        <div class="text-sm text-gray-400">
+          Tip: Remove unwanted elements like navigation, ads, etc.
         </div>
       </div>
     </div>

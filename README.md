@@ -18,17 +18,14 @@ A full-featured personal bookmarking application with offline reading, content e
 - **Mobile**: Tailwind responsive design (mobile-friendly)
 
 ### Key Decisions
-✅ Personal use, single user  
 ✅ Server-side content extraction (cleaner, more reliable)  
 ✅ Both HTML snapshot and markdown storage options  
-✅ Multi-device sync (need CloudKit, Dropbox, or custom sync layer)  
 ✅ Images stored as files with database references  
 ✅ Full-text search + filtering/tags  
 ✅ Simple password check for secret notes (not encrypted at rest)  
 ✅ All three reading modes (user choice)  
 ✅ Plain markdown editor with live preview  
 ✅ Flat + hierarchical tags both supported  
-✅ Sort by: date saved, title, favorited, custom order  
 
 ---
 
@@ -375,16 +372,6 @@ Three switchable views for each bookmark:
 - Favoriteable
 - Sortable by date or title
 
-### F. Secret Notes
-- Password-protected notes
-- Simple password check (not encrypted at rest, but good enough for personal use)
-- On first access to a secret note:
-  - Modal appears asking for password
-  - Password verified against `password_hash` (bcrypt)
-  - Content revealed for session
-  - Optional: require password again on app restart
-- CRUD operations for secret notes
-
 ### G. Multi-Device Sync
 **Sync Layer:**
 - Changes tracked in `sync_metadata` table
@@ -526,14 +513,6 @@ Three switchable views for each bookmark:
 }
 ```
 
-### Optional Sync/Storage
-```json
-{
-  "dropbox": "^10.34.0",             // Dropbox sync
-  "cloudkit-js": "^latest"           // iCloud CloudKit
-}
-```
-
 ---
 
 ## 7. SECURITY CONSIDERATIONS
@@ -554,11 +533,6 @@ Three switchable views for each bookmark:
 - Set user-agent to avoid blocks
 - Handle rate limiting gracefully
 - Respect robots.txt (optional)
-
-### Database
-- SQLite is local-only (good for security)
-- If using cloud sync, encrypt database file in transit
-- Consider encrypting sensitive fields at rest if needed
 
 ---
 
@@ -592,53 +566,6 @@ Three switchable views for each bookmark:
 
 ---
 
-## 9. IMPLEMENTATION ROADMAP
-
-### Phase 1: Core Bookmark Functionality (Weeks 1-2)
-- [ ] SQLite schema setup
-- [ ] URL input + scraping backend
-- [ ] Store HTML + markdown
-- [ ] Basic bookmark listing
-- [ ] Reader modes (all 3 views)
-- [ ] Simple tagging
-
-### Phase 2: Organization & Search (Weeks 3-4)
-- [ ] Full-text search
-- [ ] Hierarchical tags
-- [ ] Filtering (by tag, domain, date, favorite)
-- [ ] Sorting options
-- [ ] Favorites & custom sort order
-- [ ] Mark as read/unread
-
-### Phase 3: Markdown Notes (Weeks 5-6)
-- [ ] Markdown notes CRUD
-- [ ] Rich markdown editor with preview
-- [ ] Markdown rendering component
-- [ ] Notes search/organization
-
-### Phase 4: Secret Notes & Polish (Weeks 7-8)
-- [ ] Secret notes with password protection
-- [ ] UI refinements & responsiveness
-- [ ] Settings page
-- [ ] Keyboard shortcuts
-- [ ] Dark mode (optional)
-
-### Phase 5: Multi-Device Sync (Weeks 9-10)
-- [ ] Choose sync backend (Dropbox/CloudKit/Custom)
-- [ ] Implement sync logic
-- [ ] Conflict resolution
-- [ ] Sync status UI
-- [ ] Testing on multiple devices
-
-### Phase 6: Advanced Features (Optional)
-- [ ] Browser extension for quick bookmarking
-- [ ] Export/import (JSON, OPML)
-- [ ] Sharing notes (generate shareable links)
-- [ ] Reading statistics
-- [ ] Collections (grouped bookmarks)
-
----
-
 ## 10. TECHNICAL DECISIONS & TRADEOFFS
 
 | Decision | Chosen | Alternative | Why |
@@ -655,20 +582,12 @@ Three switchable views for each bookmark:
 
 ---
 
-## 11. KNOWN LIMITATIONS & FUTURE CONSIDERATIONS
-
-### Current Limitations
-- Single-user only (no multi-user access control)
-- Simple password protection (not encryption)
-- Images stored locally (not in cloud)
-- Manual sync required (not real-time)
 
 ### Future Enhancements
 - Browser extension for quick capture
 - AI-powered summaries
 - Automatic tagging suggestions
 - Reading list with progress tracking
-- Integration with services (Pocket, Notion, etc.)
 - Collaborative bookmarks with others
 - Full-text search on images (OCR)
 - Annotation & highlighting system
@@ -678,8 +597,6 @@ Three switchable views for each bookmark:
 ## 12. GETTING STARTED CHECKLIST
 
 Before coding begins:
-- [ ] Decide on sync backend (Dropbox, CloudKit, or custom)
-- [ ] Set up Nuxt 4 project with Tailwind
 - [ ] Create SQLite schema
 - [ ] Set up server routes structure
 - [ ] Test scraping libraries (Cheerio, Readability)

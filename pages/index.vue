@@ -88,14 +88,14 @@
             v-model="searchQuery"
             type="text"
             placeholder="Search bookmarks and notes... (Press / to focus)"
-            class="input pl-12 pr-12 text-lg"
+            class="input pl-12 pr-32 text-lg"
             @input="handleSearch"
             @keydown="handleKeydown"
           />
           <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <div v-if="searching" class="absolute right-12 top-1/2 -translate-y-1/2">
+          <div v-if="searching" class="absolute right-24 top-1/2 -translate-y-1/2">
             <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -195,7 +195,10 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">No results found</h3>
-        <p class="text-gray-500 dark:text-gray-400">Try a different search term</p>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Try a different search term</p>
+        <button v-if="isUrl(searchQuery)" @click="scrapeUrl" class="btn-primary">
+          Add this URL as bookmark
+        </button>
       </div>
 
       <!-- Quick Links -->
@@ -274,6 +277,16 @@ interface SearchResult {
 
 const searchResults = ref<SearchResult[]>([])
 
+// Check if query is a URL
+function isUrl(query: string): boolean {
+  try {
+    const url = new URL(query)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // Fetch stats
 async function fetchStats() {
   try {
@@ -281,6 +294,47 @@ async function fetchStats() {
     stats.value = response
   } catch (e) {
     console.error('Failed to fetch stats:', e)
+  }
+}
+
+// Add bookmark from search
+async function addBookmark() {
+  const query = searchQuery.value.trim()
+  
+  if (isUrl(query)) {
+    // Direct URL - scrape it
+    try {
+      searching.value = true
+      const response = await $fetch<{ id: string }>('/api/scrape', {
+        method: 'POST',
+        body: { url: query },
+      })
+      router.push(`/bookmarks/${response.id}`)
+    } catch (e) {
+      console.error('Failed to scrape URL:', e)
+      searching.value = false
+    }
+  } else if (query) {
+    // Show bookmark creation dialog with URL
+    router.push(`/bookmarks?url=${encodeURIComponent(query)}`)
+  }
+}
+
+// Scrape URL from search
+async function scrapeUrl() {
+  const query = searchQuery.value.trim()
+  if (!isUrl(query)) return
+  
+  try {
+    searching.value = true
+    const response = await $fetch<{ id: string }>('/api/scrape', {
+      method: 'POST',
+      body: { url: query },
+    })
+    router.push(`/bookmarks/${response.id}`)
+  } catch (e) {
+    console.error('Failed to scrape URL:', e)
+    searching.value = false
   }
 }
 

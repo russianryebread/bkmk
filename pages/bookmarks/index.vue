@@ -10,23 +10,25 @@
             v-model="searchQuery"
             type="text"
             placeholder="Search bookmarks... (Press / to focus)"
-            class="input pl-10"
+            class="input pl-10 pr-24"
             @input="handleSearch"
+            @keydown.enter="handleEnter"
           />
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
+          <button
+            v-if="isUrl(searchQuery)"
+            @click="addUrlAsBookmark"
+            class="absolute right-2 top-1/2 -translate-y-1/2 btn-primary text-sm py-1"
+          >
+            Add URL
+          </button>
         </div>
       </div>
 
       <!-- Actions -->
       <div class="flex gap-2">
-        <select v-model="filters.sort" class="input w-auto" @change="loadBookmarks">
-          <option value="created_at">Date Added</option>
-          <option value="title">Title</option>
-          <option value="saved_at">Date Saved</option>
-        </select>
-        
         <button @click="showAddModal = true" class="btn-primary">
           <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -113,8 +115,6 @@
         
         <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-2">
           <span>{{ bookmark.source_domain }}</span>
-          <span class="mx-2">•</span>
-          <span>{{ formatDate(bookmark.created_at) }}</span>
           <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
           <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>
         </div>
@@ -123,11 +123,12 @@
           {{ bookmark.description }}
         </p>
 
-        <div v-if="bookmark.tags.length > 0" class="flex flex-wrap gap-1">
+        <div v-if="bookmark.tags && bookmark.tags.length > 0" class="flex flex-wrap gap-1">
           <span
-            v-for="tag in bookmark.tags.slice(0, 3)"
+            v-for="tag in (bookmark.tags as string[]).slice(0, 3)"
             :key="tag"
-            class="tag"
+            class="px-2 py-0.5 text-xs rounded-full"
+            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
           >
             {{ tag }}
           </span>
@@ -229,6 +230,7 @@
 const router = useRouter()
 const { bookmarks, loading, error, pagination, fetchBookmarks, createBookmark, toggleFavorite, toggleRead, deleteBookmark } = useBookmarks()
 const { results: searchResults, debouncedSearch, clearSearch } = useSearch()
+const { loadAllTags, getTagColor } = useTagColors()
 
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -238,11 +240,45 @@ const adding = ref(false)
 const addError = ref('')
 
 const filters = ref({
-  sort: 'created_at',
-  order: 'desc' as 'asc' | 'desc',
   favorite: false,
   unread: false,
 })
+
+// Check if query is a URL
+function isUrl(query: string): boolean {
+  try {
+    const url = new URL(query)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function handleEnter() {
+  if (isUrl(searchQuery.value)) {
+    addUrlAsBookmark()
+  }
+}
+
+async function addUrlAsBookmark() {
+  const query = searchQuery.value.trim()
+  if (!isUrl(query)) return
+  
+  adding.value = true
+  addError.value = ''
+  
+  try {
+    const bookmark = await createBookmark(query)
+    if (bookmark) {
+      searchQuery.value = ''
+      router.push(`/bookmarks/${bookmark.id}`)
+    }
+  } catch (e: any) {
+    addError.value = e.data?.message || 'Failed to add bookmark'
+  } finally {
+    adding.value = false
+  }
+}
 
 function handleSearch() {
   if (searchQuery.value.length > 0) {
@@ -254,8 +290,8 @@ function handleSearch() {
 
 async function loadBookmarks() {
   await fetchBookmarks({
-    sort: filters.value.sort,
-    order: filters.value.order,
+    sort: 'created_at',
+    order: 'desc',
     favorite: filters.value.favorite || undefined,
     unread: filters.value.unread || undefined,
   })
@@ -300,21 +336,9 @@ function goToPage(page: number) {
   fetchBookmarks({ page })
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-  return date.toLocaleDateString()
-}
-
 onMounted(() => {
   loadBookmarks()
+  loadAllTags()
   
   // Focus search on mount
   nextTick(() => {
