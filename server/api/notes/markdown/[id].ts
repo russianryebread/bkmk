@@ -25,12 +25,13 @@ export default defineEventHandler(async (event) => {
     return {
       ...note,
       is_favorite: Boolean(note.is_favorite),
+      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
     }
   }
 
   if (method === 'PUT') {
     const body = await readBody(event)
-    const { title, content, is_favorite, sort_order } = body
+    const { title, content, is_favorite, sort_order, tags } = body
 
     const updates: string[] = ['updated_at = CURRENT_TIMESTAMP']
     const params: any[] = []
@@ -51,6 +52,14 @@ export default defineEventHandler(async (event) => {
       updates.push('sort_order = ?')
       params.push(sort_order)
     }
+    if (tags !== undefined) {
+      updates.push('tags = ?')
+      // Handle tags as array or comma-separated string
+      const tagsString = Array.isArray(tags) 
+        ? tags.join(',') 
+        : (typeof tags === 'string' ? tags : '')
+      params.push(tagsString)
+    }
 
     params.push(id)
 
@@ -63,6 +72,7 @@ export default defineEventHandler(async (event) => {
     return {
       ...note,
       is_favorite: Boolean(note.is_favorite),
+      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
     }
   }
 

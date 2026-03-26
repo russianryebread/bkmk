@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'GET') {
     const query = getQuery(event)
-    const { page = '1', limit = '20', sort = 'updated_at' } = query
+    const { page = '1', limit = '20', sort = 'updated_at', tag } = query
 
     const pageNum = parseInt(page as string)
     const limitNum = parseInt(limit as string)
@@ -16,7 +16,38 @@ export default defineEventHandler(async (event) => {
     const validSorts = ['created_at', 'title', 'updated_at', 'is_favorite']
     const sortColumn = validSorts.includes(sort as string) ? sort : 'updated_at'
 
-    const notes = db.prepare(`
+    let notes: any[]
+    
+    // Filter by tag if provided
+    if (tag) {
+      notes = db.prepare(`
+        SELECT * FROM markdown_notes
+        WHERE tags LIKE ?
+        ORDER BY ${sortColumn} DESC
+        LIMIT ? OFFSET ?
+      `).all(`%${tag}%`, limitNum, offset)
+
+      const { total } = db.prepare(`
+        SELECT COUNT(*) as total FROM markdown_notes
+        WHERE tags LIKE ?
+      `).get(`%${tag}%`) as { total: number }
+
+      return {
+        notes: notes.map(n => ({
+          ...n,
+          is_favorite: Boolean(n.is_favorite),
+          tags: n.tags ? n.tags.split(',').filter(Boolean) : [],
+        })),
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      }
+    }
+
+    notes = db.prepare(`
       SELECT * FROM markdown_notes
       ORDER BY ${sortColumn} DESC
       LIMIT ? OFFSET ?
@@ -28,6 +59,7 @@ export default defineEventHandler(async (event) => {
       notes: notes.map(n => ({
         ...n,
         is_favorite: Boolean(n.is_favorite),
+        tags: n.tags ? n.tags.split(',').filter(Boolean) : [],
       })),
       pagination: {
         page: pageNum,
@@ -40,7 +72,7 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'POST') {
     const body = await readBody(event)
-    const { title, content, is_favorite } = body
+    const { title, content, is_favorite, tags } = body
 
     if (!title || typeof title !== 'string') {
       throw createError({
@@ -53,16 +85,22 @@ export default defineEventHandler(async (event) => {
       Math.floor(Math.random() * 16).toString(16)
     ).join('')
 
+    // Handle tags as array or comma-separated string
+    const tagsString = Array.isArray(tags) 
+      ? tags.join(',') 
+      : (typeof tags === 'string' ? tags : '')
+
     db.prepare(`
-      INSERT INTO markdown_notes (id, title, content, is_favorite)
-      VALUES (?, ?, ?, ?)
-    `).run(id, title, content || '', is_favorite ? 1 : 0)
+      INSERT INTO markdown_notes (id, title, content, is_favorite, tags)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, title, content || '', is_favorite ? 1 : 0, tagsString)
 
     const note = db.prepare('SELECT * FROM markdown_notes WHERE id = ?').get(id) as any
 
     return {
       ...note,
       is_favorite: Boolean(note.is_favorite),
+      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
     }
   }
 

@@ -11,6 +11,30 @@
       </button>
     </div>
 
+    <!-- Tag Filter -->
+    <div v-if="allTags.length > 0" class="mb-4 flex flex-wrap gap-2">
+      <button
+        @click="filterTag = ''"
+        class="px-3 py-1 text-sm rounded-full transition-colors"
+        :class="filterTag === '' 
+          ? 'bg-primary-600 text-white' 
+          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
+      >
+        All
+      </button>
+      <button
+        v-for="tag in allTags"
+        :key="tag"
+        @click="filterTag = tag"
+        class="px-3 py-1 text-sm rounded-full transition-colors"
+        :class="filterTag === tag 
+          ? 'bg-primary-600 text-white' 
+          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
+      >
+        {{ tag }}
+      </button>
+    </div>
+
     <!-- Notes List -->
     <div v-if="loading" class="flex justify-center py-12">
       <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -63,6 +87,17 @@
           </div>
         </div>
         
+        <!-- Tags display -->
+        <div v-if="note.tags && note.tags.length > 0" class="flex flex-wrap gap-1 mb-2">
+          <span
+            v-for="tag in note.tags"
+            :key="tag"
+            class="px-2 py-0.5 text-xs rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+          >
+            {{ tag }}
+          </span>
+        </div>
+        
         <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-2 font-mono">
           {{ note.content }}
         </p>
@@ -88,6 +123,66 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+        
+        <!-- Tag Management -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+          
+          <!-- Current tags -->
+          <div class="flex flex-wrap gap-2 mb-2">
+            <span
+              v-for="tag in editorTags"
+              :key="tag"
+              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+            >
+              {{ tag }}
+              <button
+                @click="removeTag(tag)"
+                class="hover:text-red-600 dark:hover:text-red-400"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+            <span v-if="editorTags.length === 0" class="text-sm text-gray-400">
+              No tags added
+            </span>
+          </div>
+          
+          <!-- Add tag input -->
+          <div class="flex gap-2">
+            <input
+              v-model="newTag"
+              type="text"
+              placeholder="Add a tag..."
+              class="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              @keydown.enter.prevent="addTag"
+            />
+            <button
+              @click="addTag"
+              :disabled="!newTag.trim()"
+              class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+            </button>
+          </div>
+          
+          <!-- Suggested tags -->
+          <div v-if="suggestedTags.length > 0" class="mt-2">
+            <span class="text-xs text-gray-500 dark:text-gray-400">Suggested:</span>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <button
+                v-for="tag in suggestedTags"
+                :key="tag"
+                @click="addSuggestedTag(tag)"
+                class="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                {{ tag }}
+              </button>
+            </div>
+          </div>
         </div>
         
         <div class="flex-1 overflow-hidden flex">
@@ -124,6 +219,7 @@ interface Note {
   title: string
   content: string
   is_favorite: boolean
+  tags: string[]
   created_at: string
   updated_at: string
 }
@@ -133,15 +229,34 @@ const loading = ref(true)
 const showEditor = ref(false)
 const editorTitle = ref('')
 const editorContent = ref('')
+const editorTags = ref<string[]>([])
 const editingNote = ref<Note | null>(null)
+const newTag = ref('')
+const filterTag = ref('')
+const allTags = ref<string[]>([])
 
 const renderedPreview = computed(() => render(editorContent.value))
+
+// Suggested tags based on all available tags minus current editor tags
+const suggestedTags = computed(() => {
+  return allTags.value.filter(tag => !editorTags.value.includes(tag)).slice(0, 5)
+})
 
 async function loadNotes() {
   loading.value = true
   try {
-    const response = await $fetch<{ notes: Note[] }>('/api/notes/markdown')
+    const url = filterTag.value 
+      ? `/api/notes/markdown?tag=${encodeURIComponent(filterTag.value)}`
+      : '/api/notes/markdown'
+    const response = await $fetch<{ notes: Note[] }>(url)
     notes.value = response.notes
+    
+    // Extract all unique tags
+    const tagSet = new Set<string>()
+    response.notes.forEach(note => {
+      note.tags?.forEach(tag => tagSet.add(tag))
+    })
+    allTags.value = Array.from(tagSet).sort()
   } catch (e) {
     console.error('Failed to load notes:', e)
   } finally {
@@ -153,6 +268,7 @@ function editNote(note: Note) {
   editingNote.value = note
   editorTitle.value = note.title
   editorContent.value = note.content
+  editorTags.value = [...(note.tags || [])]
   showEditor.value = true
 }
 
@@ -160,7 +276,27 @@ function closeEditor() {
   showEditor.value = false
   editorTitle.value = ''
   editorContent.value = ''
+  editorTags.value = []
   editingNote.value = null
+  newTag.value = ''
+}
+
+function addTag() {
+  const tag = newTag.value.trim()
+  if (tag && !editorTags.value.includes(tag)) {
+    editorTags.value.push(tag)
+  }
+  newTag.value = ''
+}
+
+function addSuggestedTag(tag: string) {
+  if (!editorTags.value.includes(tag)) {
+    editorTags.value.push(tag)
+  }
+}
+
+function removeTag(tag: string) {
+  editorTags.value = editorTags.value.filter(t => t !== tag)
 }
 
 async function saveNote() {
@@ -173,6 +309,7 @@ async function saveNote() {
         body: {
           title: editorTitle.value,
           content: editorContent.value,
+          tags: editorTags.value,
         },
       })
     } else {
@@ -181,6 +318,7 @@ async function saveNote() {
         body: {
           title: editorTitle.value,
           content: editorContent.value,
+          tags: editorTags.value,
         },
       })
     }
@@ -208,6 +346,12 @@ async function deleteNoteConfirm(note: Note) {
     try {
       await $fetch(`/api/notes/markdown/${note.id}`, { method: 'DELETE' })
       notes.value = notes.value.filter(n => n.id !== note.id)
+      // Update allTags
+      const tagSet = new Set<string>()
+      notes.value.forEach(n => {
+        n.tags?.forEach(tag => tagSet.add(tag))
+      })
+      allTags.value = Array.from(tagSet).sort()
     } catch (e) {
       console.error('Failed to delete note:', e)
     }
@@ -225,6 +369,11 @@ function formatDate(dateString: string): string {
   if (days < 7) return `${days} days ago`
   return date.toLocaleDateString()
 }
+
+// Watch for filter changes
+watch(filterTag, () => {
+  loadNotes()
+})
 
 onMounted(() => {
   loadNotes()

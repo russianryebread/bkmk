@@ -19,6 +19,13 @@
               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
             >
+              Home
+            </NuxtLink>
+            <NuxtLink 
+              to="/bookmarks" 
+              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+            >
               Bookmarks
             </NuxtLink>
             <NuxtLink 
@@ -65,6 +72,13 @@
         <div class="px-4 py-3 space-y-2">
           <NuxtLink 
             to="/" 
+            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            @click="mobileMenuOpen = false"
+          >
+            Home
+          </NuxtLink>
+          <NuxtLink 
+            to="/bookmarks" 
             class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             @click="mobileMenuOpen = false"
           >

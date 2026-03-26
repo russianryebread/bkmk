@@ -35,17 +35,31 @@
               </svg>
             </button>
             
+            <button @click="showTagsModal = true" class="btn-secondary">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              Tags
+            </button>
+            
+            <button @click="showEditModal = true" class="btn-secondary">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Edit
+            </button>
+            
             <a :href="bookmark.url" target="_blank" class="btn-secondary">
               <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-              Open Original
+              Open
             </a>
           </div>
         </div>
 
-        <!-- Tags -->
-        <div v-if="bookmark.tags.length > 0" class="flex flex-wrap gap-2">
+        <!-- Tags display -->
+        <div v-if="bookmark.tags && bookmark.tags.length > 0" class="flex flex-wrap gap-2">
           <span
             v-for="tag in bookmark.tags"
             :key="tag"
@@ -92,7 +106,7 @@
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            Copy Markdown
+            Copy
           </button>
         </div>
       </div>
@@ -111,17 +125,139 @@
       <p class="text-gray-500 dark:text-gray-400">Bookmark not found</p>
       <NuxtLink to="/" class="btn-primary mt-4">Go Back</NuxtLink>
     </div>
+
+    <!-- Tags Modal -->
+    <div v-if="showTagsModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="card max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Manage Tags</h2>
+          <button @click="showTagsModal = false" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Current tags -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Tags</label>
+          <div class="flex flex-wrap gap-2">
+            <span
+              v-for="tag in bookmarkTags"
+              :key="tag"
+              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300"
+            >
+              {{ tag }}
+              <button @click="removeTag(tag)" class="hover:text-red-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </span>
+            <span v-if="bookmarkTags.length === 0" class="text-sm text-gray-400">
+              No tags yet
+            </span>
+          </div>
+        </div>
+        
+        <!-- Add tag input -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Add New Tag</label>
+          <div class="flex gap-2">
+            <input
+              v-model="newTag"
+              type="text"
+              placeholder="Enter tag name..."
+              class="flex-1 input"
+              @keydown.enter.prevent="addTag"
+            />
+            <button @click="addTag" :disabled="!newTag.trim()" class="btn-primary">
+              Add
+            </button>
+          </div>
+        </div>
+        
+        <!-- Existing tags to select from -->
+        <div v-if="allTags.length > 0">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Or Select Existing</label>
+          <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+            <button
+              v-for="tag in availableTags"
+              :key="tag.id"
+              @click="selectExistingTag(tag)"
+              class="px-2 py-1 text-sm rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              {{ tag.name }}
+            </button>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
+          <button @click="showTagsModal = false" class="btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="card max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Edit Content</h2>
+          <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div class="flex-1 overflow-hidden flex">
+          <div class="flex-1 p-4 flex flex-col">
+            <textarea
+              v-model="editContent"
+              class="w-full h-full resize-none bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg p-4 font-mono text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Edit markdown content..."
+            ></textarea>
+            <div class="text-sm text-gray-500 mt-2">
+              {{ wordCount }} words • {{ charCount }} characters
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-between p-4 border-t border-gray-200 dark:border-gray-700">
+          <div class="text-sm text-gray-500">
+            Tip: Remove unwanted elements like navigation, ads, etc.
+          </div>
+          <div class="flex gap-2">
+            <button @click="showEditModal = false" class="btn-secondary">Cancel</button>
+            <button @click="saveEdit" class="btn-primary" :disabled="saving">
+              {{ saving ? 'Saving...' : 'Save' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 const route = useRoute()
 const { fetchBookmark, updateBookmark } = useBookmarks()
-const { render } = useMarkdown()
+
+interface Tag {
+  id: string
+  name: string
+}
 
 const bookmark = ref<any>(null)
 const loading = ref(true)
 const currentMode = ref('reader')
+const showEditModal = ref(false)
+const showTagsModal = ref(false)
+const editContent = ref('')
+const saving = ref(false)
+const bookmarkTags = ref<string[]>([])
+const allTags = ref<Tag[]>([])
+const newTag = ref('')
 
 const modes = [
   { id: 'reader', label: 'Reader' },
@@ -129,9 +265,24 @@ const modes = [
   { id: 'markdown', label: 'Markdown' },
 ]
 
+const { render } = useMarkdown()
+
 const renderedMarkdown = computed(() => {
   if (!bookmark.value?.cleaned_markdown) return ''
   return render(bookmark.value.cleaned_markdown)
+})
+
+const wordCount = computed(() => {
+  if (!editContent.value) return 0
+  return editContent.value.split(/\s+/).filter((w: string) => w.length > 0).length
+})
+
+const charCount = computed(() => {
+  return editContent.value?.length || 0
+})
+
+const availableTags = computed(() => {
+  return allTags.value.filter(t => !bookmarkTags.value.includes(t.name))
 })
 
 async function loadBookmark() {
@@ -140,10 +291,27 @@ async function loadBookmark() {
   bookmark.value = await fetchBookmark(id)
   loading.value = false
   
+  if (bookmark.value) {
+    editContent.value = bookmark.value.cleaned_markdown || ''
+    bookmarkTags.value = bookmark.value.tags || []
+  }
+  
   // Mark as read
   if (bookmark.value && !bookmark.value.is_read) {
     await updateBookmark(id, { is_read: true })
     bookmark.value.is_read = true
+  }
+  
+  // Load all tags
+  await loadAllTags()
+}
+
+async function loadAllTags() {
+  try {
+    const response = await $fetch<{ tags: Tag[] }>('/api/tags')
+    allTags.value = response.tags
+  } catch (e) {
+    console.error('Failed to load tags:', e)
   }
 }
 
@@ -156,6 +324,85 @@ async function toggleFavorite() {
 function copyMarkdown() {
   if (!bookmark.value?.cleaned_markdown) return
   navigator.clipboard.writeText(bookmark.value.cleaned_markdown)
+}
+
+async function addTag() {
+  const tag = newTag.value.trim()
+  if (!tag || bookmarkTags.value.includes(tag)) return
+  
+  // Create tag if it doesn't exist
+  let tagId: string | null = null
+  const existingTag = allTags.value.find(t => t.name.toLowerCase() === tag.toLowerCase())
+  
+  if (existingTag) {
+    tagId = existingTag.id
+  } else {
+    try {
+      const response = await $fetch<{ tag: Tag }>('/api/tags', {
+        method: 'POST',
+        body: { name: tag },
+      })
+      tagId = response.tag.id
+      allTags.value.push(response.tag)
+    } catch (e) {
+      console.error('Failed to create tag:', e)
+      return
+    }
+  }
+  
+  // Add tag to bookmark
+  if (tagId) {
+    await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+      method: 'POST',
+      body: { tag_ids: [tagId] },
+    })
+    bookmarkTags.value.push(tag)
+    bookmark.value.tags = [...bookmarkTags.value]
+  }
+  
+  newTag.value = ''
+}
+
+async function removeTag(tag: string) {
+  const tagInfo = allTags.value.find(t => t.name === tag)
+  if (!tagInfo) return
+  
+  await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+    method: 'DELETE',
+    body: { tag_ids: [tagInfo.id] },
+  })
+  
+  bookmarkTags.value = bookmarkTags.value.filter(t => t !== tag)
+  bookmark.value.tags = [...bookmarkTags.value]
+}
+
+async function selectExistingTag(tag: Tag) {
+  if (bookmarkTags.value.includes(tag.name)) return
+  
+  await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+    method: 'POST',
+    body: { tag_ids: [tag.id] },
+  })
+  
+  bookmarkTags.value.push(tag.name)
+  bookmark.value.tags = [...bookmarkTags.value]
+}
+
+async function saveEdit() {
+  if (!bookmark.value) return
+  
+  saving.value = true
+  try {
+    await updateBookmark(bookmark.value.id, { 
+      cleaned_markdown: editContent.value 
+    })
+    bookmark.value.cleaned_markdown = editContent.value
+    showEditModal.value = false
+  } catch (e) {
+    console.error('Failed to save:', e)
+  } finally {
+    saving.value = false
+  }
 }
 
 function formatDate(dateString: string): string {

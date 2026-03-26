@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS markdown_notes (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   title TEXT NOT NULL,
   content TEXT NOT NULL,
+  tags TEXT DEFAULT '',
   
   is_favorite INTEGER DEFAULT 0,
   sort_order INTEGER,
