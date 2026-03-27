@@ -3,12 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Markdown Notes</h1>
-      <button @click="showEditor = true" class="btn-primary">
-        <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        New Note
-      </button>
+      <div class="flex gap-2">
+        <ViewToggle />
+        <button @click="showEditor = true" class="btn-primary">
+          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          New Note
+        </button>
+      </div>
     </div>
 
     <!-- Offline Indicator -->
@@ -62,16 +65,17 @@
       <button @click="showEditor = true" class="btn-primary">Create Note</button>
     </div>
 
-    <div v-else class="space-y-4">
-      <div
-        v-for="note in notes"
-        :key="note.id"
-        class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-        @click="editNote(note)"
-      >
-        <div class="flex justify-between items-start mb-2">
-          <h3 class="font-medium text-gray-900 dark:text-white">{{ note.title }}</h3>
-          <div class="flex items-center gap-2">
+    <div v-else>
+      <!-- Card View -->
+      <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="note in notes"
+          :key="note.id"
+          class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
+          @click="editNote(note)"
+        >
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="font-medium text-gray-900 dark:text-white">{{ note.title }}</h3>
             <button
               @click.stop="toggleFavorite(note)"
               class="p-1"
@@ -86,35 +90,70 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
             </button>
+          </div>
+          
+          <!-- Tags display -->
+          <div v-if="note.tags && note.tags.length > 0" class="flex flex-wrap gap-1 mb-2">
+            <span
+              v-for="tag in note.tags"
+              :key="tag"
+              class="px-2 py-0.5 text-xs rounded-full"
+              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
+            >
+              {{ tag }}
+            </span>
+          </div>
+          
+          <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-2 font-mono">
+            {{ note.content }}
+          </p>
+          
+          <div class="text-xs text-gray-400">
+            Updated {{ formatDate(note.updatedAt) }}
+          </div>
+        </div>
+      </div>
+
+          <!-- List View -->
+      <div v-else class="space-y-2">
+        <div
+          v-for="note in notes"
+          :key="note.id"
+          class="card p-4 hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4"
+          @click="editNote(note)"
+        >
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ note.title }}</h3>
+              <button
+                @click.stop="toggleFavorite(note)"
+                class="p-1 flex-shrink-0"
+              >
+                <svg
+                  class="w-4 h-4"
+                  :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </button>
+            </div>
+            <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+              <span class="truncate font-mono">{{ note.content?.slice(0, 80) }}...</span>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
             <button
               @click.stop="deleteNoteConfirm(note)"
               class="p-1 text-gray-400 hover:text-red-600"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           </div>
-        </div>
-        
-        <!-- Tags display -->
-        <div v-if="note.tags && note.tags.length > 0" class="flex flex-wrap gap-1 mb-2">
-          <span
-            v-for="tag in note.tags"
-            :key="tag"
-            class="px-2 py-0.5 text-xs rounded-full"
-            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
-          >
-            {{ tag }}
-          </span>
-        </div>
-        
-        <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-2 font-mono">
-          {{ note.content }}
-        </p>
-        
-        <div class="text-xs text-gray-400">
-          Updated {{ formatDate(note.updatedAt) }}
         </div>
       </div>
     </div>
@@ -137,21 +176,46 @@
           </button>
         </div>
         
-        <!-- Editor and Preview (50/50 split) -->
-        <div class="flex-1 overflow-hidden flex min-h-0">
-          <!-- Editor -->
-          <div class="flex-1 p-4 overflow-auto">
-            <textarea
-              v-model="editorContent"
-              placeholder="Write your markdown here..."
-              class="w-full h-full min-h-[200px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"
-            ></textarea>
+        <!-- Editor/Preview toggle and content -->
+        <div class="flex-1 overflow-hidden flex flex-col min-h-0">
+          <!-- Toggle buttons -->
+          <div class="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <button
+              @click="showPreview = false"
+              class="px-4 py-2 text-sm font-medium transition-colors"
+              :class="!showPreview 
+                ? 'text-primary-600 border-b-2 border-primary-600' 
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            >
+              Edit
+            </button>
+            <button
+              @click="showPreview = true"
+              class="px-4 py-2 text-sm font-medium transition-colors"
+              :class="showPreview 
+                ? 'text-primary-600 border-b-2 border-primary-600' 
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            >
+              Preview
+            </button>
           </div>
           
-          <!-- Preview -->
-          <div class="flex-1 p-4 border-l border-gray-200 dark:border-gray-700 overflow-auto">
-            <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">{{ editorTitle || 'Untitled' }}</h2>
-            <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
+          <!-- Editor or Preview content -->
+          <div class="flex-1 overflow-auto">
+            <!-- Editor -->
+            <div v-if="!showPreview" class="p-4">
+              <textarea
+                v-model="editorContent"
+                placeholder="Write your markdown here..."
+                class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"
+              ></textarea>
+            </div>
+            
+            <!-- Preview -->
+            <div v-else class="p-4">
+              <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">{{ editorTitle || 'Untitled' }}</h2>
+              <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
+            </div>
           </div>
         </div>
         
@@ -246,6 +310,7 @@ import type { Note } from '~/composables/idb'
 const { render } = useMarkdown()
 const { allTags, loadAllTags, getTagColor } = useTagColors()
 const offlineNotes = useOfflineNotes()
+const { viewMode } = useViewMode()
 
 const notes = ref<Note[]>([])
 const loading = ref(true)

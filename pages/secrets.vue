@@ -3,12 +3,15 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Secret Notes</h1>
-      <button @click="showCreateModal = true" class="btn-primary">
-        <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        New Secret
-      </button>
+      <div class="flex gap-2">
+        <ViewToggle />
+        <button @click="showCreateModal = true" class="btn-primary">
+          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          New Secret
+        </button>
+      </div>
     </div>
 
     <!-- Offline Indicator -->
@@ -38,25 +41,53 @@
       <button @click="showCreateModal = true" class="btn-primary">Create Secret</button>
     </div>
 
-    <div v-else class="space-y-4">
-      <div
-        v-for="secret in secrets"
-        :key="secret.id"
-        class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-        @click="openSecret(secret)"
-      >
-        <div class="flex justify-between items-start">
-          <div>
-            <h3 class="font-medium text-gray-900 dark:text-white">{{ secret.title }}</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+    <div v-else>
+      <!-- Card View -->
+      <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="secret in secrets"
+          :key="secret.id"
+          class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
+          @click="openSecret(secret)"
+        >
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-medium text-gray-900 dark:text-white">{{ secret.title }}</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Last accessed: {{ secret.lastAccessedAt ? formatDate(secret.lastAccessedAt) : 'Never' }}
+              </p>
+            </div>
+            <button
+              @click.stop="deleteSecretConfirm(secret)"
+              class="p-1 text-gray-400 hover:text-red-600"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- List View -->
+      <div v-else class="space-y-2">
+        <div
+          v-for="secret in secrets"
+          :key="secret.id"
+          class="card p-4 hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4"
+          @click="openSecret(secret)"
+        >
+          <div class="flex-1 min-w-0">
+            <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ secret.title }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               Last accessed: {{ secret.lastAccessedAt ? formatDate(secret.lastAccessedAt) : 'Never' }}
             </p>
           </div>
           <button
             @click.stop="deleteSecretConfirm(secret)"
-            class="p-1 text-gray-400 hover:text-red-600"
+            class="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
@@ -172,6 +203,8 @@ import { useOfflineSecrets } from '~/composables/useOfflineSecrets'
 import type { Secret } from '~/composables/idb'
 
 const offlineSecrets = useOfflineSecrets()
+const { viewMode } = useViewMode()
+
 
 const secrets = ref<Secret[]>([])
 const loading = ref(true)
