@@ -22,43 +22,21 @@ export function useOfflineSecrets() {
     })
   })
 
-  // Get secrets - try online first, fallback to IndexedDB
+  // Get secrets - ALWAYS read from IndexedDB first (local-first)
   async function getSecrets(): Promise<Secret[]> {
     offlineError.value = null
 
-    // Try online fetch first
-    if (isOnline.value) {
-      try {
-        console.log('[OfflineSecrets] Fetching secrets from server')
-        const response = await $fetch<{ notes: any[] }>('/api/notes/secret')
-        
-        if (response.notes && response.notes.length > 0) {
-          const secrets: Secret[] = response.notes.map(s => ({
-            id: s.id,
-            title: s.title,
-            createdAt: s.createdAt,
-            updatedAt: s.updatedAt,
-            lastAccessedAt: s.lastAccessedAt,
-          }))
-          
-          // Cache in IndexedDB
-          await saveSecrets(secrets)
-          console.log('[OfflineSecrets] Cached', secrets.length, 'secrets')
-          return secrets
-        }
-        
-        return []
-      } catch (e: any) {
-        console.warn('[OfflineSecrets] Server fetch failed, falling back to IndexedDB:', e.message)
-        offlineError.value = 'Using cached data (server unavailable)'
-      }
-    }
-
-    // Fallback to IndexedDB
-    console.log('[OfflineSecrets] Fetching secrets from IndexedDB')
+    // First, read from IndexedDB (instant, local-first)
+    console.log('[OfflineSecrets] Fetching secrets from IndexedDB (local-first)')
     try {
       const secrets = await getAllSecrets()
       console.log('[OfflineSecrets] Returning', secrets.length, 'secrets from IndexedDB')
+      
+      // Then refresh from server in background
+      if (isOnline.value) {
+        refreshFromServer()
+      }
+      
       return secrets
     } catch (e: any) {
       console.error('[OfflineSecrets] IndexedDB fetch failed:', e)
@@ -67,11 +45,52 @@ export function useOfflineSecrets() {
     }
   }
 
-  // Get single secret metadata
+  // Refresh cache from server (background, non-blocking)
+  async function refreshFromServer(): Promise<void> {
+    if (!isOnline.value) return
+    
+    try {
+      console.log('[OfflineSecrets] Refreshing cache from server (background)')
+      const response = await $fetch<{ notes: any[] }>('/api/notes/secret')
+      
+      if (response.notes && response.notes.length > 0) {
+        const secrets: Secret[] = response.notes.map(s => ({
+          id: s.id,
+          title: s.title,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          lastAccessedAt: s.lastAccessedAt,
+        }))
+        await saveSecrets(secrets)
+        console.log('[OfflineSecrets] Cache refreshed with', secrets.length, 'secrets')
+      }
+    } catch (e: any) {
+      console.warn('[OfflineSecrets] Cache refresh failed:', e.message)
+    }
+  }
+
+  // Get single secret metadata - always from IndexedDB first
   async function getSecretById(id: string): Promise<Secret | null> {
     offlineError.value = null
     
-    // Try online first
+    // First, read from IndexedDB
+    try {
+      const cached = await getSecret(id)
+      if (cached) {
+        console.log('[OfflineSecrets] Found secret in IndexedDB:', id)
+        
+        // Then refresh from server in background
+        if (isOnline.value) {
+          refreshSecretFromServer(id)
+        }
+        
+        return cached
+      }
+    } catch (e: any) {
+      console.warn('[OfflineSecrets] IndexedDB lookup failed:', e.message)
+    }
+    
+    // If not in cache and online, try server
     if (isOnline.value) {
       try {
         const response = await $fetch<any>(`/api/notes/secret/${id}`)
@@ -82,20 +101,33 @@ export function useOfflineSecrets() {
           updatedAt: response.updatedAt,
           lastAccessedAt: response.lastAccessedAt,
         }
-        // Cache in IndexedDB
         await saveSecret(secret)
         return secret
       } catch (e: any) {
-        console.warn('[OfflineSecrets] Server fetch failed, falling back to IndexedDB:', e.message)
+        console.warn('[OfflineSecrets] Server fetch failed:', e.message)
       }
     }
+    
+    return null
+  }
 
-    // Fallback to IndexedDB
+  // Refresh single secret from server (background, non-blocking)
+  async function refreshSecretFromServer(id: string): Promise<void> {
+    if (!isOnline.value) return
+    
     try {
-      return await getSecret(id)
-    } catch (e: any) {
-      console.error('[OfflineSecrets] IndexedDB fetch failed:', e)
-      return null
+      const response = await $fetch<any>(`/api/notes/secret/${id}`)
+      const secret: Secret = {
+        id: response.id,
+        title: response.title,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt,
+        lastAccessedAt: response.lastAccessedAt,
+      }
+      await saveSecret(secret)
+      console.log('[OfflineSecrets] Refreshed secret from server:', id)
+    } catch (e) {
+      // Silently fail - we have cached version
     }
   }
 

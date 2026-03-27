@@ -22,44 +22,21 @@ export function useOfflineTags() {
     })
   })
 
-  // Get tags - try online first, fallback to IndexedDB
+  // Get tags - ALWAYS read from IndexedDB first (local-first)
   async function getTags(): Promise<Tag[]> {
     offlineError.value = null
 
-    // Try online fetch first
-    if (isOnline.value) {
-      try {
-        console.log('[OfflineTags] Fetching tags from server')
-        const response = await $fetch<{ tags: any[] }>('/api/tags')
-        
-        if (response.tags && response.tags.length > 0) {
-          const tags: Tag[] = response.tags.map(t => ({
-            id: t.id,
-            name: t.name,
-            parentTagId: t.parentTagId,
-            color: t.color,
-            createdAt: t.createdAt,
-            bookmarkCount: t.bookmarkCount,
-          }))
-          
-          // Cache in IndexedDB
-          await saveTags(tags)
-          console.log('[OfflineTags] Cached', tags.length, 'tags')
-          return tags
-        }
-        
-        return []
-      } catch (e: any) {
-        console.warn('[OfflineTags] Server fetch failed:', e)
-        offlineError.value = e?.data?.message || 'Server unavailable, using cached data'
-      }
-    }
-
-    // Fallback to IndexedDB
-    console.log('[OfflineTags] Fetching tags from IndexedDB')
+    // First, read from IndexedDB (instant, local-first)
+    console.log('[OfflineTags] Fetching tags from IndexedDB (local-first)')
     try {
       const tags = await getAllTags()
       console.log('[OfflineTags] Returning', tags.length, 'tags from IndexedDB')
+      
+      // Then refresh from server in background
+      if (isOnline.value) {
+        refreshFromServer()
+      }
+      
       return tags
     } catch (e: any) {
       console.error('[OfflineTags] IndexedDB fetch failed:', e)
@@ -68,26 +45,78 @@ export function useOfflineTags() {
     }
   }
 
-  // Get single tag
+  // Refresh cache from server (background, non-blocking)
+  async function refreshFromServer(): Promise<void> {
+    if (!isOnline.value) return
+    
+    try {
+      console.log('[OfflineTags] Refreshing cache from server (background)')
+      const response = await $fetch<{ tags: any[] }>('/api/tags')
+      
+      if (response.tags && response.tags.length > 0) {
+        const tags: Tag[] = response.tags.map(t => ({
+          id: t.id,
+          name: t.name,
+          parentTagId: t.parentTagId,
+          color: t.color,
+          createdAt: t.createdAt,
+          bookmarkCount: t.bookmarkCount,
+        }))
+        await saveTags(tags)
+        console.log('[OfflineTags] Cache refreshed with', tags.length, 'tags')
+      }
+    } catch (e: any) {
+      console.warn('[OfflineTags] Cache refresh failed:', e.message)
+    }
+  }
+
+  // Get single tag - always from IndexedDB first
   async function getTagById(id: string): Promise<Tag | null> {
     offlineError.value = null
     
-    // Try online first
+    // First, read from IndexedDB
+    try {
+      const cached = await getTag(id)
+      if (cached) {
+        console.log('[OfflineTags] Found tag in IndexedDB:', id)
+        
+        // Then refresh from server in background
+        if (isOnline.value) {
+          refreshTagFromServer(id)
+        }
+        
+        return cached
+      }
+    } catch (e: any) {
+      console.warn('[OfflineTags] IndexedDB lookup failed:', e.message)
+    }
+    
+    // If not in cache and online, try server
     if (isOnline.value) {
       try {
         const tags = await getTags()
         return tags.find(t => t.id === id) || null
       } catch (e: any) {
-        console.warn('[OfflineTags] Server fetch failed, falling back to IndexedDB:', e.message)
+        console.warn('[OfflineTags] Server fetch failed:', e.message)
       }
     }
+    
+    return null
+  }
 
-    // Fallback to IndexedDB
+  // Refresh single tag from server (background, non-blocking)
+  async function refreshTagFromServer(id: string): Promise<void> {
+    if (!isOnline.value) return
+    
     try {
-      return await getTag(id)
-    } catch (e: any) {
-      console.error('[OfflineTags] IndexedDB fetch failed:', e)
-      return null
+      const tags = await getTags()
+      const tag = tags.find(t => t.id === id)
+      if (tag) {
+        await saveTag(tag)
+        console.log('[OfflineTags] Refreshed tag from server:', id)
+      }
+    } catch (e) {
+      // Silently fail - we have cached version
     }
   }
 

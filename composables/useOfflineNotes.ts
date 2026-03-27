@@ -44,7 +44,7 @@ export function useOfflineNotes() {
     })
   })
 
-  // Get notes - try online first, fallback to IndexedDB
+  // Get notes - ALWAYS read from IndexedDB first (local-first)
   async function getNotes(options: { 
     tag?: string 
     sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
@@ -56,45 +56,8 @@ export function useOfflineNotes() {
     
     const { tag, sort = 'updatedAt', order = 'desc', page = 1, limit = 20 } = options
 
-    // Try online fetch first
-    if (isOnline.value) {
-      try {
-        console.log('[OfflineNotes] Fetching notes from server')
-        const params = new URLSearchParams()
-        params.set('sort', sort)
-        params.set('order', order)
-        params.set('page', page.toString())
-        params.set('limit', limit.toString())
-        if (tag) params.set('tag', tag)
-
-        const response = await $fetch<{ notes: any[] }>(`/api/notes/markdown?${params}`)
-        
-        if (response.notes && response.notes.length > 0) {
-          const notes: Note[] = response.notes.map(n => ({
-            id: n.id,
-            title: n.title,
-            content: n.content,
-            tags: n.tags || [],
-            isFavorite: n.isFavorite,
-            createdAt: n.createdAt,
-            updatedAt: n.updatedAt,
-          }))
-          
-          // Cache in IndexedDB
-          await idb.saveNotes(notes)
-          console.log('[OfflineNotes] Cached', notes.length, 'notes')
-          return notes
-        }
-        
-        return []
-      } catch (e: any) {
-        console.warn('[OfflineNotes] Server fetch failed, falling back to IndexedDB:', e.message)
-        offlineError.value = 'Using cached data (server unavailable)'
-      }
-    }
-
-    // Fallback to IndexedDB
-    console.log('[OfflineNotes] Fetching notes from IndexedDB')
+    // First, read from IndexedDB (instant, local-first)
+    console.log('[OfflineNotes] Fetching notes from IndexedDB (local-first)')
     try {
       let notes = await idb.getAllNotes()
       
@@ -122,6 +85,12 @@ export function useOfflineNotes() {
       notes = notes.slice(start, start + limit)
       
       console.log('[OfflineNotes] Returning', notes.length, 'notes from IndexedDB')
+      
+      // Then refresh from server in background
+      if (isOnline.value) {
+        refreshFromServer()
+      }
+      
       return notes
     } catch (e: any) {
       console.error('[OfflineNotes] IndexedDB fetch failed:', e)
@@ -130,11 +99,54 @@ export function useOfflineNotes() {
     }
   }
 
-  // Get single note
+  // Refresh cache from server (background, non-blocking)
+  async function refreshFromServer(): Promise<void> {
+    if (!isOnline.value) return
+    
+    try {
+      console.log('[OfflineNotes] Refreshing cache from server (background)')
+      const response = await $fetch<{ notes: any[] }>('/api/notes/markdown?limit=1000')
+      
+      if (response.notes && response.notes.length > 0) {
+        const notes: Note[] = response.notes.map(n => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          tags: n.tags || [],
+          isFavorite: n.isFavorite,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+        }))
+        await idb.saveNotes(notes)
+        console.log('[OfflineNotes] Cache refreshed with', notes.length, 'notes')
+      }
+    } catch (e: any) {
+      console.warn('[OfflineNotes] Cache refresh failed:', e.message)
+    }
+  }
+
+  // Get single note - always from IndexedDB first
   async function getNoteById(id: string): Promise<Note | null> {
     offlineError.value = null
     
-    // Try online first
+    // First, read from IndexedDB
+    try {
+      const cached = await idb.getNote(id)
+      if (cached) {
+        console.log('[OfflineNotes] Found note in IndexedDB:', id)
+        
+        // Then refresh from server in background
+        if (isOnline.value) {
+          refreshNoteFromServer(id)
+        }
+        
+        return cached
+      }
+    } catch (e: any) {
+      console.warn('[OfflineNotes] IndexedDB lookup failed:', e.message)
+    }
+    
+    // If not in cache and online, try server
     if (isOnline.value) {
       try {
         const response = await $fetch<any>(`/api/notes/markdown/${id}`)
@@ -147,20 +159,35 @@ export function useOfflineNotes() {
           createdAt: response.createdAt,
           updatedAt: response.updatedAt,
         }
-        // Cache in IndexedDB
         await idb.saveNote(note)
         return note
       } catch (e: any) {
-        console.warn('[OfflineNotes] Server fetch failed, falling back to IndexedDB:', e.message)
+        console.warn('[OfflineNotes] Server fetch failed:', e.message)
       }
     }
+    
+    return null
+  }
 
-    // Fallback to IndexedDB
+  // Refresh single note from server (background, non-blocking)
+  async function refreshNoteFromServer(id: string): Promise<void> {
+    if (!isOnline.value) return
+    
     try {
-      return await idb.getNote(id)
-    } catch (e: any) {
-      console.error('[OfflineNotes] IndexedDB fetch failed:', e)
-      return null
+      const response = await $fetch<any>(`/api/notes/markdown/${id}`)
+      const note: Note = {
+        id: response.id,
+        title: response.title,
+        content: response.content,
+        tags: response.tags || [],
+        isFavorite: response.isFavorite,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt,
+      }
+      await idb.saveNote(note)
+      console.log('[OfflineNotes] Refreshed note from server:', id)
+    } catch (e) {
+      // Silently fail - we have cached version
     }
   }
 

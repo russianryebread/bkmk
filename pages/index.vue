@@ -241,6 +241,10 @@ import { formatDate } from '~/utils/date'
 
 const router = useRouter()
 const { loadAllTags, getTagColor } = useTagColors()
+const { getAllBookmarks } = useIdb()
+const { getAllNotes } = useIdb()
+const { getAllSecrets } = useIdb()
+const { getAllTags } = useIdb()
 
 // Stats
 const stats = ref({
@@ -281,13 +285,39 @@ function isUrl(query: string): boolean {
   }
 }
 
-// Fetch stats
+// Fetch stats from IndexedDB (local-first)
 async function fetchStats() {
+  try {
+    const [bookmarks, notes, secrets, tags] = await Promise.all([
+      getAllBookmarks(),
+      getAllNotes(),
+      getAllSecrets(),
+      getAllTags(),
+    ])
+    
+    stats.value = {
+      totalBookmarks: bookmarks.length,
+      unreadBookmarks: bookmarks.filter(b => !b.is_read).length,
+      totalNotes: notes.length,
+      totalSecretNotes: secrets.length,
+      totalTags: tags.length,
+    }
+    
+    // Also try to refresh from server in background
+    refreshStatsFromServer()
+  } catch (e) {
+    console.error('Failed to fetch stats:', e)
+  }
+}
+
+// Refresh stats from server (background, non-blocking)
+async function refreshStatsFromServer(): Promise<void> {
   try {
     const response = await $fetch<typeof stats.value>('/api/stats')
     stats.value = response
+    console.log('[Dashboard] Stats refreshed from server')
   } catch (e) {
-    console.error('Failed to fetch stats:', e)
+    // Silently fail - we have local stats
   }
 }
 
@@ -332,7 +362,7 @@ async function scrapeUrl() {
   }
 }
 
-// Search handler with debounce
+// Search handler with debounce - local-first
 let debounceTimeout: NodeJS.Timeout | null = null
 
 function handleSearch() {
@@ -352,44 +382,104 @@ function handleSearch() {
 
   debounceTimeout = setTimeout(async () => {
     try {
-      const query = encodeURIComponent(searchQuery.value)
+      const query = searchQuery.value.toLowerCase()
       
-      // Search bookmarks and notes in parallel
-      const [bookmarkResponse, notesResponse] = await Promise.all([
-        $fetch<{ bookmarks: any[] }>(`/api/bookmarks/search?q=${query}&limit=10`),
-        $fetch<{ notes: any[] }>(`/api/notes/markdown/search?q=${query}&limit=10`)
+      // Search locally first (instant)
+      const [bookmarks, notes] = await Promise.all([
+        getAllBookmarks(),
+        getAllNotes(),
       ])
       
-      // Transform and combine results
-      const bookmarkResults: SearchResult[] = bookmarkResponse.bookmarks.map(b => ({
-        id: b.id,
-        type: 'bookmark' as const,
-        title: b.title,
-        description: b.description,
-        source_domain: b.source_domain,
-        tags: b.tags,
-        is_read: b.is_read,
-        url: b.url,
-        updated_at: b.updated_at,
-      }))
+      // Filter bookmarks locally
+      const bookmarkResults: SearchResult[] = bookmarks
+        .filter(b => 
+          b.title?.toLowerCase().includes(query) ||
+          b.description?.toLowerCase().includes(query) ||
+          b.source_domain?.toLowerCase().includes(query) ||
+          b.tags?.some(t => t.toLowerCase().includes(query))
+        )
+        .slice(0, 10)
+        .map(b => ({
+          id: b.id,
+          type: 'bookmark' as const,
+          title: b.title,
+          description: b.description,
+          source_domain: b.source_domain,
+          tags: b.tags,
+          is_read: b.is_read,
+          url: b.url,
+          updated_at: b.updated_at,
+        }))
 
-      const noteResults: SearchResult[] = notesResponse.notes.map(n => ({
-        id: n.id,
-        type: 'note' as const,
-        title: n.title,
-        description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
-        updated_at: n.updated_at,
-      }))
+      // Filter notes locally
+      const noteResults: SearchResult[] = notes
+        .filter(n => 
+          n.title?.toLowerCase().includes(query) ||
+          n.content?.toLowerCase().includes(query) ||
+          n.tags?.some(t => t.toLowerCase().includes(query))
+        )
+        .slice(0, 10)
+        .map(n => ({
+          id: n.id,
+          type: 'note' as const,
+          title: n.title,
+          description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
+          updated_at: n.updatedAt,
+        }))
 
       // Interleave results (bookmarks first, then notes)
       searchResults.value = [...bookmarkResults, ...noteResults]
+      
+      // Also refresh from server in background for completeness
+      refreshSearchFromServer(query)
     } catch (e) {
       console.error('Search failed:', e)
       searchResults.value = []
     } finally {
       searching.value = false
     }
-  }, 300)
+  }, 150) // Faster debounce since we're local
+}
+
+// Refresh search from server (background, non-blocking)
+async function refreshSearchFromServer(query: string): Promise<void> {
+  try {
+    const encodedQuery = encodeURIComponent(query)
+    
+    const [bookmarkResponse, notesResponse] = await Promise.all([
+      $fetch<{ bookmarks: any[] }>(`/api/bookmarks/search?q=${encodedQuery}&limit=10`),
+      $fetch<{ notes: any[] }>(`/api/notes/markdown/search?q=${encodedQuery}&limit=10`)
+    ])
+    
+    // Transform and combine results
+    const bookmarkResults: SearchResult[] = bookmarkResponse.bookmarks.map(b => ({
+      id: b.id,
+      type: 'bookmark' as const,
+      title: b.title,
+      description: b.description,
+      source_domain: b.source_domain,
+      tags: b.tags,
+      is_read: b.is_read,
+      url: b.url,
+      updated_at: b.updated_at,
+    }))
+
+    const noteResults: SearchResult[] = notesResponse.notes.map(n => ({
+      id: n.id,
+      type: 'note' as const,
+      title: n.title,
+      description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
+      updated_at: n.updated_at,
+    }))
+
+    // Update results if server has more/different results
+    const combinedResults = [...bookmarkResults, ...noteResults]
+    if (combinedResults.length > 0) {
+      searchResults.value = combinedResults
+    }
+  } catch (e) {
+    // Silently fail - we have local results
+  }
 }
 
 // Keyboard navigation
