@@ -24,11 +24,17 @@ onMounted(async () => {
   try {
     // Initialize auth first
     await initAuth()
-    console.log('[App] Auth initialized')
+    console.log('[App] Auth initialized, isAuthenticated:', isAuthenticated.value)
     
     // Then initialize IndexedDB
     await initializeIdb()
     console.log('[App] IndexedDB initialized')
+    
+    // Trigger initial sync if authenticated (non-blocking, background)
+    if (isAuthenticated.value) {
+      console.log('[App] Triggering initial sync in background')
+      triggerSync() // Don't await - let it run in background
+    }
   } catch (e) {
     console.error('[App] Failed to initialize services:', e)
   }

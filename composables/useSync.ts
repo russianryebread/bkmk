@@ -31,36 +31,20 @@ export function useSync() {
     
     isOnline.value = navigator.onLine
     
-    // Sync on online event
+    // Sync when coming back online
     window.addEventListener('online', () => {
       console.log('[Sync] Online event received')
       isOnline.value = true
       syncStatus.value = 'idle'
-      performSync()
+      // Don't auto-sync on online - let user trigger manually or rely on page load
     })
     
-    // Sync on offline event
+    // Mark as offline
     window.addEventListener('offline', () => {
       console.log('[Sync] Offline event received')
       isOnline.value = false
       syncStatus.value = 'offline'
       syncError.value = null
-    })
-    
-    // Sync on page visibility change (tab becomes visible)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && isOnline.value) {
-        console.log('[Sync] Page became visible, triggering sync')
-        performSync()
-      }
-    })
-    
-    // Sync on page load
-    window.addEventListener('load', () => {
-      console.log('[Sync] Page loaded, triggering sync')
-      if (isOnline.value) {
-        performSync()
-      }
     })
   }
 
@@ -287,20 +271,19 @@ export function useSync() {
     }
   }
 
-  // Sync only on events - not on timer
+  // One-time sync on init only - no periodic timer
   function startPeriodicSync(): void {
-    console.log('[Sync] Starting event-based sync (no timer)')
+    console.log('[Sync] Starting one-time sync on init')
     
-    // Don't start timer - just perform initial sync if online
+    // Run initial sync if online (background, non-blocking)
     if (isOnline.value) {
       performSync()
     }
   }
 
-  // Stop periodic sync (no-op now)
+  // Stop periodic sync (no-op since no timer)
   function stopPeriodicSync(): void {
-    // No-op - no timer to stop
-    console.log('[Sync] Event-based sync mode')
+    console.log('[Sync] Stop periodic sync (no-op)')
   }
 
   // Manual sync trigger

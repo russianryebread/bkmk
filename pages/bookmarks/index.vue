@@ -411,12 +411,7 @@ onMounted(() => {
 
   window.addEventListener('keydown', handleGlobalKeydown)
 
-  // Listen for online status to refresh data when coming back online
-  window.addEventListener('online', () => {
-    console.log('[Bookmarks] Back online, refreshing data...')
-    loadBookmarks()
-    loadAllTags(true)
-  })
+  // No auto-sync on online - we're local-first, data is always from IndexedDB
 
   onUnmounted(() => {
     window.removeEventListener('keydown', handleGlobalKeydown)

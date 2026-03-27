@@ -23,42 +23,12 @@ export function useOfflineBookmarks() {
     })
   })
 
-  // Fetch bookmarks with offline fallback
+  // ALWAYS read from IndexedDB first for local-first performance
   async function fetchBookmarks(filters: BookmarkFilters = {}): Promise<Bookmark[]> {
     offlineError.value = null
     
-    // Try online fetch first
-    if (isOnline.value) {
-      try {
-        console.log('[OfflineBookmarks] Fetching bookmarks from server')
-        const params = new URLSearchParams()
-        
-        if (filters.page) params.set('page', filters.page.toString())
-        if (filters.limit) params.set('limit', filters.limit.toString())
-        if (filters.sort) params.set('sort', filters.sort)
-        if (filters.order) params.set('order', filters.order)
-        if (filters.favorite) params.set('favorite', 'true')
-        if (filters.tag) params.set('tag', filters.tag)
-        if (filters.domain) params.set('domain', filters.domain)
-        if (filters.unread) params.set('unread', 'true')
-
-        const response = await $fetch<{ bookmarks: Bookmark[] }>(`/api/bookmarks?${params}`)
-        
-        // Cache in IndexedDB
-        if (response.bookmarks && response.bookmarks.length > 0) {
-          await saveBookmarks(response.bookmarks)
-          console.log('[OfflineBookmarks] Cached', response.bookmarks.length, 'bookmarks')
-        }
-        
-        return response.bookmarks || []
-      } catch (e: any) {
-        console.warn('[OfflineBookmarks] Server fetch failed, falling back to IndexedDB:', e.message)
-        offlineError.value = 'Using cached data (server unavailable)'
-      }
-    }
-
-    // Fallback to IndexedDB
-    console.log('[OfflineBookmarks] Fetching bookmarks from IndexedDB')
+    // First, read from IndexedDB (instant, local-first)
+    console.log('[OfflineBookmarks] Fetching bookmarks from IndexedDB (local-first)')
     try {
       let bookmarks = await getAllBookmarks()
       
@@ -91,6 +61,12 @@ export function useOfflineBookmarks() {
       bookmarks = bookmarks.slice(start, start + limit)
       
       console.log('[OfflineBookmarks] Returning', bookmarks.length, 'bookmarks from IndexedDB')
+      
+      // THEN fetch from server in background to update cache
+      if (isOnline.value) {
+        refreshFromServer()
+      }
+      
       return bookmarks
     } catch (e: any) {
       console.error('[OfflineBookmarks] IndexedDB fetch failed:', e)
@@ -99,82 +75,105 @@ export function useOfflineBookmarks() {
     }
   }
 
-  // Fetch single bookmark with offline fallback
+  // Refresh cache from server (background, non-blocking)
+  async function refreshFromServer(): Promise<void> {
+    if (!isOnline.value) return
+    
+    try {
+      console.log('[OfflineBookmarks] Refreshing cache from server (background)')
+      const response = await $fetch<{ bookmarks: Bookmark[] }>('/api/bookmarks?limit=1000')
+      
+      if (response.bookmarks && response.bookmarks.length > 0) {
+        await saveBookmarks(response.bookmarks)
+        console.log('[OfflineBookmarks] Cache refreshed with', response.bookmarks.length, 'bookmarks')
+      }
+    } catch (e: any) {
+      console.warn('[OfflineBookmarks] Cache refresh failed:', e.message)
+    }
+  }
+
+  // Fetch single bookmark - always from IndexedDB first
   async function fetchBookmark(id: string): Promise<Bookmark | null> {
     offlineError.value = null
     
-    // Try online fetch first
+    // First, read from IndexedDB
+    try {
+      const cached = await getBookmark(id)
+      if (cached) {
+        console.log('[OfflineBookmarks] Found bookmark in IndexedDB:', id)
+        
+        // Then refresh from server in background
+        if (isOnline.value) {
+          refreshBookmarkFromServer(id)
+        }
+        
+        return cached
+      }
+    } catch (e: any) {
+      console.warn('[OfflineBookmarks] IndexedDB lookup failed:', e.message)
+    }
+    
+    // If not in cache and online, try server
     if (isOnline.value) {
       try {
         const response = await $fetch<Bookmark>(`/api/bookmarks/${id}`)
-        // Cache in IndexedDB
         await saveBookmark(response)
         return response
       } catch (e: any) {
-        console.warn('[OfflineBookmarks] Server fetch failed, falling back to IndexedDB:', e.message)
+        console.warn('[OfflineBookmarks] Server fetch failed:', e.message)
       }
     }
+    
+    return null
+  }
 
-    // Fallback to IndexedDB
+  // Refresh single bookmark from server (background, non-blocking)
+  async function refreshBookmarkFromServer(id: string): Promise<void> {
+    if (!isOnline.value) return
+    
     try {
-      return await getBookmark(id)
-    } catch (e: any) {
-      console.error('[OfflineBookmarks] IndexedDB fetch failed:', e)
-      return null
+      const response = await $fetch<Bookmark>(`/api/bookmarks/${id}`)
+      await saveBookmark(response)
+      console.log('[OfflineBookmarks] Refreshed bookmark from server:', id)
+    } catch (e) {
+      // Silently fail - we have cached version
     }
   }
 
-  // Delete bookmark with offline support
+  // Delete bookmark - always local first
   async function deleteBookmark(id: string): Promise<boolean> {
-    try {
-      // Try online delete first
-      if (isOnline.value) {
-        try {
-          await $fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
-          console.log('[OfflineBookmarks] Deleted from server')
-        } catch (e) {
-          console.warn('[OfflineBookmarks] Server delete failed, queuing for later:', e)
-          // Queue for sync
-          // await queueChange('delete', id)
-        }
-      }
-      
-      // Always remove from local cache
-      await idbDeleteBookmark(id)
-      console.log('[OfflineBookmarks] Deleted from IndexedDB')
-      
-      return true
-    } catch (e: any) {
-      console.error('[OfflineBookmarks] Delete failed:', e)
-      return false
+    // Always delete from local cache immediately
+    await idbDeleteBookmark(id)
+    console.log('[OfflineBookmarks] Deleted from IndexedDB')
+    
+    // Try to sync with server in background
+    if (isOnline.value) {
+      $fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
+        .catch(e => console.warn('[OfflineBookmarks] Server delete failed:', e.message))
     }
+    
+    return true
   }
 
-  // Update bookmark with offline support
+  // Update bookmark - always local first
   async function updateBookmark(id: string, updates: Partial<Bookmark>): Promise<boolean> {
     try {
-      // Get current bookmark
-      const current = await fetchBookmark(id)
+      // Get current bookmark from cache
+      const current = await getBookmark(id)
       if (!current) return false
 
       const updated = { ...current, ...updates, updated_at: new Date().toISOString() }
       
-      // Save to local cache immediately
+      // Save to local cache immediately (instant)
       await saveBookmark(updated)
+      console.log('[OfflineBookmarks] Updated in IndexedDB')
       
-      // Try to sync with server
+      // Sync with server in background (non-blocking)
       if (isOnline.value) {
-        try {
-          await $fetch(`/api/bookmarks/${id}`, {
-            method: 'PUT',
-            body: updates
-          })
-          console.log('[OfflineBookmarks] Updated on server')
-        } catch (e) {
-          console.warn('[OfflineBookmarks] Server update failed, stored locally:', e)
-          // Queue for sync
-          // await queueChange('update', id, updates)
-        }
+        $fetch(`/api/bookmarks/${id}`, {
+          method: 'PUT',
+          body: updates
+        }).catch(e => console.warn('[OfflineBookmarks] Server update failed:', e.message))
       }
       
       return true
@@ -191,5 +190,6 @@ export function useOfflineBookmarks() {
     fetchBookmark,
     deleteBookmark,
     updateBookmark,
+    refreshFromServer,
   }
 }

@@ -95,8 +95,11 @@ export function useBookmarks() {
         body: { url },
       })
       
-      // Refresh list
-      await fetchBookmarks()
+      // Save to local cache immediately
+      await offlineBookmarks.fetchBookmark(response.id) // This will trigger the save
+      
+      // Trigger background refresh from server to ensure cache is up to date
+      offlineBookmarks.refreshFromServer()
       
       return response
     } catch (e: any) {
