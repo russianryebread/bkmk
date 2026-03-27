@@ -1,9 +1,13 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags, syncMetadata } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
 
   if (!id) {
@@ -16,6 +20,22 @@ export default defineEventHandler(async (event) => {
   const method = event.method
 
   if (method === 'GET') {
+    // Verify bookmark belongs to user
+    const [bookmark] = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, currentUser.id)
+      ))
+      .limit(1)
+
+    if (!bookmark) {
+      throw createError({
+        statusCode: 404,
+        message: 'Bookmark not found',
+      })
+    }
     // Get single bookmark with tags
     const result = await db
       .select({
@@ -54,7 +74,7 @@ export default defineEventHandler(async (event) => {
 
     // Group tags
     const firstRow = result[0]
-    const bookmark = {
+    const bookmarkData = {
       id: firstRow.id,
       title: firstRow.title,
       url: firstRow.url,
@@ -79,8 +99,8 @@ export default defineEventHandler(async (event) => {
 
     for (const row of result) {
       if (row.tagName) {
-        bookmark.tags.push(row.tagName)
-        bookmark.tag_ids.push(row.tagId!)
+        bookmarkData.tags.push(row.tagName)
+        bookmarkData.tag_ids.push(row.tagId!)
       }
     }
 
@@ -90,18 +110,21 @@ export default defineEventHandler(async (event) => {
       .set({ lastAccessedAt: new Date().toISOString() })
       .where(eq(bookmarks.id, id))
 
-    return bookmark
+    return bookmarkData
   }
 
   if (method === 'PUT') {
-    // Check if bookmark exists
-    const existing = await db
+    // Verify bookmark belongs to user
+    const [existing] = await db
       .select({ id: bookmarks.id })
       .from(bookmarks)
-      .where(eq(bookmarks.id, id))
+      .where(and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, currentUser.id)
+      ))
       .limit(1)
 
-    if (existing.length === 0) {
+    if (!existing) {
       throw createError({
         statusCode: 404,
         message: 'Bookmark not found',
@@ -161,14 +184,17 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'DELETE') {
-    // Check if bookmark exists
-    const existing = await db
+    // Verify bookmark belongs to user
+    const [existing] = await db
       .select({ id: bookmarks.id })
       .from(bookmarks)
-      .where(eq(bookmarks.id, id))
+      .where(and(
+        eq(bookmarks.id, id),
+        eq(bookmarks.userId, currentUser.id)
+      ))
       .limit(1)
 
-    if (existing.length === 0) {
+    if (!existing) {
       throw createError({
         statusCode: 404,
         message: 'Bookmark not found',

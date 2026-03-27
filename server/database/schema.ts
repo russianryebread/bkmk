@@ -14,6 +14,11 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: text('role').notNull().default('user'), // 'user' or 'admin'
+  
+  // Password reset fields
+  passwordResetToken: text('password_reset_token'),
+  passwordResetExpiry: timestamp('password_reset_expiry', { mode: 'string' }),
+  
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [

@@ -1,4 +1,6 @@
 import { db, schema } from '~/server/database'
+import { eq } from 'drizzle-orm'
+import { requireAuth } from '~/server/utils/auth'
 
 interface TagNode {
   id: string
@@ -10,7 +12,15 @@ interface TagNode {
 }
 
 export default defineEventHandler(async (event) => {
-  const tags = await db.select().from(schema.tags).orderBy(schema.tags.name)
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
+  // Only get tags for current user
+  const tags = await db
+    .select()
+    .from(schema.tags)
+    .where(eq(schema.tags.userId, currentUser.id))
+    .orderBy(schema.tags.name)
   const tagMap = new Map<string, TagNode>()
   const rootTags: TagNode[] = []
   tags.forEach(tag => tagMap.set(tag.id, { ...tag, children: [] }))

@@ -2,8 +2,12 @@ import { db } from '~/server/database'
 import { tags, bookmarkTags, syncMetadata, bookmarks } from '~/server/database/schema'
 import { eq, and } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -14,14 +18,17 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Check if bookmark exists
-  const existing = await db
+  // Check if bookmark exists and belongs to user
+  const [existing] = await db
     .select({ id: bookmarks.id })
     .from(bookmarks)
-    .where(eq(bookmarks.id, id))
+    .where(and(
+      eq(bookmarks.id, id),
+      eq(bookmarks.userId, currentUser.id)
+    ))
     .limit(1)
 
-  if (existing.length === 0) {
+  if (!existing) {
     throw createError({
       statusCode: 404,
       message: 'Bookmark not found',

@@ -1,7 +1,11 @@
 import { db, schema } from '~/server/database'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -13,10 +17,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'GET') {
+    // Verify tag belongs to user
     const [tag] = await db
       .select()
       .from(schema.tags)
-      .where(eq(schema.tags.id, id))
+      .where(and(
+        eq(schema.tags.id, id),
+        eq(schema.tags.userId, currentUser.id)
+      ))
 
     if (!tag) {
       throw createError({
@@ -29,6 +37,21 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'PUT') {
+    // Verify tag belongs to user
+    const [existing] = await db
+      .select()
+      .from(schema.tags)
+      .where(and(
+        eq(schema.tags.id, id),
+        eq(schema.tags.userId, currentUser.id)
+      ))
+
+    if (!existing) {
+      throw createError({
+        statusCode: 404,
+        message: 'Tag not found',
+      })
+    }
     const body = await readBody(event)
     const { name, parent_tag_id, color } = body
 
@@ -58,6 +81,22 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'DELETE') {
+    // Verify tag belongs to user
+    const [existing] = await db
+      .select()
+      .from(schema.tags)
+      .where(and(
+        eq(schema.tags.id, id),
+        eq(schema.tags.userId, currentUser.id)
+      ))
+
+    if (!existing) {
+      throw createError({
+        statusCode: 404,
+        message: 'Tag not found',
+      })
+    }
+
     // Remove tag associations first
     await db
       .delete(schema.bookmarkTags)

@@ -1,9 +1,13 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
-import { sql, desc, eq } from 'drizzle-orm'
+import { sql, desc, eq, and } from 'drizzle-orm'
 import { getQuery } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const query = getQuery(event)
   const { q, limit = '20' } = query
 
@@ -26,6 +30,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Use PostgreSQL full-text search with to_tsvector and to_tsquery
+    // Only search bookmarks belonging to current user
     const rawResults = await db
       .select({
         id: bookmarks.id,
@@ -53,11 +58,14 @@ export default defineEventHandler(async (event) => {
       .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
       .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
       .where(
-        sql`(
-          setweight(to_tsvector('english', COALESCE(${bookmarks.title}, '')), 'A') ||
-          setweight(to_tsvector('english', COALESCE(${bookmarks.description}, '')), 'B') ||
-          setweight(to_tsvector('english', COALESCE(${bookmarks.cleanedMarkdown}, '')), 'C')
-        ) @@ plainto_tsquery('english', ${sanitizedTerm})`
+        and(
+          eq(bookmarks.userId, currentUser.id),
+          sql`(
+            setweight(to_tsvector('english', COALESCE(${bookmarks.title}, '')), 'A') ||
+            setweight(to_tsvector('english', COALESCE(${bookmarks.description}, '')), 'B') ||
+            setweight(to_tsvector('english', COALESCE(${bookmarks.cleanedMarkdown}, '')), 'C')
+          ) @@ plainto_tsquery('english', ${sanitizedTerm})`
+        )
       )
       .orderBy(
         sql`ts_rank(
@@ -112,7 +120,7 @@ export default defineEventHandler(async (event) => {
   } catch (ftsError: any) {
     console.error('FTS search error, falling back to LIKE search:', ftsError)
 
-    // Fallback to ILIKE search if FTS fails
+    // Fallback to ILIKE search if FTS fails - also filter by userId
     const likePattern = `%${sanitizedTerm}%`
 
     const rawResults = await db
@@ -142,7 +150,10 @@ export default defineEventHandler(async (event) => {
       .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
       .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
       .where(
-        sql`${bookmarks.title} ILIKE ${likePattern} OR ${bookmarks.description} ILIKE ${likePattern} OR ${bookmarks.cleanedMarkdown} ILIKE ${likePattern}`
+        and(
+          eq(bookmarks.userId, currentUser.id),
+          sql`${bookmarks.title} ILIKE ${likePattern} OR ${bookmarks.description} ILIKE ${likePattern} OR ${bookmarks.cleanedMarkdown} ILIKE ${likePattern}`
+        )
       )
       .orderBy(desc(bookmarks.createdAt))
       .limit(limitNum)

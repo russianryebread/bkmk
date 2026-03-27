@@ -1,8 +1,12 @@
 import { db, schema } from '~/server/database'
 import { verifyPassword, hashPassword } from '~/server/utils/crypto'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -14,14 +18,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'GET') {
-    // Check for password in query or header
-    const query = getQuery(event)
-    const password = query.password as string
-
+    // Verify note belongs to user
     const [note] = await db
       .select()
       .from(schema.secretNotes)
-      .where(eq(schema.secretNotes.id, id))
+      .where(and(
+        eq(schema.secretNotes.id, id),
+        eq(schema.secretNotes.userId, currentUser.id)
+      ))
 
     if (!note) {
       throw createError({
@@ -29,6 +33,10 @@ export default defineEventHandler(async (event) => {
         message: 'Note not found',
       })
     }
+
+    // Check for password in query
+    const query = getQuery(event)
+    const password = query.password as string
 
     if (!password) {
       // Return metadata without content
@@ -65,13 +73,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'PUT') {
-    const body = await readBody(event)
-    const { title, content, password, current_password } = body
-
+    // Verify note belongs to user
     const [note] = await db
       .select()
       .from(schema.secretNotes)
-      .where(eq(schema.secretNotes.id, id))
+      .where(and(
+        eq(schema.secretNotes.id, id),
+        eq(schema.secretNotes.userId, currentUser.id)
+      ))
 
     if (!note) {
       throw createError({
@@ -79,6 +88,9 @@ export default defineEventHandler(async (event) => {
         message: 'Note not found',
       })
     }
+
+    const body = await readBody(event)
+    const { title, content, password, current_password } = body
 
     // Verify current password if changing password or content
     if (password || content) {
@@ -126,13 +138,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'DELETE') {
-    const body = await readBody(event)
-    const { password } = body
-
+    // Verify note belongs to user
     const [note] = await db
       .select()
       .from(schema.secretNotes)
-      .where(eq(schema.secretNotes.id, id))
+      .where(and(
+        eq(schema.secretNotes.id, id),
+        eq(schema.secretNotes.userId, currentUser.id)
+      ))
 
     if (!note) {
       throw createError({
@@ -140,6 +153,9 @@ export default defineEventHandler(async (event) => {
         message: 'Note not found',
       })
     }
+
+    const body = await readBody(event)
+    const { password } = body
 
     if (!password) {
       throw createError({

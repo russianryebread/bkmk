@@ -269,3 +269,167 @@ export async function login(email: string, password: string): Promise<{ user: Au
 export function logout(event: H3Event): void {
   clearAuthCookie(event)
 }
+
+// Generate password reset token
+function generatePasswordResetToken(): string {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+// Request password reset - sends email with reset token
+export async function requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+  // Find user by email
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email
+    })
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1)
+  
+  // Always return success to prevent email enumeration
+  if (!user) {
+    return {
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    }
+  }
+  
+  // Generate reset token
+  const resetToken = generatePasswordResetToken()
+  const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour from now
+  
+  // Store reset token and expiry
+  await db
+    .update(users)
+    .set({
+      passwordResetToken: resetToken,
+      passwordResetExpiry: expiry,
+      updatedAt: new Date().toISOString()
+    })
+    .where(eq(users.id, user.id))
+  
+  // In production, send email with reset link
+  // For now, log the reset token (in development)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Password reset for ${user.email}: /reset-password?token=${resetToken}`)
+  }
+  
+  return {
+    success: true,
+    message: 'If an account with that email exists, a password reset link has been sent.'
+  }
+}
+
+// Reset password using token
+export async function resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  // Validate password strength
+  if (newPassword.length < 8) {
+    throw createError({
+      statusCode: 400,
+      message: 'Password must be at least 8 characters'
+    })
+  }
+  
+  // Find user with valid reset token
+  const [user] = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      passwordResetExpiry: users.passwordResetExpiry
+    })
+    .from(users)
+    .where(eq(users.passwordResetToken, token))
+    .limit(1)
+  
+  if (!user) {
+    throw createError({
+      statusCode: 400,
+      message: 'Invalid or expired reset token'
+    })
+  }
+  
+  // Check if token has expired
+  if (user.passwordResetExpiry && new Date(user.passwordResetExpiry) < new Date()) {
+    throw createError({
+      statusCode: 400,
+      message: 'Reset token has expired. Please request a new password reset.'
+    })
+  }
+  
+  // Hash new password
+  const passwordHash = await hashPassword(newPassword)
+  
+  // Update user password and clear reset token
+  await db
+    .update(users)
+    .set({
+      passwordHash,
+      passwordResetToken: null,
+      passwordResetExpiry: null,
+      updatedAt: new Date().toISOString()
+    })
+    .where(eq(users.id, user.id))
+  
+  return {
+    success: true,
+    message: 'Password has been reset successfully. You can now log in with your new password.'
+  }
+}
+
+// Change password for logged-in user
+export async function changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  // Get current user with password hash
+  const [user] = await db
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  
+  if (!user) {
+    throw createError({
+      statusCode: 404,
+      message: 'User not found'
+    })
+  }
+  
+  // Verify current password
+  const valid = await verifyPassword(currentPassword, user.passwordHash)
+  
+  if (!valid) {
+    throw createError({
+      statusCode: 401,
+      message: 'Current password is incorrect'
+    })
+  }
+  
+  // Validate new password strength
+  if (newPassword.length < 8) {
+    throw createError({
+      statusCode: 400,
+      message: 'New password must be at least 8 characters'
+    })
+  }
+  
+  // Hash new password
+  const passwordHash = await hashPassword(newPassword)
+  
+  // Update password
+  await db
+    .update(users)
+    .set({
+      passwordHash,
+      updatedAt: new Date().toISOString()
+    })
+    .where(eq(users.id, userId))
+  
+  return {
+    success: true,
+    message: 'Password changed successfully'
+  }
+}

@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   const { isAuthenticated, init, isLoading } = useAuth()
-  const publicRoutes = ['/login', '/signup']
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password']
 
   // Initialize auth state if not already done
   if (import.meta.client && isLoading.value) {

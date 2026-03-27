@@ -1,8 +1,12 @@
 import { db, schema } from '~/server/database'
 import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const body = await readBody(event)
   
   const { url } = body
@@ -24,11 +28,14 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Check if bookmark already exists
+  // Check if bookmark already exists for this user
   const [existing] = await db
     .select({ id: schema.bookmarks.id })
     .from(schema.bookmarks)
-    .where(eq(schema.bookmarks.url, url))
+    .where(and(
+      eq(schema.bookmarks.url, url),
+      eq(schema.bookmarks.userId, currentUser.id)
+    ))
     .limit(1)
 
   if (existing) {
@@ -44,11 +51,14 @@ export default defineEventHandler(async (event) => {
   // Extract domain
   const sourceDomain = extractDomain(url)
 
-  // Insert bookmark
+  const now = new Date().toISOString()
+
+  // Insert bookmark with userId
   const [bookmark] = await db
     .insert(schema.bookmarks)
     .values({
       id: crypto.randomUUID(),
+      userId: currentUser.id,
       title: scraped.title,
       url: url,
       description: scraped.description,
@@ -57,6 +67,9 @@ export default defineEventHandler(async (event) => {
       readingTimeMinutes: scraped.readingTimeMinutes,
       sourceDomain: sourceDomain,
       wordCount: scraped.wordCount,
+      savedAt: now,
+      createdAt: now,
+      updatedAt: now,
     })
     .returning()
 
