@@ -165,8 +165,8 @@ export function useSync() {
           await idb.saveTags(tags)
           console.log('[Sync] Synced', tags.length, 'tags to IndexedDB')
         }
-      } catch (e) {
-        console.warn('[Sync] Failed to fetch tags:', e)
+      } catch (e: any) {
+        console.warn('[Sync] Failed to fetch tags:', e?.message || e)
       }
 
       lastSyncTime.value = new Date()

@@ -50,8 +50,8 @@ export function useTagColors() {
           })))
         }
         return
-      } catch (e) {
-        console.warn('[TagColors] Failed to fetch tags from server, falling back to IndexedDB:', e)
+      } catch (e: any) {
+        console.warn('[TagColors] Failed to fetch tags from server, falling back to IndexedDB:', e?.message || e)
       }
     }
     
@@ -63,8 +63,8 @@ export function useTagColors() {
         name: t.name,
         color: t.color || undefined,
       }))
-    } catch (e) {
-      console.error('[TagColors] Failed to load tags from IndexedDB:', e)
+    } catch (e: any) {
+      console.error('[TagColors] Failed to load tags from IndexedDB:', e?.message || e)
     }
   }
 

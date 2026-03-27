@@ -161,7 +161,7 @@
     <div v-if="showEditor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-0 md:p-4">
       <div class="card w-full h-full md:h-auto md:max-h-[95vh] md:max-w-4xl flex flex-col">
         <!-- Header with Save button on top -->
-        <div class="flex items-center justify-between p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
+        <div class="flex items-center justify-between p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 rounded-t-lg dark:bg-gray-800">
           <div class="flex items-center gap-2 flex-1">
             <button @click="closeEditor" class="p-2 -ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,7 +295,7 @@
         </div>
         
         <!-- Footer - Close button only (Save is now in header) - hidden on mobile -->
-        <div class="hidden md:flex justify-end gap-2 p-3 md:p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
+        <div class="hidden md:flex justify-end gap-2 p-3 md:p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 rounded-b-lg dark:bg-gray-800">
           <button @click="closeEditor" class="btn-secondary">Close</button>
         </div>
       </div>

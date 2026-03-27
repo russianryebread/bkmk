@@ -181,8 +181,9 @@ async function loadTags() {
   loading.value = true
   try {
     tags.value = await offlineTags.getTags()
-  } catch (e) {
+  } catch (e: any) {
     console.error('Failed to load tags:', e)
+    offlineError.value = e?.message || e?.data?.message || 'Failed to load tags'
   } finally {
     loading.value = false
   }

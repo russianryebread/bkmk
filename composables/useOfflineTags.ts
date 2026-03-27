@@ -50,8 +50,8 @@ export function useOfflineTags() {
         
         return []
       } catch (e: any) {
-        console.warn('[OfflineTags] Server fetch failed, falling back to IndexedDB:', e.message)
-        offlineError.value = 'Using cached data (server unavailable)'
+        console.warn('[OfflineTags] Server fetch failed:', e)
+        offlineError.value = e?.data?.message || 'Server unavailable, using cached data'
       }
     }
 

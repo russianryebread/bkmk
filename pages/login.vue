@@ -107,10 +107,10 @@ const error = ref('')
 const loading = ref(false)
 
 // Redirect if already authenticated
-watch(authLoading, (loaded) => {
-  if (!loaded && isAuthenticated.value) {
+watch([authLoading, isAuthenticated], ([loaded, authenticated]) => {
+  if (!loaded && authenticated) {
     const redirect = route.query.redirect as string || '/'
-    router.push(redirect)
+    router.replace(redirect)
   }
 }, { immediate: true })
 
@@ -120,8 +120,9 @@ async function handleLogin() {
 
   try {
     await login({ email: email.value, password: password.value })
+    // Use replace to prevent going back to login page
     const redirect = route.query.redirect as string || '/'
-    router.push(redirect)
+    router.replace(redirect)
   } catch (e: any) {
     error.value = e.data?.message || e.message || 'Login failed. Please check your credentials.'
   } finally {
