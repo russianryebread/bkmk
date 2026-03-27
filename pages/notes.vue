@@ -335,12 +335,15 @@ async function saveNote() {
     }
     closeEditor()
     loadNotes()
+    // Force reload tags after saving in case new tags were created
+    loadAllTags(true)
   } catch (e) {
     console.error('Failed to save note:', e)
   } finally {
     saving.value = false
   }
 }
+
 
 async function toggleFavorite(note: Note) {
   await offlineNotes.toggleFavorite(note.id)
@@ -374,5 +377,12 @@ watch(filterTag, () => {
 onMounted(() => {
   loadNotes()
   loadAllTags()
+  
+  // Listen for online status to refresh data when coming back online
+  window.addEventListener('online', () => {
+    console.log('[Notes] Back online, refreshing data...')
+    loadNotes()
+    loadAllTags(true)
+  })
 })
 </script>

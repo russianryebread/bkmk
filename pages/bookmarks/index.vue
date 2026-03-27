@@ -354,6 +354,13 @@ onMounted(() => {
 
   window.addEventListener('keydown', handleGlobalKeydown)
 
+  // Listen for online status to refresh data when coming back online
+  window.addEventListener('online', () => {
+    console.log('[Bookmarks] Back online, refreshing data...')
+    loadBookmarks()
+    loadAllTags(true)
+  })
+
   onUnmounted(() => {
     window.removeEventListener('keydown', handleGlobalKeydown)
   })
