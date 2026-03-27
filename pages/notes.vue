@@ -11,6 +11,16 @@
       </button>
     </div>
 
+    <!-- Offline Indicator -->
+    <div v-if="offlineNotes.isOnline.value === false" class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
+      <span class="font-medium">Offline Mode:</span> Changes will sync when you're back online.
+    </div>
+
+    <!-- Error message -->
+    <div v-if="offlineNotes.offlineError.value" class="mb-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
+      {{ offlineNotes.offlineError.value }}
+    </div>
+
     <!-- Tag Filter -->
     <div v-if="allTags.length > 0" class="mb-4 flex flex-wrap gap-2">
       <button
@@ -68,7 +78,7 @@
             >
               <svg
                 class="w-5 h-5"
-                :class="note.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
+                :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -104,7 +114,7 @@
         </p>
         
         <div class="text-xs text-gray-400">
-          Updated {{ formatDate(note.updated_at) }}
+          Updated {{ formatDate(note.updatedAt) }}
         </div>
       </div>
     </div>
@@ -214,7 +224,14 @@
         <!-- Footer -->
         <div class="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           <button @click="closeEditor" class="btn-secondary">Cancel</button>
-          <button @click="saveNote" class="btn-primary">Save</button>
+          <button 
+            @click="saveNote" 
+            class="btn-primary" 
+            :disabled="saving || !editorTitle.trim()"
+            :class="{ 'opacity-50 cursor-not-allowed': saving || !editorTitle.trim() }"
+          >
+            {{ saving ? 'Saving...' : 'Save' }}
+          </button>
         </div>
       </div>
     </div>
@@ -222,18 +239,13 @@
 </template>
 
 <script setup lang="ts">
+import { useOfflineNotes } from '~/composables/useOfflineNotes'
+import { useTagColors } from '~/composables/useTagColors'
+import type { Note } from '~/composables/idb'
+
 const { render } = useMarkdown()
 const { allTags, loadAllTags, getTagColor } = useTagColors()
-
-interface Note {
-  id: string
-  title: string
-  content: string
-  is_favorite: boolean
-  tags: string[]
-  created_at: string
-  updated_at: string
-}
+const offlineNotes = useOfflineNotes()
 
 const notes = ref<Note[]>([])
 const loading = ref(true)
@@ -244,6 +256,7 @@ const editorTags = ref<string[]>([])
 const editingNote = ref<Note | null>(null)
 const newTag = ref('')
 const filterTag = ref('')
+const saving = ref(false)
 
 const renderedPreview = computed(() => render(editorContent.value))
 
@@ -258,11 +271,7 @@ const suggestedTags = computed(() => {
 async function loadNotes() {
   loading.value = true
   try {
-    const url = filterTag.value 
-      ? `/api/notes/markdown?tag=${encodeURIComponent(filterTag.value)}`
-      : '/api/notes/markdown'
-    const response = await $fetch<{ notes: Note[] }>(url)
-    notes.value = response.notes
+    notes.value = await offlineNotes.getNotes({ tag: filterTag.value || undefined })
   } catch (e) {
     console.error('Failed to load notes:', e)
   } finally {
@@ -308,53 +317,40 @@ function removeTag(tag: string) {
 async function saveNote() {
   if (!editorTitle.value.trim()) return
   
+  saving.value = true
+  
   try {
     if (editingNote.value) {
-      await $fetch(`/api/notes/markdown/${editingNote.value.id}`, {
-        method: 'PUT',
-        body: {
-          title: editorTitle.value,
-          content: editorContent.value,
-          tags: editorTags.value,
-        },
+      await offlineNotes.updateNote(editingNote.value.id, {
+        title: editorTitle.value,
+        content: editorContent.value,
+        tags: editorTags.value,
       })
     } else {
-      await $fetch('/api/notes/markdown', {
-        method: 'POST',
-        body: {
-          title: editorTitle.value,
-          content: editorContent.value,
-          tags: editorTags.value,
-        },
+      await offlineNotes.createNote({
+        title: editorTitle.value,
+        content: editorContent.value,
+        tags: editorTags.value,
       })
     }
     closeEditor()
     loadNotes()
   } catch (e) {
     console.error('Failed to save note:', e)
+  } finally {
+    saving.value = false
   }
 }
 
 async function toggleFavorite(note: Note) {
-  try {
-    await $fetch(`/api/notes/markdown/${note.id}`, {
-      method: 'PUT',
-      body: { is_favorite: !note.is_favorite },
-    })
-    note.is_favorite = !note.is_favorite
-  } catch (e) {
-    console.error('Failed to toggle favorite:', e)
-  }
+  await offlineNotes.toggleFavorite(note.id)
+  note.isFavorite = !note.isFavorite
 }
 
 async function deleteNoteConfirm(note: Note) {
   if (confirm(`Delete "${note.title}"?`)) {
-    try {
-      await $fetch(`/api/notes/markdown/${note.id}`, { method: 'DELETE' })
-      notes.value = notes.value.filter(n => n.id !== note.id)
-    } catch (e) {
-      console.error('Failed to delete note:', e)
-    }
+    await offlineNotes.deleteNote(note.id)
+    notes.value = notes.value.filter(n => n.id !== note.id)
   }
 }
 

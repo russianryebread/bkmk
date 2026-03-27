@@ -52,13 +52,40 @@ export default defineEventHandler(async (event) => {
     }
     if (tags !== undefined) {
       // Handle tags as array or comma-separated string
-      const tagsString = Array.isArray(tags)
-        ? tags.join(',')
-        : (typeof tags === 'string' ? tags : '')
+      const tagsArray = Array.isArray(tags)
+        ? tags
+        : (typeof tags === 'string' ? tags.split(',').filter(Boolean) : [])
+      
+      const tagsString = tagsArray.join(',')
       updates.tags = tagsString
+
+      // Auto-create tags if they don't exist in the main tags table
+      for (const tagName of tagsArray) {
+        const trimmedName = tagName.trim()
+        if (trimmedName) {
+          const existingTag = await db
+            .select()
+            .from(schema.tags)
+            .where(eq(schema.tags.name, trimmedName))
+            .limit(1)
+          
+          if (existingTag.length === 0) {
+            await db
+              .insert(schema.tags)
+              .values({
+                id: crypto.randomUUID(),
+                name: trimmedName,
+                parentTagId: null,
+                color: null,
+              })
+              .onConflictDoNothing()
+          }
+        }
+      }
     }
 
     const [note] = await db
+
       .update(schema.markdownNotes)
       .set(updates)
       .where(eq(schema.markdownNotes.id, id))

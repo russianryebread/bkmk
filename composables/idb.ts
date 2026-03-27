@@ -1,35 +1,59 @@
 import type { Bookmark } from './useBookmarks'
 
 const DB_NAME = 'bkmk-offline-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const BOOKMARKS_STORE = 'bookmarks'
+const NOTES_STORE = 'notes'
+const SECRETS_STORE = 'secrets'
+const TAGS_STORE = 'tags'
 const SYNC_QUEUE_STORE = 'sync-queue'
 const SETTINGS_STORE = 'settings'
 
-interface DBSchema {
-  bookmarks: Bookmark
-  'sync-queue': SyncQueueItem
-  settings: SettingItem
+// Note types matching server schema
+export interface Note {
+  id: string
+  title: string
+  content: string
+  tags: string[]
+  isFavorite: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// Secret note types (without content for list view)
+export interface Secret {
+  id: string
+  title: string
+  passwordHash?: string
+  createdAt: string
+  updatedAt: string
+  lastAccessedAt?: string
+}
+
+// Tag types matching server schema
+export interface Tag {
+  id: string
+  name: string
+  parentTagId: string | null
+  color: string | null
+  createdAt: string
+  bookmarkCount?: number
 }
 
 interface SyncQueueItem {
   id: string
   action: 'create' | 'update' | 'delete'
+  entity: 'note' | 'secret' | 'tag'
   data: any
   timestamp: number
   retries: number
 }
 
-interface SettingItem {
-  key: string
-  value: any
-}
-
 let dbInstance: IDBDatabase | null = null
 
 export function useIdb() {
-  const isReady = ref(false)
-  const error = ref<string | null>(null)
+  let isReady = false
+  let error: string | null = null
 
   async function openDatabase(): Promise<IDBDatabase> {
     if (dbInstance) return dbInstance
@@ -42,14 +66,14 @@ export function useIdb() {
       request.onerror = () => {
         const err = `Failed to open database: ${request.error?.message}`
         console.error('[IDB] Error:', err)
-        error.value = err
+        error = err
         reject(new Error(err))
       }
 
       request.onsuccess = () => {
         dbInstance = request.result
         console.log('[IDB] Database opened successfully')
-        isReady.value = true
+        isReady = true
         resolve(dbInstance)
       }
 
@@ -57,26 +81,42 @@ export function useIdb() {
         const db = (event.target as IDBOpenDBRequest).result
         console.log('[IDB] Upgrading database...')
         
-        // Create bookmarks store
         if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
           const bookmarksStore = db.createObjectStore(BOOKMARKS_STORE, { keyPath: 'id' })
           bookmarksStore.createIndex('saved_at', 'saved_at', { unique: false })
           bookmarksStore.createIndex('is_favorite', 'is_favorite', { unique: false })
           bookmarksStore.createIndex('is_read', 'is_read', { unique: false })
-          console.log('[IDB] Created bookmarks store')
         }
 
-        // Create sync queue store
+        if (!db.objectStoreNames.contains(NOTES_STORE)) {
+          const notesStore = db.createObjectStore(NOTES_STORE, { keyPath: 'id' })
+          notesStore.createIndex('createdAt', 'createdAt', { unique: false })
+          notesStore.createIndex('updatedAt', 'updatedAt', { unique: false })
+          notesStore.createIndex('isFavorite', 'isFavorite', { unique: false })
+          notesStore.createIndex('title', 'title', { unique: false })
+        }
+
+        if (!db.objectStoreNames.contains(SECRETS_STORE)) {
+          const secretsStore = db.createObjectStore(SECRETS_STORE, { keyPath: 'id' })
+          secretsStore.createIndex('createdAt', 'createdAt', { unique: false })
+          secretsStore.createIndex('updatedAt', 'updatedAt', { unique: false })
+          secretsStore.createIndex('title', 'title', { unique: false })
+        }
+
+        if (!db.objectStoreNames.contains(TAGS_STORE)) {
+          const tagsStore = db.createObjectStore(TAGS_STORE, { keyPath: 'id' })
+          tagsStore.createIndex('name', 'name', { unique: true })
+          tagsStore.createIndex('parentTagId', 'parentTagId', { unique: false })
+        }
+
         if (!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) {
           const syncStore = db.createObjectStore(SYNC_QUEUE_STORE, { keyPath: 'id' })
           syncStore.createIndex('timestamp', 'timestamp', { unique: false })
-          console.log('[IDB] Created sync-queue store')
+          syncStore.createIndex('entity', 'entity', { unique: false })
         }
 
-        // Create settings store
         if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
           db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' })
-          console.log('[IDB] Created settings store')
         }
       }
     })
@@ -93,7 +133,210 @@ export function useIdb() {
     }
   }
 
-  // Bookmarks operations
+  // ==================== NOTES ====================
+  async function saveNote(note: Note): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(NOTES_STORE, 'readwrite')
+      const store = tx.objectStore(NOTES_STORE)
+      const request = store.put(note)
+      
+      request.onsuccess = () => {
+        console.log('[IDB] Saved note:', note.id)
+        resolve()
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function saveNotes(notes: Note[]): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(NOTES_STORE, 'readwrite')
+      const store = tx.objectStore(NOTES_STORE)
+      
+      notes.forEach(note => store.put(note))
+      
+      tx.oncomplete = () => {
+        console.log('[IDB] Saved', notes.length, 'notes')
+        resolve()
+      }
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async function getNote(id: string): Promise<Note | null> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(NOTES_STORE, 'readonly')
+      const store = tx.objectStore(NOTES_STORE)
+      const request = store.get(id)
+      
+      request.onsuccess = () => resolve(request.result || null)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function getAllNotes(): Promise<Note[]> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(NOTES_STORE, 'readonly')
+      const store = tx.objectStore(NOTES_STORE)
+      const request = store.getAll()
+      
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function deleteNote(id: string): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(NOTES_STORE, 'readwrite')
+      const store = tx.objectStore(NOTES_STORE)
+      const request = store.delete(id)
+      
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function searchNotes(query: string): Promise<Note[]> {
+    const notes = await getAllNotes()
+    const lowerQuery = query.toLowerCase()
+    
+    return notes.filter(note => 
+      note.title.toLowerCase().includes(lowerQuery) ||
+      note.content.toLowerCase().includes(lowerQuery) ||
+      note.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+    )
+  }
+
+  // ==================== SECRETS ====================
+  async function saveSecret(secret: Secret): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SECRETS_STORE, 'readwrite')
+      const store = tx.objectStore(SECRETS_STORE)
+      const request = store.put(secret)
+      
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function saveSecrets(secrets: Secret[]): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SECRETS_STORE, 'readwrite')
+      const store = tx.objectStore(SECRETS_STORE)
+      
+      secrets.forEach(secret => store.put(secret))
+      
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async function getSecret(id: string): Promise<Secret | null> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SECRETS_STORE, 'readonly')
+      const store = tx.objectStore(SECRETS_STORE)
+      const request = store.get(id)
+      
+      request.onsuccess = () => resolve(request.result || null)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function getAllSecrets(): Promise<Secret[]> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SECRETS_STORE, 'readonly')
+      const store = tx.objectStore(SECRETS_STORE)
+      const request = store.getAll()
+      
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function deleteSecret(id: string): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SECRETS_STORE, 'readwrite')
+      const store = tx.objectStore(SECRETS_STORE)
+      const request = store.delete(id)
+      
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  // ==================== TAGS ====================
+  async function saveTag(tag: Tag): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readwrite')
+      const store = tx.objectStore(TAGS_STORE)
+      const request = store.put(tag)
+      
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function saveTags(tags: Tag[]): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readwrite')
+      const store = tx.objectStore(TAGS_STORE)
+      
+      tags.forEach(tag => store.put(tag))
+      
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
+  async function getTag(id: string): Promise<Tag | null> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readonly')
+      const store = tx.objectStore(TAGS_STORE)
+      const request = store.get(id)
+      
+      request.onsuccess = () => resolve(request.result || null)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function getAllTags(): Promise<Tag[]> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readonly')
+      const store = tx.objectStore(TAGS_STORE)
+      const request = store.getAll()
+      
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function deleteTag(id: string): Promise<void> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readwrite')
+      const store = tx.objectStore(TAGS_STORE)
+      const request = store.delete(id)
+      
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  // ==================== BOOKMARKS ====================
   async function saveBookmark(bookmark: Bookmark): Promise<void> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -101,10 +344,7 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.put(bookmark)
       
-      request.onsuccess = () => {
-        console.log('[IDB] Saved bookmark:', bookmark.id)
-        resolve()
-      }
+      request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
   }
@@ -117,10 +357,7 @@ export function useIdb() {
       
       bookmarks.forEach(bookmark => store.put(bookmark))
       
-      tx.oncomplete = () => {
-        console.log('[IDB] Saved', bookmarks.length, 'bookmarks')
-        resolve()
-      }
+      tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
   }
@@ -144,10 +381,7 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.getAll()
       
-      request.onsuccess = () => {
-        console.log('[IDB] Retrieved', request.result.length, 'bookmarks')
-        resolve(request.result)
-      }
+      request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
   }
@@ -159,10 +393,7 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.delete(id)
       
-      request.onsuccess = () => {
-        console.log('[IDB] Deleted bookmark:', id)
-        resolve()
-      }
+      request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
   }
@@ -174,15 +405,12 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.clear()
       
-      request.onsuccess = () => {
-        console.log('[IDB] Cleared all bookmarks')
-        resolve()
-      }
+      request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
   }
 
-  // Sync queue operations
+  // ==================== SYNC QUEUE ====================
   async function addToSyncQueue(item: Omit<SyncQueueItem, 'retries'>): Promise<void> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -191,7 +419,7 @@ export function useIdb() {
       const request = store.put({ ...item, retries: 0 })
       
       request.onsuccess = () => {
-        console.log('[IDB] Added to sync queue:', item.action, item.id)
+        console.log('[IDB] Added to sync queue:', item.action, item.entity, item.id)
         resolve()
       }
       request.onerror = () => reject(request.error)
@@ -234,7 +462,7 @@ export function useIdb() {
     })
   }
 
-  // Settings operations
+  // ==================== SETTINGS ====================
   async function setSetting(key: string, value: any): Promise<void> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -260,9 +488,26 @@ export function useIdb() {
   }
 
   return {
-    isReady,
-    error,
     initialize,
+    // Notes
+    saveNote,
+    saveNotes,
+    getNote,
+    getAllNotes,
+    deleteNote,
+    searchNotes,
+    // Secrets
+    saveSecret,
+    saveSecrets,
+    getSecret,
+    getAllSecrets,
+    deleteSecret,
+    // Tags
+    saveTag,
+    saveTags,
+    getTag,
+    getAllTags,
+    deleteTag,
     // Bookmarks
     saveBookmark,
     saveBookmarks,

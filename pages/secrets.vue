@@ -11,6 +11,16 @@
       </button>
     </div>
 
+    <!-- Offline Indicator -->
+    <div v-if="!offlineSecrets.isOnline.value" class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
+      <span class="font-medium">Offline Mode:</span> Changes will sync when you're back online.
+    </div>
+
+    <!-- Error message -->
+    <div v-if="offlineSecrets.offlineError.value" class="mb-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
+      {{ offlineSecrets.offlineError.value }}
+    </div>
+
     <!-- Secrets List -->
     <div v-if="loading" class="flex justify-center py-12">
       <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -39,7 +49,7 @@
           <div>
             <h3 class="font-medium text-gray-900 dark:text-white">{{ secret.title }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Last accessed: {{ secret.last_accessed_at ? formatDate(secret.last_accessed_at) : 'Never' }}
+              Last accessed: {{ secret.lastAccessedAt ? formatDate(secret.lastAccessedAt) : 'Never' }}
             </p>
           </div>
           <button
@@ -158,13 +168,10 @@
 </template>
 
 <script setup lang="ts">
-interface Secret {
-  id: string
-  title: string
-  created_at: string
-  updated_at: string
-  last_accessed_at: string | null
-}
+import { useOfflineSecrets } from '~/composables/useOfflineSecrets'
+import type { Secret } from '~/composables/idb'
+
+const offlineSecrets = useOfflineSecrets()
 
 const secrets = ref<Secret[]>([])
 const loading = ref(true)
@@ -188,8 +195,7 @@ const creating = ref(false)
 async function loadSecrets() {
   loading.value = true
   try {
-    const response = await $fetch<{ notes: Secret[] }>('/api/notes/secret')
-    secrets.value = response.notes
+    secrets.value = await offlineSecrets.getSecrets()
   } catch (e) {
     console.error('Failed to load secrets:', e)
   } finally {
@@ -214,18 +220,15 @@ async function createSecret() {
   creating.value = true
   
   try {
-    await $fetch('/api/notes/secret', {
-      method: 'POST',
-      body: {
-        title: form.value.title,
-        content: form.value.content,
-        password: form.value.password,
-      },
+    await offlineSecrets.createSecret({
+      title: form.value.title,
+      content: form.value.content,
+      password: form.value.password,
     })
     closeCreateModal()
     loadSecrets()
   } catch (e: any) {
-    formError.value = e.data?.message || 'Failed to create secret'
+    formError.value = e.message || 'Failed to create secret'
   } finally {
     creating.value = false
   }
@@ -248,12 +251,12 @@ async function verifyPassword() {
   if (!selectedSecret.value) return
   
   try {
-    const response = await $fetch<{ content: string }>(`/api/notes/secret/${selectedSecret.value.id}?password=${encodeURIComponent(passwordInput.value)}`)
-    unlockedContent.value = response.content
+    const response = await offlineSecrets.unlockSecret(selectedSecret.value.id, passwordInput.value)
+    unlockedContent.value = response?.content || ''
     showPasswordModal.value = false
     showViewModal.value = true
   } catch (e: any) {
-    passwordError.value = e.data?.message || 'Invalid password'
+    passwordError.value = e.message || 'Invalid password'
   }
 }
 
@@ -271,13 +274,10 @@ async function deleteSecretConfirm(secret: Secret) {
   if (!password) return
   
   try {
-    await $fetch(`/api/notes/secret/${secret.id}`, {
-      method: 'DELETE',
-      body: { password },
-    })
+    await offlineSecrets.deleteSecret(secret.id, password)
     secrets.value = secrets.value.filter(s => s.id !== secret.id)
   } catch (e: any) {
-    alert(e.data?.message || 'Failed to delete')
+    alert(e.message || 'Failed to delete')
   }
 }
 

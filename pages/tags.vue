@@ -3,12 +3,22 @@
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Tags</h1>
-      <button @click="showCreateModal = true" class="btn-primary">
+      <button @click="openCreateModal()" class="btn-primary">
         <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
         New Tag
       </button>
+    </div>
+
+    <!-- Offline Indicator -->
+    <div v-if="!offlineTags.isOnline.value" class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
+      <span class="font-medium">Offline Mode:</span> Changes will sync when you're back online.
+    </div>
+
+    <!-- Error message -->
+    <div v-if="offlineTags.offlineError.value" class="mb-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
+      {{ offlineTags.offlineError.value }}
     </div>
 
     <!-- Tags List -->
@@ -25,7 +35,7 @@
       </svg>
       <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No tags yet</h3>
       <p class="text-gray-500 dark:text-gray-400 mb-4">Create tags to organize your bookmarks</p>
-      <button @click="showCreateModal = true" class="btn-primary">Create Tag</button>
+      <button @click="openCreateModal()" class="btn-primary">Create Tag</button>
     </div>
 
     <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -42,12 +52,12 @@
               :style="{ backgroundColor: tag.color }"
             ></div>
             <span class="font-medium text-gray-900 dark:text-white">{{ tag.name }}</span>
-            <span class="text-sm text-gray-500">({{ tag.bookmark_count || 0 }})</span>
+            <span class="text-sm text-gray-500">({{ tag.bookmarkCount || 0 }})</span>
           </div>
           
           <div class="flex items-center gap-2">
             <button
-              @click="editTag(tag)"
+              @click="openEditModal(tag)"
               class="p-1 text-gray-400 hover:text-gray-600"
             >
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +78,7 @@
     </div>
 
     <!-- Create/Edit Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div class="card max-w-md w-full p-6">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-bold text-gray-900 dark:text-white">
@@ -94,7 +104,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Parent Tag (optional)
             </label>
-            <select v-model="form.parent_tag_id" class="input">
+            <select v-model="form.parentTagId" class="input">
               <option value="">None</option>
               <option v-for="tag in availableParentTags" :key="tag.id" :value="tag.id">
                 {{ tag.name }}
@@ -133,25 +143,21 @@
 </template>
 
 <script setup lang="ts">
-interface Tag {
-  id: string
-  name: string
-  parent_tag_id: string | null
-  color: string | null
-  created_at: string
-  bookmark_count?: number
-}
+import { useOfflineTags } from '~/composables/useOfflineTags'
+import type { Tag } from '~/composables/idb'
+
+const offlineTags = useOfflineTags()
 
 const tags = ref<Tag[]>([])
 const loading = ref(true)
-const showCreateModal = ref(false)
+const showModal = ref(false)
 const editingTag = ref<Tag | null>(null)
 const formError = ref('')
 const saving = ref(false)
 
 const form = ref({
   name: '',
-  parent_tag_id: '',
+  parentTagId: '',
   color: '',
 })
 
@@ -174,8 +180,7 @@ const availableParentTags = computed(() => {
 async function loadTags() {
   loading.value = true
   try {
-    const response = await $fetch<{ tags: Tag[] }>('/api/tags')
-    tags.value = response.tags
+    tags.value = await offlineTags.getTags()
   } catch (e) {
     console.error('Failed to load tags:', e)
   } finally {
@@ -183,21 +188,27 @@ async function loadTags() {
   }
 }
 
-function closeModal() {
-  showCreateModal.value = false
+function openCreateModal() {
   editingTag.value = null
-  form.value = { name: '', parent_tag_id: '', color: '' }
-  formError.value = ''
+  form.value = { name: '', parentTagId: '', color: '' }
+  showModal.value = true
 }
 
-function editTag(tag: Tag) {
+function openEditModal(tag: Tag) {
   editingTag.value = tag
   form.value = {
     name: tag.name,
-    parent_tag_id: tag.parent_tag_id || '',
+    parentTagId: tag.parentTagId || '',
     color: tag.color || '',
   }
-  showCreateModal.value = true
+  showModal.value = true
+}
+
+function closeModal() {
+  showModal.value = false
+  editingTag.value = null
+  form.value = { name: '', parentTagId: '', color: '' }
+  formError.value = ''
 }
 
 async function saveTag() {
@@ -206,28 +217,22 @@ async function saveTag() {
   
   try {
     if (editingTag.value) {
-      await $fetch(`/api/tags/${editingTag.value.id}`, {
-        method: 'PUT',
-        body: {
-          name: form.value.name,
-          parent_tag_id: form.value.parent_tag_id || null,
-          color: form.value.color || null,
-        },
+      await offlineTags.updateTag(editingTag.value.id, {
+        name: form.value.name,
+        parentTagId: form.value.parentTagId || null,
+        color: form.value.color || null,
       })
     } else {
-      await $fetch('/api/tags', {
-        method: 'POST',
-        body: {
-          name: form.value.name,
-          parent_tag_id: form.value.parent_tag_id || null,
-          color: form.value.color || null,
-        },
+      await offlineTags.createTag({
+        name: form.value.name,
+        parentTagId: form.value.parentTagId || null,
+        color: form.value.color || null,
       })
     }
     closeModal()
     loadTags()
   } catch (e: any) {
-    formError.value = e.data?.message || 'Failed to save tag'
+    formError.value = e.message || 'Failed to save tag'
   } finally {
     saving.value = false
   }
@@ -236,10 +241,10 @@ async function saveTag() {
 async function deleteTagConfirm(tag: Tag) {
   if (confirm(`Delete tag "${tag.name}"? This will remove it from all bookmarks.`)) {
     try {
-      await $fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
+      await offlineTags.deleteTag(tag.id)
       tags.value = tags.value.filter(t => t.id !== tag.id)
     } catch (e: any) {
-      alert(e.data?.message || 'Failed to delete tag')
+      alert(e.message || 'Failed to delete tag')
     }
   }
 }
