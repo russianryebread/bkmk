@@ -2,14 +2,13 @@
   <div>
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Markdown Notes</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Notes</h1>
       <div class="flex gap-2">
         <ViewToggle />
         <button @click="startNewNote" class="btn-primary">
-          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          New Note
         </button>
       </div>
     </div>
@@ -158,21 +157,32 @@
       </div>
     </div>
 
-    <!-- Editor Modal -->
-    <div v-if="showEditor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="card max-w-4xl w-full max-h-[95vh] flex flex-col">
-        <!-- Header -->
-        <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <input
-            v-model="editorTitle"
-            type="text"
-            placeholder="Note title..."
-            class="text-xl font-bold bg-transparent border-none focus:outline-none text-gray-900 dark:text-white flex-1"
-          />
-          <button @click="closeEditor" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <!-- Editor Modal - Full Screen on Mobile -->
+    <div v-if="showEditor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-0 md:p-4">
+      <div class="card w-full h-full md:h-auto md:max-h-[95vh] md:max-w-4xl flex flex-col">
+        <!-- Header with Save button on top -->
+        <div class="flex items-center justify-between p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
+          <div class="flex items-center gap-2 flex-1">
+            <button @click="closeEditor" class="p-2 -ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <input
+              v-model="editorTitle"
+              type="text"
+              placeholder="Note title..."
+              class="text-lg md:text-xl font-bold bg-transparent border-none focus:outline-none text-gray-900 dark:text-white flex-1 min-w-0"
+            />
+          </div>
+          <button 
+            v-if="hasChanges"
+            @click="saveNote" 
+            class="btn-primary text-sm py-1.5 md:text-base md:py-2"
+            :disabled="saving || !editorTitle.trim()"
+            :class="{ 'opacity-50 cursor-not-allowed': saving || !editorTitle.trim() }"
+          >
+            {{ saving ? 'Saving...' : 'Save' }}
           </button>
         </div>
         
@@ -203,7 +213,7 @@
           <!-- Editor or Preview content -->
           <div class="flex-1 overflow-auto">
             <!-- Editor -->
-            <div v-if="!showPreview" class="p-4">
+            <div v-if="!showPreview" class="p-3 md:p-4">
               <textarea
                 v-model="editorContent"
                 placeholder="Write your markdown here..."
@@ -212,91 +222,81 @@
             </div>
             
             <!-- Preview -->
-            <div v-else class="p-4">
+            <div v-else class="p-3 md:p-4">
               <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">{{ editorTitle || 'Untitled' }}</h2>
               <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
             </div>
           </div>
         </div>
         
-        <!-- Horizontal line separator -->
-        <div class="border-t border-gray-200 dark:border-gray-700 flex-shrink-0"></div>
-        
-        <!-- Tag Strip (compact, horizontal) -->
-        <div class="p-3 flex-shrink-0">
-          <div class="flex items-center gap-3 flex-wrap">
-            <!-- Tags label -->
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
-            
-            <!-- Current tags (horizontal list) -->
-            <div class="flex flex-wrap gap-1 items-center">
-              <span
-                v-for="tag in editorTags"
-                :key="tag"
-                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
-                :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
-              >
-                {{ tag }}
-                <button
-                  @click="removeTag(tag)"
-                  class="hover:opacity-75 flex-shrink-0"
+        <!-- Tags Section - Only shown when editing (not preview) -->
+        <div v-if="!showPreview" class="border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div class="p-3 flex-shrink-0">
+            <div class="flex items-center gap-3 flex-wrap">
+              <!-- Tags label -->
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
+              
+              <!-- Current tags (horizontal list) -->
+              <div class="flex flex-wrap gap-1 items-center">
+                <span
+                  v-for="tag in editorTags"
+                  :key="tag"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-              <span v-if="editorTags.length === 0" class="text-xs text-gray-400">
-                No tags
-              </span>
-            </div>
-            
-            <!-- Divider -->
-            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-            
-            <!-- Add tag input -->
-            <input
-              v-model="newTag"
-              type="text"
-              placeholder="Add tag..."
-              class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent flex-shrink-0"
-              @keydown.enter.prevent="addTag"
-            />
-            <button
-              @click="addTag"
-              :disabled="!newTag.trim()"
-              class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              Add
-            </button>
-            
-            <!-- Suggested tags -->
-            <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
-              <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
+                  {{ tag }}
+                  <button
+                    @click="removeTag(tag)"
+                    class="hover:opacity-75 flex-shrink-0"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+                <span v-if="editorTags.length === 0" class="text-xs text-gray-400">
+                  No tags
+                </span>
+              </div>
+              
+              <!-- Divider -->
+              <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
+              
+              <!-- Add tag input -->
+              <input
+                v-model="newTag"
+                type="text"
+                placeholder="Add tag..."
+                class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent flex-shrink-0"
+                @keydown.enter.prevent="addTag"
+              />
               <button
-                v-for="tag in suggestedTags"
-                :key="tag"
-                @click="addSuggestedTag(tag)"
-                class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
+                @click="addTag"
+                :disabled="!newTag.trim()"
+                class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
-                {{ tag }}
+                Add
               </button>
+              
+              <!-- Suggested tags -->
+              <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
+                <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
+                <button
+                  v-for="tag in suggestedTags"
+                  :key="tag"
+                  @click="addSuggestedTag(tag)"
+                  class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0"
+                >
+                  {{ tag }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
         
-        <!-- Footer -->
-        <div class="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <!-- Footer - Close button only (Save is now in header) - hidden on mobile -->
+        <div class="hidden md:flex justify-end gap-2 p-3 md:p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
           <button @click="closeEditor" class="btn-secondary">Close</button>
-          <button 
-            v-if="hasChanges"
-            @click="saveNote" 
-            class="btn-primary" 
-            :disabled="saving || !editorTitle.trim()"
-            :class="{ 'opacity-50 cursor-not-allowed': saving || !editorTitle.trim() }"
-          >
-            {{ saving ? 'Saving...' : 'Save' }}
-          </button>
         </div>
       </div>
     </div>
