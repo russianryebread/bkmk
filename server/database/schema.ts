@@ -130,17 +130,20 @@ export const secretNotes = pgTable('secret_notes', {
   index('idx_secret_notes_created').on(table.createdAt),
 ])
 
-// Bookmark Images Table
-export const bookmarkImages = pgTable('bookmark_images', {
+// Images Table - stores processed images for bookmarks
+export const images = pgTable('images', {
   id: text('id').primaryKey(),
-  bookmarkId: text('bookmark_id').notNull(),
-  filePath: text('file_path').notNull(),
-  altText: text('alt_text'),
-  positionInArticle: integer('position_in_article'),
-  
+  bookmarkId: text('bookmark_id').notNull().references(() => bookmarks.id, { onDelete: 'cascade' }),
+  originalUrl: text('original_url').notNull(),
+  mimeType: text('mime_type').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  sizeBytes: integer('size_bytes').notNull(),
+  data: text('data').notNull(), // Base64 encoded image data
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
-  index('idx_bookmark_images_bookmark').on(table.bookmarkId),
+  index('idx_images_bookmark').on(table.bookmarkId),
+  index('idx_images_original_url').on(table.originalUrl),
 ])
 
 // Sync Metadata Table
@@ -159,7 +162,7 @@ export const syncMetadata = pgTable('sync_metadata', {
 // Relations
 export const bookmarksRelations = relations(bookmarks, ({ many }) => ({
   bookmarkTags: many(bookmarkTags),
-  images: many(bookmarkImages),
+  images: many(images),
 }))
 
 export const tagsRelations = relations(tags, ({ one, many }) => ({
@@ -182,9 +185,9 @@ export const bookmarkTagsRelations = relations(bookmarkTags, ({ one }) => ({
   }),
 }))
 
-export const bookmarkImagesRelations = relations(bookmarkImages, ({ one }) => ({
+export const imagesRelations = relations(images, ({ one }) => ({
   bookmark: one(bookmarks, {
-    fields: [bookmarkImages.bookmarkId],
+    fields: [images.bookmarkId],
     references: [bookmarks.id],
   }),
 }))
@@ -202,7 +205,7 @@ export type MarkdownNote = typeof markdownNotes.$inferSelect
 export type NewMarkdownNote = typeof markdownNotes.$inferInsert
 export type SecretNote = typeof secretNotes.$inferSelect
 export type NewSecretNote = typeof secretNotes.$inferInsert
-export type BookmarkImage = typeof bookmarkImages.$inferSelect
-export type NewBookmarkImage = typeof bookmarkImages.$inferInsert
+export type Image = typeof images.$inferSelect
+export type NewImage = typeof images.$inferInsert
 export type SyncMetadata = typeof syncMetadata.$inferSelect
 export type NewSyncMetadata = typeof syncMetadata.$inferInsert

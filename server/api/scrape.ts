@@ -2,6 +2,12 @@ import { db, schema } from '~/server/database'
 import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
+import {
+  processAndStoreImage,
+  extractImageUrls,
+  replaceImageUrlsInHtml,
+  replaceImageUrlsInMarkdown,
+} from '~/server/utils/images'
 
 export default defineEventHandler(async (event) => {
   // Require authentication
@@ -53,7 +59,7 @@ export default defineEventHandler(async (event) => {
 
   const now = new Date().toISOString()
 
-  // Insert bookmark with userId
+  // Insert bookmark with userId first (so we have the ID for images)
   const [bookmark] = await db
     .insert(schema.bookmarks)
     .values({
@@ -72,6 +78,44 @@ export default defineEventHandler(async (event) => {
       updatedAt: now,
     })
     .returning()
+
+  // Process images - use originalHtml which has the real image URLs (before cheerio modified them)
+  const imageUrls = extractImageUrls(scraped.originalHtml || '', url)
+  const imageMap = new Map<string, string>() // originalUrl -> localId
+
+  console.log('[Scrape] Found', imageUrls.length, 'images to process')
+
+  // Process images concurrently with a limit
+  const processedImages = await Promise.all(
+    imageUrls.slice(0, 20).map(imageUrl => processAndStoreImage(imageUrl, bookmark.id))
+  )
+
+  // Build image map
+  for (const processed of processedImages) {
+    if (processed) {
+      imageMap.set(processed.originalUrl, processed.id)
+    }
+  }
+
+  console.log('[Scrape] Processed', imageMap.size, 'images')
+
+  // Update bookmark with processed content (images replaced with API URLs)
+  let processedHtml = scraped.originalHtml || scraped.html
+  let processedMarkdown = scraped.markdown
+
+  if (imageMap.size > 0) {
+    processedHtml = replaceImageUrlsInHtml(scraped.originalHtml || scraped.html || '', imageMap)
+    processedMarkdown = replaceImageUrlsInMarkdown(scraped.markdown || '', imageMap)
+  }
+
+  // Update bookmark with processed content
+  await db
+    .update(schema.bookmarks)
+    .set({
+      originalHtml: processedHtml,
+      cleanedMarkdown: processedMarkdown,
+    })
+    .where(eq(schema.bookmarks.id, bookmark.id))
 
   // Update sync metadata
   await db
@@ -124,5 +168,6 @@ export default defineEventHandler(async (event) => {
     isRead: Boolean(fullBookmark.isRead),
     tags: bookmarkTags.map(bt => bt.tagName),
     tagIds: bookmarkTags.map(bt => bt.tagId),
+    imagesProcessed: imageMap.size,
   }
 })

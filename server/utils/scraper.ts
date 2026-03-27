@@ -12,6 +12,7 @@ export interface ScrapedContent {
   content: string
   markdown: string
   html: string
+  originalHtml: string
   description: string | null
   siteName: string | null
   author: string | null
@@ -250,42 +251,18 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
     // Extract images before converting to markdown
     const images = extractImageUrls($, articleHtml)
     
-    // Download images and get local paths
+    // Don't download images here - let the API handle it (database storage)
     const localImagePaths: Record<string, string> = {}
-    
-    for (let i = 0; i < images.length; i++) {
-      const { url: imgUrl } = images[i]
-      if (imgUrl && !imgUrl.startsWith('data:') && !imgUrl.startsWith('blob:')) {
-        const result = await downloadImage(imgUrl)
-        localImagePaths[imgUrl] = result.localPath
-      }
-    }
 
-    // Convert to markdown with local image paths
+    // Convert to markdown - keep original image URLs (don't replace with local paths)
+    // The API will handle image downloading and URL replacement
     const turndown = new TurndownService({
       headingStyle: 'atx',
       codeBlockStyle: 'fenced',
       bulletListMarker: '-',
     })
-    
-    // Add custom rule for images that uses local paths
-    turndown.addRule('images', {
-      filter: 'img',
-      replacement: (content, node) => {
-        const img = node as HTMLImageElement
-        const alt = img.alt || ''
-        const src = img.src || ''
-        const localPath = localImagePaths[src] || src
-        return localPath ? `![${alt}](${localPath})` : ''
-      }
-    })
 
     let markdown = turndown.turndown(articleHtml)
-    
-    // Update markdown with local image paths (in case any were missed)
-    for (const [originalUrl, localPath] of Object.entries(localImagePaths)) {
-      markdown = markdown.replace(new RegExp(escapeRegex(originalUrl), 'g'), localPath)
-    }
 
     // Count words
     const wordCount = countWords(markdown)
@@ -296,6 +273,7 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
       content: articleHtml,
       markdown,
       html: removeScripts(html),
+      originalHtml: html, // Keep original HTML with original image URLs
       description,
       siteName,
       author,

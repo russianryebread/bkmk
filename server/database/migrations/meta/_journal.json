@@ -15,6 +15,13 @@
       "when": 1774634230973,
       "tag": "0001_watery_roxanne_simpson",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774637163986,
+      "tag": "0002_material_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

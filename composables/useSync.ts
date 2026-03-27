@@ -31,6 +31,7 @@ export function useSync() {
     
     isOnline.value = navigator.onLine
     
+    // Sync on online event
     window.addEventListener('online', () => {
       console.log('[Sync] Online event received')
       isOnline.value = true
@@ -38,11 +39,28 @@ export function useSync() {
       performSync()
     })
     
+    // Sync on offline event
     window.addEventListener('offline', () => {
       console.log('[Sync] Offline event received')
       isOnline.value = false
       syncStatus.value = 'offline'
       syncError.value = null
+    })
+    
+    // Sync on page visibility change (tab becomes visible)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && isOnline.value) {
+        console.log('[Sync] Page became visible, triggering sync')
+        performSync()
+      }
+    })
+    
+    // Sync on page load
+    window.addEventListener('load', () => {
+      console.log('[Sync] Page loaded, triggering sync')
+      if (isOnline.value) {
+        performSync()
+      }
     })
   }
 
@@ -269,30 +287,20 @@ export function useSync() {
     }
   }
 
-  // Start periodic sync
-  function startPeriodicSync(intervalMs: number = 60000): void {
-    console.log('[Sync] Starting periodic sync, interval:', intervalMs)
+  // Sync only on events - not on timer
+  function startPeriodicSync(): void {
+    console.log('[Sync] Starting event-based sync (no timer)')
     
-    if (syncInterval) {
-      clearInterval(syncInterval)
+    // Don't start timer - just perform initial sync if online
+    if (isOnline.value) {
+      performSync()
     }
-    
-    performSync()
-    
-    syncInterval = setInterval(() => {
-      if (isOnline.value && !isSyncing.value) {
-        performSync()
-      }
-    }, intervalMs)
   }
 
-  // Stop periodic sync
+  // Stop periodic sync (no-op now)
   function stopPeriodicSync(): void {
-    if (syncInterval) {
-      clearInterval(syncInterval)
-      syncInterval = null
-      console.log('[Sync] Stopped periodic sync')
-    }
+    // No-op - no timer to stop
+    console.log('[Sync] Event-based sync mode')
   }
 
   // Manual sync trigger

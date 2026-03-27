@@ -1,8 +1,8 @@
 import { db, schema } from '~/server/database'
 import { eq, and } from 'drizzle-orm'
+import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
-// Serve images from database - can use either [id].ts or [filename].ts
 export default defineEventHandler(async (event) => {
   // Try to get auth - make it optional to not break existing references
   let currentUser = null
@@ -12,15 +12,13 @@ export default defineEventHandler(async (event) => {
     // Allow unauthenticated access for now
   }
   
-  // Support both filename and id parameters
-  const filename = getRouterParam(event, 'filename')
   const id = getRouterParam(event, 'id')
-  
-  // Use id if available, otherwise use filename (strip extension if present)
-  const imageId = id || (filename ? filename.replace(/\.[^.]+$/, '') : null)
-  
-  if (!imageId) {
-    throw createError({ statusCode: 400, message: 'Image ID is required' })
+
+  if (!id) {
+    throw createError({
+      statusCode: 400,
+      message: 'Image ID is required',
+    })
   }
 
   // Get image from database
@@ -32,7 +30,7 @@ export default defineEventHandler(async (event) => {
       originalUrl: schema.images.originalUrl,
     })
     .from(schema.images)
-    .where(eq(schema.images.id, imageId))
+    .where(eq(schema.images.id, id))
     .limit(1)
 
   // If authenticated, verify ownership via bookmark
@@ -48,7 +46,7 @@ export default defineEventHandler(async (event) => {
       .innerJoin(schema.bookmarks, eq(schema.images.bookmarkId, schema.bookmarks.id))
       .where(
         and(
-          eq(schema.images.id, imageId),
+          eq(schema.images.id, id),
           eq(schema.bookmarks.userId, currentUser.id)
         )
       )
@@ -58,7 +56,10 @@ export default defineEventHandler(async (event) => {
   const [image] = await query
 
   if (!image) {
-    throw createError({ statusCode: 404, message: 'Image not found' })
+    throw createError({
+      statusCode: 404,
+      message: 'Image not found',
+    })
   }
 
   // Decode base64 and return as binary
