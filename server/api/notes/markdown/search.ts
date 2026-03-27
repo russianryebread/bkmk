@@ -15,25 +15,40 @@ export default defineEventHandler(async (event) => {
   // Only search notes belonging to current user
   const notes = await db
     .select({
-      id: schema.markdownNotes.id,
-      title: schema.markdownNotes.title,
-      content: schema.markdownNotes.content,
-      isFavorite: schema.markdownNotes.isFavorite,
-      createdAt: schema.markdownNotes.createdAt,
-      updatedAt: schema.markdownNotes.updatedAt,
+      id: schema.notes.id,
+      title: schema.notes.title,
+      content: schema.notes.content,
+      isFavorite: schema.notes.isFavorite,
+      createdAt: schema.notes.createdAt,
+      updatedAt: schema.notes.updatedAt,
     })
-    .from(schema.markdownNotes)
+    .from(schema.notes)
     .where(
       and(
-        eq(schema.markdownNotes.userId, currentUser.id),
+        eq(schema.notes.userId, currentUser.id),
         or(
-          like(schema.markdownNotes.title, `%${searchTerm}%`),
-          like(schema.markdownNotes.content, `%${searchTerm}%`)
+          like(schema.notes.title, `%${searchTerm}%`),
+          like(schema.notes.content, `%${searchTerm}%`)
         )
       )
     )
-    .orderBy(desc(schema.markdownNotes.updatedAt))
+    .orderBy(desc(schema.notes.updatedAt))
     .limit(limitNum)
   
-  return { notes: notes.map(n => ({ ...n, isFavorite: Boolean(n.isFavorite) })) }
+  // Get tags for each note
+  const notesWithTags = await Promise.all(notes.map(async (n) => {
+    const tagRecords = await db
+      .select({ tag: schema.tags })
+      .from(schema.notesTags)
+      .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
+      .where(eq(schema.notesTags.noteId, n.id))
+    
+    return {
+      ...n,
+      isFavorite: Boolean(n.isFavorite),
+      tags: tagRecords.map(t => t.tag.name),
+    }
+  }))
+  
+  return { notes: notesWithTags }
 })

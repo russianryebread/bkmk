@@ -71,26 +71,42 @@ CREATE TABLE IF NOT EXISTS bookmark_tags (
 CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark ON bookmark_tags(bookmark_id);
 CREATE INDEX IF NOT EXISTS idx_bookmark_tags_tag ON bookmark_tags(tag_id);
 
--- Markdown Notes Table
-CREATE TABLE IF NOT EXISTS markdown_notes (
+-- Notes Table (renamed from markdown_notes)
+CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
-  tags TEXT DEFAULT '',
   
   is_favorite INTEGER DEFAULT 0,
   sort_order INTEGER,
   
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_markdown_notes_created ON markdown_notes(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_markdown_notes_is_favorite ON markdown_notes(is_favorite);
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_is_favorite ON notes(is_favorite);
 
--- Secret Notes Table
-CREATE TABLE IF NOT EXISTS secret_notes (
+-- Notes Tags Junction Table
+CREATE TABLE IF NOT EXISTS notes_tags (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  note_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+  UNIQUE(note_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_tags_note ON notes_tags(note_id);
+CREATE INDEX IF NOT EXISTS idx_notes_tags_tag ON notes_tags(tag_id);
+
+-- Secrets Table (renamed from secret_notes)
+CREATE TABLE IF NOT EXISTS secrets (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   
@@ -98,10 +114,25 @@ CREATE TABLE IF NOT EXISTS secret_notes (
   
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_accessed_at DATETIME
+  last_accessed_at DATETIME,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_secret_notes_created ON secret_notes(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_secrets_user ON secrets(user_id);
+CREATE INDEX IF NOT EXISTS idx_secrets_created ON secrets(created_at DESC);
+
+-- Secrets Tags Junction Table
+CREATE TABLE IF NOT EXISTS secrets_tags (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  secret_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  FOREIGN KEY (secret_id) REFERENCES secrets(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+  UNIQUE(secret_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_secrets_tags_secret ON secrets_tags(secret_id);
+CREATE INDEX IF NOT EXISTS idx_secrets_tags_tag ON secrets_tags(tag_id);
 
 -- Bookmark Images Table
 CREATE TABLE IF NOT EXISTS bookmark_images (

@@ -1,7 +1,12 @@
-import { getDb } from '../../../../utils/db'
+import { db, schema } from '~/server/database'
+import { eq, and } from 'drizzle-orm'
+import { getRouterParam } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -12,110 +17,92 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Check if note exists
-  const note = db.prepare('SELECT * FROM markdown_notes WHERE id = ?').get(id) as any
-  
-  if (!note) {
+  // Check if note exists and belongs to user
+  const [existing] = await db
+    .select({ id: schema.notes.id })
+    .from(schema.notes)
+    .where(and(
+      eq(schema.notes.id, id),
+      eq(schema.notes.userId, currentUser.id)
+    ))
+    .limit(1)
+
+  if (!existing) {
     throw createError({
       statusCode: 404,
       message: 'Note not found',
     })
   }
 
-  // Get current tags
-  const currentTags = note.tags ? note.tags.split(',').filter(Boolean) : []
-
   if (method === 'GET') {
-    return {
-      tags: currentTags,
-    }
+    // Get tags for note via junction table
+    const result = await db
+      .select({
+        id: schema.tags.id,
+        name: schema.tags.name,
+        parentTagId: schema.tags.parentTagId,
+        color: schema.tags.color,
+        createdAt: schema.tags.createdAt,
+      })
+      .from(schema.tags)
+      .innerJoin(schema.notesTags, eq(schema.tags.id, schema.notesTags.tagId))
+      .where(eq(schema.notesTags.noteId, id))
+      .orderBy(schema.tags.name)
+
+    return { tags: result }
   }
 
   if (method === 'POST') {
+    // Add tags to note via junction table
     const body = await readBody(event)
-    const { tag } = body
+    const { tag_ids } = body
 
-    if (!tag || typeof tag !== 'string') {
+    if (!Array.isArray(tag_ids)) {
       throw createError({
         statusCode: 400,
-        message: 'Tag is required',
+        message: 'tag_ids must be an array',
       })
     }
 
-    // Normalize tag (trim whitespace)
-    const normalizedTag = tag.trim()
-    
-    if (!normalizedTag) {
-      throw createError({
-        statusCode: 400,
-        message: 'Tag cannot be empty',
-      })
+    // Insert new tag associations, ignoring duplicates
+    for (const tagId of tag_ids) {
+      await db
+        .insert(schema.notesTags)
+        .values({
+          id: crypto.randomUUID(),
+          noteId: id,
+          tagId: tagId,
+        })
+        .onConflictDoNothing()
     }
 
-    // Check if tag already exists
-    if (currentTags.includes(normalizedTag)) {
-      throw createError({
-        statusCode: 409,
-        message: 'Tag already exists',
-      })
-    }
-
-    // Add tag
-    const newTags = [...currentTags, normalizedTag]
-    
-    db.prepare(`
-      UPDATE markdown_notes SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(newTags.join(','), id)
-
-    return {
-      tags: newTags,
-    }
-  }
-
-  if (method === 'PUT') {
-    const body = await readBody(event)
-    const { tags } = body
-
-    if (!Array.isArray(tags)) {
-      throw createError({
-        statusCode: 400,
-        message: 'Tags must be an array',
-      })
-    }
-
-    // Normalize and deduplicate tags
-    const newTags = [...new Set(tags.map(t => t.trim()).filter(Boolean))]
-
-    db.prepare(`
-      UPDATE markdown_notes SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(newTags.join(','), id)
-
-    return {
-      tags: newTags,
-    }
+    return { success: true }
   }
 
   if (method === 'DELETE') {
-    const query = getQuery(event)
-    const { tag } = query
+    // Remove specific tags from note via junction table
+    const body = await readBody(event)
+    const { tag_ids } = body
 
-    if (!tag || typeof tag !== 'string') {
+    if (!Array.isArray(tag_ids)) {
       throw createError({
         statusCode: 400,
-        message: 'Tag query parameter is required',
+        message: 'tag_ids must be an array',
       })
     }
 
-    // Remove tag
-    const newTags = currentTags.filter(t => t !== tag.trim())
-
-    db.prepare(`
-      UPDATE markdown_notes SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(newTags.join(','), id)
-
-    return {
-      tags: newTags,
+    for (const tagId of tag_ids) {
+      await db
+        .delete(schema.notesTags)
+        .where(
+          and(
+            eq(schema.notesTags.noteId, id),
+            eq(schema.notesTags.tagId, tagId)
+          )
+        )
     }
+
+    return { success: true }
   }
 
   throw createError({

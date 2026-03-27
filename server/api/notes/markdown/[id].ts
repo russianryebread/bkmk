@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
@@ -20,8 +20,8 @@ export default defineEventHandler(async (event) => {
   if (method === 'GET') {
     const [note] = await db
       .select()
-      .from(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.id, id))
+      .from(schema.notes)
+      .where(eq(schema.notes.id, id))
 
     if (!note) {
       throw createError({
@@ -38,10 +38,17 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Get tags from junction table
+    const tagRecords = await db
+      .select({ tag: schema.tags })
+      .from(schema.notesTags)
+      .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
+      .where(eq(schema.notesTags.noteId, id))
+
     return {
       ...note,
       isFavorite: Boolean(note.isFavorite),
-      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
+      tags: tagRecords.map(t => t.tag.name),
     }
   }
 
@@ -49,8 +56,8 @@ export default defineEventHandler(async (event) => {
     // First check ownership
     const [existingNote] = await db
       .select()
-      .from(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.id, id))
+      .from(schema.notes)
+      .where(eq(schema.notes.id, id))
 
     if (!existingNote) {
       throw createError({
@@ -83,27 +90,24 @@ export default defineEventHandler(async (event) => {
     if (sortOrder !== undefined) {
       updates.sortOrder = sortOrder
     }
-    if (tags !== undefined) {
-      // Handle tags as array or comma-separated string
-      const tagsArray = Array.isArray(tags)
-        ? tags
-        : (typeof tags === 'string' ? tags.split(',').filter(Boolean) : [])
-      
-      const tagsString = tagsArray.join(',')
-      updates.tags = tagsString
 
+    // Handle tags - update junction table
+    if (tags !== undefined) {
+      const tagsArray = Array.isArray(tags) ? tags : []
+      
       // Auto-create tags if they don't exist in the main tags table
+      const tagIds: string[] = []
       for (const tagName of tagsArray) {
         const trimmedName = tagName.trim()
         if (trimmedName) {
-          const existingTag = await db
+          let existingTag = await db
             .select()
             .from(schema.tags)
-            .where(eq(schema.tags.name, trimmedName))
+            .where(and(eq(schema.tags.name, trimmedName), eq(schema.tags.userId, currentUser.id)))
             .limit(1)
           
           if (existingTag.length === 0) {
-            await db
+            const [newTag] = await db
               .insert(schema.tags)
               .values({
                 id: crypto.randomUUID(),
@@ -112,23 +116,49 @@ export default defineEventHandler(async (event) => {
                 parentTagId: null,
                 color: null,
               })
-              .onConflictDoNothing()
+              .returning()
+            tagIds.push(newTag.id)
+          } else {
+            tagIds.push(existingTag[0].id)
           }
         }
+      }
+
+      // Delete existing tag associations
+      await db
+        .delete(schema.notesTags)
+        .where(eq(schema.notesTags.noteId, id))
+
+      // Create new tag associations
+      for (const tagId of tagIds) {
+        await db
+          .insert(schema.notesTags)
+          .values({
+            id: crypto.randomUUID(),
+            noteId: id,
+            tagId,
+          })
+          .onConflictDoNothing()
       }
     }
 
     const [note] = await db
-
-      .update(schema.markdownNotes)
+      .update(schema.notes)
       .set(updates)
-      .where(eq(schema.markdownNotes.id, id))
+      .where(eq(schema.notes.id, id))
       .returning()
+
+    // Get current tags
+    const tagRecords = await db
+      .select({ tag: schema.tags })
+      .from(schema.notesTags)
+      .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
+      .where(eq(schema.notesTags.noteId, id))
 
     return {
       ...note,
       isFavorite: Boolean(note.isFavorite),
-      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
+      tags: tagRecords.map(t => t.tag.name),
     }
   }
 
@@ -136,8 +166,8 @@ export default defineEventHandler(async (event) => {
     // First check ownership
     const [existingNote] = await db
       .select()
-      .from(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.id, id))
+      .from(schema.notes)
+      .where(eq(schema.notes.id, id))
 
     if (!existingNote) {
       throw createError({
@@ -153,9 +183,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Delete junction records first (handled by cascade, but being explicit)
     await db
-      .delete(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.id, id))
+      .delete(schema.notesTags)
+      .where(eq(schema.notesTags.noteId, id))
+
+    await db
+      .delete(schema.notes)
+      .where(eq(schema.notes.id, id))
 
     return { success: true }
   }

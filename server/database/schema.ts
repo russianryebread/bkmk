@@ -83,7 +83,7 @@ export const tags = pgTable('tags', {
   uniqueIndex('idx_tags_user_name').on(table.userId, table.name),
 ])
 
-// Bookmark Tags Junction Table
+// Bookmark Tags Junction Table (existing table - no foreign keys to avoid data issues)
 export const bookmarkTags = pgTable('bookmark_tags', {
   id: text('id').primaryKey(),
   bookmarkId: text('bookmark_id').notNull(),
@@ -94,13 +94,12 @@ export const bookmarkTags = pgTable('bookmark_tags', {
   uniqueIndex('idx_bookmark_tags_unique').on(table.bookmarkId, table.tagId),
 ])
 
-// Markdown Notes Table
-export const markdownNotes = pgTable('markdown_notes', {
+// Notes Table (renamed from markdown_notes)
+export const notes = pgTable('notes', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   content: text('content').notNull(),
-  tags: text('tags').default(''),
   
   isFavorite: integer('is_favorite').default(0),
   sortOrder: integer('sort_order'),
@@ -108,13 +107,24 @@ export const markdownNotes = pgTable('markdown_notes', {
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
-  index('idx_markdown_notes_user').on(table.userId),
-  index('idx_markdown_notes_created').on(table.createdAt),
-  index('idx_markdown_notes_is_favorite').on(table.isFavorite),
+  index('idx_notes_user').on(table.userId),
+  index('idx_notes_created').on(table.createdAt),
+  index('idx_notes_is_favorite').on(table.isFavorite),
 ])
 
-// Secret Notes Table
-export const secretNotes = pgTable('secret_notes', {
+// Notes Tags Junction Table
+export const notesTags = pgTable('notes_tags', {
+  id: text('id').primaryKey(),
+  noteId: text('note_id').notNull().references(() => notes.id, { onDelete: 'cascade' }),
+  tagId: text('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, (table) => [
+  index('idx_notes_tags_note').on(table.noteId),
+  index('idx_notes_tags_tag').on(table.tagId),
+  uniqueIndex('idx_notes_tags_unique').on(table.noteId, table.tagId),
+])
+
+// Secrets Table (renamed from secret_notes)
+export const secrets = pgTable('secrets', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
@@ -126,8 +136,19 @@ export const secretNotes = pgTable('secret_notes', {
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),
 }, (table) => [
-  index('idx_secret_notes_user').on(table.userId),
-  index('idx_secret_notes_created').on(table.createdAt),
+  index('idx_secrets_user').on(table.userId),
+  index('idx_secrets_created').on(table.createdAt),
+])
+
+// Secrets Tags Junction Table
+export const secretsTags = pgTable('secrets_tags', {
+  id: text('id').primaryKey(),
+  secretId: text('secret_id').notNull().references(() => secrets.id, { onDelete: 'cascade' }),
+  tagId: text('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+}, (table) => [
+  index('idx_secrets_tags_secret').on(table.secretId),
+  index('idx_secrets_tags_tag').on(table.tagId),
+  uniqueIndex('idx_secrets_tags_unique').on(table.secretId, table.tagId),
 ])
 
 // Images Table - stores processed images for bookmarks
@@ -172,6 +193,8 @@ export const tagsRelations = relations(tags, ({ one, many }) => ({
   }),
   childTags: many(tags),
   bookmarkTags: many(bookmarkTags),
+  notesTags: many(notesTags),
+  secretsTags: many(secretsTags),
 }))
 
 export const bookmarkTagsRelations = relations(bookmarkTags, ({ one }) => ({
@@ -192,6 +215,36 @@ export const imagesRelations = relations(images, ({ one }) => ({
   }),
 }))
 
+export const notesRelations = relations(notes, ({ many }) => ({
+  notesTags: many(notesTags),
+}))
+
+export const notesTagsRelations = relations(notesTags, ({ one }) => ({
+  note: one(notes, {
+    fields: [notesTags.noteId],
+    references: [notes.id],
+  }),
+  tag: one(tags, {
+    fields: [notesTags.tagId],
+    references: [tags.id],
+  }),
+}))
+
+export const secretsRelations = relations(secrets, ({ many }) => ({
+  secretsTags: many(secretsTags),
+}))
+
+export const secretsTagsRelations = relations(secretsTags, ({ one }) => ({
+  secret: one(secrets, {
+    fields: [secretsTags.secretId],
+    references: [secrets.id],
+  }),
+  tag: one(tags, {
+    fields: [secretsTags.tagId],
+    references: [tags.id],
+  }),
+}))
+
 // Type exports
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -201,10 +254,14 @@ export type Tag = typeof tags.$inferSelect
 export type NewTag = typeof tags.$inferInsert
 export type BookmarkTag = typeof bookmarkTags.$inferSelect
 export type NewBookmarkTag = typeof bookmarkTags.$inferInsert
-export type MarkdownNote = typeof markdownNotes.$inferSelect
-export type NewMarkdownNote = typeof markdownNotes.$inferInsert
-export type SecretNote = typeof secretNotes.$inferSelect
-export type NewSecretNote = typeof secretNotes.$inferInsert
+export type Note = typeof notes.$inferSelect
+export type NewNote = typeof notes.$inferInsert
+export type NotesTag = typeof notesTags.$inferSelect
+export type NewNotesTag = typeof notesTags.$inferInsert
+export type Secret = typeof secrets.$inferSelect
+export type NewSecret = typeof secrets.$inferInsert
+export type SecretsTag = typeof secretsTags.$inferSelect
+export type NewSecretsTag = typeof secretsTags.$inferInsert
 export type Image = typeof images.$inferSelect
 export type NewImage = typeof images.$inferInsert
 export type SyncMetadata = typeof syncMetadata.$inferSelect

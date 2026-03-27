@@ -21,10 +21,10 @@ export default defineEventHandler(async (event) => {
     // Verify note belongs to user
     const [note] = await db
       .select()
-      .from(schema.secretNotes)
+      .from(schema.secrets)
       .where(and(
-        eq(schema.secretNotes.id, id),
-        eq(schema.secretNotes.userId, currentUser.id)
+        eq(schema.secrets.id, id),
+        eq(schema.secrets.userId, currentUser.id)
       ))
 
     if (!note) {
@@ -62,9 +62,9 @@ export default defineEventHandler(async (event) => {
 
     // Update last accessed
     await db
-      .update(schema.secretNotes)
+      .update(schema.secrets)
       .set({ lastAccessedAt: new Date().toISOString() })
-      .where(eq(schema.secretNotes.id, id))
+      .where(eq(schema.secrets.id, id))
 
     return {
       ...note,
@@ -76,10 +76,10 @@ export default defineEventHandler(async (event) => {
     // Verify note belongs to user
     const [note] = await db
       .select()
-      .from(schema.secretNotes)
+      .from(schema.secrets)
       .where(and(
-        eq(schema.secretNotes.id, id),
-        eq(schema.secretNotes.userId, currentUser.id)
+        eq(schema.secrets.id, id),
+        eq(schema.secrets.userId, currentUser.id)
       ))
 
     if (!note) {
@@ -123,15 +123,15 @@ export default defineEventHandler(async (event) => {
     }
 
     const [updatedNote] = await db
-      .update(schema.secretNotes)
+      .update(schema.secrets)
       .set(updates)
-      .where(eq(schema.secretNotes.id, id))
+      .where(eq(schema.secrets.id, id))
       .returning({
-        id: schema.secretNotes.id,
-        title: schema.secretNotes.title,
-        createdAt: schema.secretNotes.createdAt,
-        updatedAt: schema.secretNotes.updatedAt,
-        lastAccessedAt: schema.secretNotes.lastAccessedAt,
+        id: schema.secrets.id,
+        title: schema.secrets.title,
+        createdAt: schema.secrets.createdAt,
+        updatedAt: schema.secrets.updatedAt,
+        lastAccessedAt: schema.secrets.lastAccessedAt,
       })
 
     return { note: updatedNote }
@@ -141,10 +141,10 @@ export default defineEventHandler(async (event) => {
     // Verify note belongs to user
     const [note] = await db
       .select()
-      .from(schema.secretNotes)
+      .from(schema.secrets)
       .where(and(
-        eq(schema.secretNotes.id, id),
-        eq(schema.secretNotes.userId, currentUser.id)
+        eq(schema.secrets.id, id),
+        eq(schema.secrets.userId, currentUser.id)
       ))
 
     if (!note) {
@@ -172,9 +172,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Delete junction records first (handled by cascade, but being explicit)
     await db
-      .delete(schema.secretNotes)
-      .where(eq(schema.secretNotes.id, id))
+      .delete(schema.secretsTags)
+      .where(eq(schema.secretsTags.secretId, id))
+
+    await db
+      .delete(schema.secrets)
+      .where(eq(schema.secrets.id, id))
 
     return { success: true }
   }

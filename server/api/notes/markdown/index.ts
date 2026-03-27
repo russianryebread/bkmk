@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { eq, desc, like, sql } from 'drizzle-orm'
+import { eq, desc, like, sql, and } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
@@ -27,27 +27,62 @@ export default defineEventHandler(async (event) => {
     let total
 
     if (tag) {
-      notes = await db
+      // Get notes with specific tag via junction table
+      const tagRecords = await db
         .select()
-        .from(schema.markdownNotes)
-        .where(eq(schema.markdownNotes.userId, currentUser.id))
-        .orderBy(desc(schema.markdownNotes[sortColumn]))
-        .limit(limitNum)
-        .offset(offset)
+        .from(schema.tags)
+        .where(eq(schema.tags.name, tag as string))
+      
+      if (tagRecords.length > 0) {
+        const noteTagRecords = await db
+          .select()
+          .from(schema.notesTags)
+          .where(eq(schema.notesTags.tagId, tagRecords[0].id))
+        
+        const noteIds = noteTagRecords.map(nt => nt.noteId)
+        
+        if (noteIds.length > 0) {
+          notes = await db
+            .select()
+            .from(schema.notes)
+            .where(and(
+              eq(schema.notes.userId, currentUser.id),
+              sql`${schema.notes.id} IN (${noteIds.join(',')})`
+            ))
+            .orderBy(desc(schema.notes[sortColumn]))
+            .limit(limitNum)
+            .offset(offset)
+        } else {
+          notes = []
+        }
+      } else {
+        notes = []
+      }
 
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
-        .from(schema.markdownNotes)
-        .where(eq(schema.markdownNotes.userId, currentUser.id))
+        .from(schema.notes)
+        .where(eq(schema.notes.userId, currentUser.id))
 
       total = count
 
-      return {
-        notes: notes.map(n => ({
+      // Get tags for each note
+      const notesWithTags = await Promise.all(notes.map(async (n) => {
+        const tagRecords = await db
+          .select({ tag: schema.tags })
+          .from(schema.notesTags)
+          .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
+          .where(eq(schema.notesTags.noteId, n.id))
+        
+        return {
           ...n,
           isFavorite: Boolean(n.isFavorite),
-          tags: n.tags ? n.tags.split(',').filter(Boolean) : [],
-        })),
+          tags: tagRecords.map(t => t.tag.name),
+        }
+      }))
+
+      return {
+        notes: notesWithTags,
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -59,25 +94,36 @@ export default defineEventHandler(async (event) => {
 
     notes = await db
       .select()
-      .from(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.userId, currentUser.id))
-      .orderBy(desc(schema.markdownNotes[sortColumn]))
+      .from(schema.notes)
+      .where(eq(schema.notes.userId, currentUser.id))
+      .orderBy(desc(schema.notes[sortColumn]))
       .limit(limitNum)
       .offset(offset)
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(schema.markdownNotes)
-      .where(eq(schema.markdownNotes.userId, currentUser.id))
+      .from(schema.notes)
+      .where(eq(schema.notes.userId, currentUser.id))
 
     total = count
 
-    return {
-      notes: notes.map(n => ({
+    // Get tags for each note
+    const notesWithTags = await Promise.all(notes.map(async (n) => {
+      const tagRecords = await db
+        .select({ tag: schema.tags })
+        .from(schema.notesTags)
+        .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
+        .where(eq(schema.notesTags.noteId, n.id))
+      
+      return {
         ...n,
         isFavorite: Boolean(n.isFavorite),
-        tags: n.tags ? n.tags.split(',').filter(Boolean) : [],
-      })),
+        tags: tagRecords.map(t => t.tag.name),
+      }
+    }))
+
+    return {
+      notes: notesWithTags,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -98,25 +144,22 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Handle tags as array or comma-separated string
-    const tagsArray = Array.isArray(tags)
-      ? tags
-      : (typeof tags === 'string' ? tags.split(',').filter(Boolean) : [])
-    
-    const tagsString = tagsArray.join(',')
+    // Handle tags as array
+    const tagsArray = Array.isArray(tags) ? tags : []
 
     // Auto-create tags if they don't exist in the main tags table
+    const tagIds: string[] = []
     for (const tagName of tagsArray) {
       const trimmedName = tagName.trim()
       if (trimmedName) {
-        const existingTag = await db
+        let existingTag = await db
           .select()
           .from(schema.tags)
-          .where(eq(schema.tags.name, trimmedName))
+          .where(and(eq(schema.tags.name, trimmedName), eq(schema.tags.userId, currentUser.id)))
           .limit(1)
         
         if (existingTag.length === 0) {
-          await db
+          const [newTag] = await db
             .insert(schema.tags)
             .values({
               id: crypto.randomUUID(),
@@ -125,27 +168,41 @@ export default defineEventHandler(async (event) => {
               parentTagId: null,
               color: null,
             })
-            .onConflictDoNothing()
+            .returning()
+          tagIds.push(newTag.id)
+        } else {
+          tagIds.push(existingTag[0].id)
         }
       }
     }
 
     const [note] = await db
-      .insert(schema.markdownNotes)
+      .insert(schema.notes)
       .values({
         id: crypto.randomUUID(),
         userId: currentUser.id,
         title,
         content: content || '',
         isFavorite: isFavorite ? 1 : 0,
-        tags: tagsString,
       })
       .returning()
+
+    // Create junction records for tags
+    for (const tagId of tagIds) {
+      await db
+        .insert(schema.notesTags)
+        .values({
+          id: crypto.randomUUID(),
+          noteId: note.id,
+          tagId,
+        })
+        .onConflictDoNothing()
+    }
 
     return {
       ...note,
       isFavorite: Boolean(note.isFavorite),
-      tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
+      tags: tagsArray,
     }
   }
 
