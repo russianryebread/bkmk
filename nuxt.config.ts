@@ -15,7 +15,7 @@ export default defineNuxtConfig({
       title: 'bkmk',
       meta: [
         { charset: 'utf-8' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' },
         { name: 'description', content: 'Personal bookmarking application with offline reading and sync' },
         { name: 'theme-color', content: '#6366f1' },
         { name: 'apple-mobile-web-app-capable', content: 'yes' },

@@ -2,14 +2,13 @@
   <div>
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Secret Notes</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Secrets</h1>
       <div class="flex gap-2">
         <ViewToggle />
         <button @click="showCreateModal = true" class="btn-primary">
           <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          New Secret
         </button>
       </div>
     </div>

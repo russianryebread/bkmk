@@ -56,6 +56,16 @@
 /* Reader mode typography */
 .reader-content {
   @apply text-lg leading-relaxed;
+  @apply max-w-full overflow-x-hidden;
+}
+
+/* Prevent horizontal scrolling in reader content */
+.reader-content img,
+.reader-content iframe,
+.reader-content video,
+.reader-content table,
+.reader-content pre {
+  @apply max-w-full;
 }
 
 .reader-content h1 {

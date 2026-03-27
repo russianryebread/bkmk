@@ -8,8 +8,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
         </div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">Sign in to your account</p>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">bkmk</h1>
+        <p class="text-gray-600 dark:text-gray-400 mt-2">Welcome back. Please sign in.</p>
       </div>
 
       <!-- Login Form -->
