@@ -97,7 +97,7 @@ definePageMeta({
   layout: false
 })
 
-const { login, isAuthenticated, isLoading: authLoading } = useAuth()
+const { login, isAuthenticated, isLoading: authLoading, init } = useAuth()
 const router = useRouter()
 const route = useRoute()
 
@@ -106,13 +106,17 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
-// Redirect if already authenticated
-watch([authLoading, isAuthenticated], ([loaded, authenticated]) => {
-  if (!loaded && authenticated) {
+// Initialize auth state and redirect if already authenticated
+onMounted(async () => {
+  // Initialize auth to fetch user from cookie
+  await init()
+  
+  // If already authenticated, redirect
+  if (isAuthenticated.value) {
     const redirect = route.query.redirect as string || '/'
     router.replace(redirect)
   }
-}, { immediate: true })
+})
 
 async function handleLogin() {
   error.value = ''

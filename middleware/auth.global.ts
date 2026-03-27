@@ -1,11 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const { isAuthenticated, init, isLoading } = useAuth()
+  const { isAuthenticated, init, isLoading, user } = useAuth()
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password']
-
-  // Initialize auth state if not already done
-  if (import.meta.client && isLoading.value) {
-    await init()
-  }
 
   // Allow public routes
   if (publicRoutes.includes(to.path)) {
@@ -14,6 +9,29 @@ export default defineNuxtRouteMiddleware(async (to) => {
       return navigateTo('/')
     }
     return
+  }
+
+  // On server, we need to check auth from cookies directly
+  if (import.meta.server) {
+    const event = useRequestEvent()
+    if (event) {
+      const { getCurrentUser } = await import('~/server/utils/auth')
+      const serverUser = await getCurrentUser(event)
+      
+      if (serverUser) {
+        // Update the client state with server auth
+        user.value = serverUser
+        isLoading.value = false
+        return
+      }
+    }
+    // Not authenticated on server, redirect to login
+    return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
+  }
+
+  // Client-side: Initialize auth state if not already done
+  if (isLoading.value) {
+    await init()
   }
 
   // Check authentication for protected routes
