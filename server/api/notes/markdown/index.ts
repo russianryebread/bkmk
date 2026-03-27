@@ -1,7 +1,12 @@
 import { db, schema } from '~/server/database'
-import { eq, desc, like, sql, and, or } from 'drizzle-orm'
+import { eq, desc, like, sql } from 'drizzle-orm'
+import { getQuery } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const method = event.method
 
   if (method === 'GET') {
@@ -25,7 +30,7 @@ export default defineEventHandler(async (event) => {
       notes = await db
         .select()
         .from(schema.markdownNotes)
-        .where(like(schema.markdownNotes.tags, `%${tag}%`))
+        .where(eq(schema.markdownNotes.userId, currentUser.id))
         .orderBy(desc(schema.markdownNotes[sortColumn]))
         .limit(limitNum)
         .offset(offset)
@@ -33,7 +38,7 @@ export default defineEventHandler(async (event) => {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(schema.markdownNotes)
-        .where(like(schema.markdownNotes.tags, `%${tag}%`))
+        .where(eq(schema.markdownNotes.userId, currentUser.id))
 
       total = count
 
@@ -55,6 +60,7 @@ export default defineEventHandler(async (event) => {
     notes = await db
       .select()
       .from(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.userId, currentUser.id))
       .orderBy(desc(schema.markdownNotes[sortColumn]))
       .limit(limitNum)
       .offset(offset)
@@ -62,6 +68,7 @@ export default defineEventHandler(async (event) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.userId, currentUser.id))
 
     total = count
 
@@ -113,6 +120,7 @@ export default defineEventHandler(async (event) => {
             .insert(schema.tags)
             .values({
               id: crypto.randomUUID(),
+              userId: currentUser.id,
               name: trimmedName,
               parentTagId: null,
               color: null,
@@ -126,6 +134,7 @@ export default defineEventHandler(async (event) => {
       .insert(schema.markdownNotes)
       .values({
         id: crypto.randomUUID(),
+        userId: currentUser.id,
         title,
         content: content || '',
         isFavorite: isFavorite ? 1 : 0,

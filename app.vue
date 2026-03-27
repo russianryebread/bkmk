@@ -3,6 +3,7 @@
     <NuxtPage />
   </NuxtLayout>
   <OfflineIndicator
+    v-if="isAuthenticated"
     :is-online="isOnline"
     :sync-status="syncStatus"
     :pending-changes="pendingChanges"
@@ -14,17 +15,22 @@
 <script setup lang="ts">
 const { initialize: initializeIdb } = useIdb()
 const { isOnline, syncStatus, pendingChanges, lastSyncTime, triggerSync } = useSync()
+const { init: initAuth, isAuthenticated, isLoading: authLoading } = useAuth()
 
-// Initialize services on app mount
+// Initialize auth state
 onMounted(async () => {
-  console.log('[App] Initializing offline services...')
+  console.log('[App] Initializing services...')
   
   try {
-    // Initialize IndexedDB first
+    // Initialize auth first
+    await initAuth()
+    console.log('[App] Auth initialized')
+    
+    // Then initialize IndexedDB
     await initializeIdb()
     console.log('[App] IndexedDB initialized')
   } catch (e) {
-    console.error('[App] Failed to initialize IndexedDB:', e)
+    console.error('[App] Failed to initialize services:', e)
   }
 })
 

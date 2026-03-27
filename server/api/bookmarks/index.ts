@@ -1,9 +1,13 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
 import { eq, desc, asc, sql, and } from 'drizzle-orm'
-import { getRouterParam, getQuery } from 'h3'
+import { getQuery } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const method = event.method
 
   if (method === 'GET') {
@@ -24,8 +28,8 @@ export default defineEventHandler(async (event) => {
     const limitNum = parseInt(limit as string)
     const offset = (pageNum - 1) * limitNum
 
-    // Build conditions array
-    const conditions: any[] = []
+    // Build conditions array - always filter by userId
+    const conditions: any[] = [eq(bookmarks.userId, currentUser.id)]
 
     if (favorite === 'true') {
       conditions.push(eq(bookmarks.isFavorite, 1))
@@ -59,12 +63,12 @@ export default defineEventHandler(async (event) => {
         .from(bookmarks)
         .innerJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
         .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-        .where(and(...conditions, eq(tags.name, tagCondition)))
+        .where(and(...conditions, eq(tags.name, tagCondition), eq(tags.userId, currentUser.id)))
     } else {
       countResult = await db
         .select({ total: sql<number>`count(*)` })
         .from(bookmarks)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
     }
     
     const total = countResult[0]?.total || 0
@@ -134,7 +138,7 @@ export default defineEventHandler(async (event) => {
         .from(bookmarks)
         .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
         .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(sortOrder(sortColumn))
         .limit(limitNum)
         .offset(offset)
@@ -202,6 +206,7 @@ export default defineEventHandler(async (event) => {
 
     const newBookmark = {
       id: crypto.randomUUID(),
+      userId: currentUser.id,
       title,
       url,
       description: description || null,

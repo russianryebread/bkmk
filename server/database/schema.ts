@@ -8,9 +8,23 @@ import {
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
+// Users Table
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role').notNull().default('user'), // 'user' or 'admin'
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_users_email').on(table.email),
+  index('idx_users_created').on(table.createdAt),
+])
+
 // Bookmarks Table
 export const bookmarks = pgTable('bookmarks', {
   id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   url: text('url').notNull(),
   description: text('description'),
@@ -42,6 +56,7 @@ export const bookmarks = pgTable('bookmarks', {
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
+  index('idx_bookmarks_user').on(table.userId),
   index('idx_bookmarks_created').on(table.createdAt),
   index('idx_bookmarks_is_favorite').on(table.isFavorite),
   index('idx_bookmarks_source_domain').on(table.sourceDomain),
@@ -51,13 +66,16 @@ export const bookmarks = pgTable('bookmarks', {
 // Tags Table
 export const tags = pgTable('tags', {
   id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  userId: text('user_id').notNull().references(() => users.id),
+  name: text('name').notNull(),
   parentTagId: text('parent_tag_id'),
   color: text('color'),
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
+  index('idx_tags_user').on(table.userId),
   index('idx_tags_name').on(table.name),
   index('idx_tags_parent').on(table.parentTagId),
+  uniqueIndex('idx_tags_user_name').on(table.userId, table.name),
 ])
 
 // Bookmark Tags Junction Table
@@ -74,6 +92,7 @@ export const bookmarkTags = pgTable('bookmark_tags', {
 // Markdown Notes Table
 export const markdownNotes = pgTable('markdown_notes', {
   id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   content: text('content').notNull(),
   tags: text('tags').default(''),
@@ -84,6 +103,7 @@ export const markdownNotes = pgTable('markdown_notes', {
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
+  index('idx_markdown_notes_user').on(table.userId),
   index('idx_markdown_notes_created').on(table.createdAt),
   index('idx_markdown_notes_is_favorite').on(table.isFavorite),
 ])
@@ -91,6 +111,7 @@ export const markdownNotes = pgTable('markdown_notes', {
 // Secret Notes Table
 export const secretNotes = pgTable('secret_notes', {
   id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   content: text('content').notNull(),
   
@@ -100,6 +121,7 @@ export const secretNotes = pgTable('secret_notes', {
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),
 }, (table) => [
+  index('idx_secret_notes_user').on(table.userId),
   index('idx_secret_notes_created').on(table.createdAt),
 ])
 
@@ -163,6 +185,8 @@ export const bookmarkImagesRelations = relations(bookmarkImages, ({ one }) => ({
 }))
 
 // Type exports
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
 export type Bookmark = typeof bookmarks.$inferSelect
 export type NewBookmark = typeof bookmarks.$inferInsert
 export type Tag = typeof tags.$inferSelect

@@ -1,7 +1,12 @@
 import { db, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
+import { getRouterParam } from 'h3'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -25,6 +30,14 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Ensure user owns this note
+    if (note.userId !== currentUser.id) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied',
+      })
+    }
+
     return {
       ...note,
       isFavorite: Boolean(note.isFavorite),
@@ -33,6 +46,26 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'PUT') {
+    // First check ownership
+    const [existingNote] = await db
+      .select()
+      .from(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.id, id))
+
+    if (!existingNote) {
+      throw createError({
+        statusCode: 404,
+        message: 'Note not found',
+      })
+    }
+
+    if (existingNote.userId !== currentUser.id) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied',
+      })
+    }
+
     const body = await readBody(event)
     const { title, content, isFavorite, sortOrder, tags } = body
 
@@ -74,6 +107,7 @@ export default defineEventHandler(async (event) => {
               .insert(schema.tags)
               .values({
                 id: crypto.randomUUID(),
+                userId: currentUser.id,
                 name: trimmedName,
                 parentTagId: null,
                 color: null,
@@ -99,6 +133,26 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'DELETE') {
+    // First check ownership
+    const [existingNote] = await db
+      .select()
+      .from(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.id, id))
+
+    if (!existingNote) {
+      throw createError({
+        statusCode: 404,
+        message: 'Note not found',
+      })
+    }
+
+    if (existingNote.userId !== currentUser.id) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied',
+      })
+    }
+
     await db
       .delete(schema.markdownNotes)
       .where(eq(schema.markdownNotes.id, id))

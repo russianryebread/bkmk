@@ -43,6 +43,54 @@
 
           <!-- Actions - Right aligned -->
           <div class="flex items-center space-x-3">
+            <!-- User Menu -->
+            <div class="relative">
+              <button 
+                @click="userMenuOpen = !userMenuOpen"
+                class="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="User menu"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span class="hidden md:inline">{{ user?.email }}</span>
+              </button>
+              
+              <!-- User Dropdown -->
+              <div v-if="userMenuOpen" class="absolute right-0 mt-2 w-56 card p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+                <div class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <p class="font-medium text-gray-900 dark:text-white">{{ user?.email }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Role: <span class="capitalize">{{ user?.role }}</span>
+                  </p>
+                </div>
+                
+                <div class="space-y-1">
+                  <NuxtLink 
+                    v-if="isAdmin"
+                    to="/admin/users"
+                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    @click="userMenuOpen = false"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    Manage Users
+                  </NuxtLink>
+                  
+                  <button 
+                    @click="handleLogout"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Settings Dropdown (Gear icon) -->
             <div class="relative">
               <button 
@@ -234,7 +282,9 @@
 const route = useRoute()
 const mobileMenuOpen = ref(false)
 const settingsOpen = ref(false)
+const userMenuOpen = ref(false)
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
+const { user, isAdmin, logout } = useAuth()
 
 // Reader settings with real-time reactivity
 const { fontSize, fontFamily, lineHeight, setFontSize, setFontFamily, setLineHeight } = useReaderSettings()
@@ -244,12 +294,19 @@ const isReaderPage = computed(() => {
   return route.path.includes('/bookmarks/') && route.params.id
 })
 
+// Handle logout
+async function handleLogout() {
+  userMenuOpen.value = false
+  await logout()
+}
+
 // Close dropdown when clicking outside
 onMounted(() => {
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
     if (!target.closest('.relative')) {
       settingsOpen.value = false
+      userMenuOpen.value = false
     }
   })
 })

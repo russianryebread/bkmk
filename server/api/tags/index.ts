@@ -1,7 +1,11 @@
 import { db, schema } from '~/server/database'
 import { eq, sql } from 'drizzle-orm'
+import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
+  // Require authentication
+  const currentUser = await requireAuth(event)
+  
   const method = event.method
 
   if (method === 'GET') {
@@ -16,6 +20,7 @@ export default defineEventHandler(async (event) => {
       })
       .from(schema.tags)
       .leftJoin(schema.bookmarkTags, eq(schema.tags.id, schema.bookmarkTags.tagId))
+      .where(eq(schema.tags.userId, currentUser.id))
       .groupBy(schema.tags.id)
       .orderBy(schema.tags.name)
 
@@ -33,7 +38,7 @@ export default defineEventHandler(async (event) => {
     try {
       const [tag] = await db
         .insert(schema.tags)
-        .values({ id: crypto.randomUUID(), name: name.trim(), parentTagId: parent_tag_id || null, color: color || null })
+        .values({ id: crypto.randomUUID(), userId: currentUser.id, name: name.trim(), parentTagId: parent_tag_id || null, color: color || null })
         .returning()
 
       return { tag }
