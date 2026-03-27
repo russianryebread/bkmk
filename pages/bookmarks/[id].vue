@@ -3,59 +3,56 @@
     <div v-if="bookmark" class="max-w-6xl mx-auto">
       <!-- Header -->
       <div class="mb-6">
-        <div class="flex items-start justify-between mb-4">
-          <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              {{ bookmark.title }}
-            </h1>
-            <div class="flex items-center text-gray-500 dark:text-gray-400">
-              <a :href="bookmark.url" target="_blank" rel="noopener" class="hover:text-primary-600">
-                {{ bookmark.source_domain }}
-              </a>
-              <span class="mx-2">•</span>
-              <span>Saved {{ formatDate(bookmark.saved_at) }}</span>
-              <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
-              <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>
-            </div>
-          </div>
-          
-          <div class="flex items-center gap-2">
-            <button
-              @click="toggleFavorite"
-              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {{ bookmark.title }}
+        </h1>
+        
+        <!-- Action buttons row - icons only -->
+        <div class="flex items-center gap-1 mb-3">
+          <button
+            @click="toggleFavorite"
+            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Favorite"
+          >
+            <svg
+              class="w-5 h-5"
+              :class="bookmark.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg
-                class="w-6 h-6"
-                :class="bookmark.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-            
-            <button @click="showTagsModal = true" class="btn-secondary">
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              Tags
-            </button>
-            
-            <button @click="showEditModal = true" class="btn-primary">
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              Edit
-            </button>
-            
-            <a :href="bookmark.url" target="_blank" class="btn-secondary">
-              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              Open
-            </a>
-          </div>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+          </button>
+          
+          <button @click="showTagsModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Tags">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </button>
+          
+          <button @click="showEditModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+          
+          <a :href="bookmark.url" target="_blank" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Open original">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+        
+        <!-- Metadata -->
+        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+          <a :href="bookmark.url" target="_blank" rel="noopener" class="hover:text-primary-600">
+            {{ bookmark.source_domain }}
+          </a>
+          <span class="mx-2">•</span>
+          <span>Saved {{ formatDate(bookmark.saved_at) }}</span>
+          <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
+          <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>
         </div>
 
         <!-- Tags display with colors -->
