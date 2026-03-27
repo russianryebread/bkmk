@@ -1,6 +1,7 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { Readability } from '@mozilla/readability'
+import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -92,10 +93,11 @@ async function downloadImage(imageUrl: string): Promise<{ localPath: string; suc
 
 function canReadabilityParse(html: string): { canParse: boolean; confidence: number } {
   try {
-    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const doc = new JSDOM(html)
+    const document = doc.window.document
     
     // Check for basic content indicators
-    const body = doc.body
+    const body = document.body
     if (!body) return { canParse: false, confidence: 0 }
     
     // Check for article-like elements
@@ -357,12 +359,15 @@ function extractAuthor($: cheerio.CheerioAPI): string | null {
 
 function extractWithReadability(html: string, url: string): string {
   try {
-    const doc = new DOMParser().parseFromString(html, 'text/html')
-    const article = new Readability(doc as any, {
+    // Use JSDOM with the URL for proper relative URL resolution
+    const doc = new JSDOM(html, { url })
+    const reader = new Readability(doc.window.document, {
       charThreshold: 100,
-    }).parse()
+    })
+    const article = reader.parse()
     return article?.content || ''
-  } catch {
+  } catch (error) {
+    console.error('Readability parsing failed:', error)
     // Fallback: extract body content manually
     const $ = cheerio.load(html)
     return $('body').html() || ''

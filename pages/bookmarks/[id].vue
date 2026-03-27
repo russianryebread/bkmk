@@ -96,8 +96,8 @@
         <div 
           v-if="currentMode === 'reader'" 
           class="reader-content"
-          :class="readerClasses"
-          :style="{ fontSize: readerSettings.fontSize + 'px' }"
+          :class="[fontFamily === 'serif' ? 'font-serif' : 'font-sans', lineHeight === 'compact' ? 'leading-tight' : lineHeight === 'relaxed' ? 'leading-relaxed' : 'leading-normal']"
+          :style="{ fontSize: fontSize + 'px' }"
           v-html="renderedMarkdown"
         ></div>
         
@@ -269,12 +269,8 @@ const modes = [
 
 const { render } = useMarkdown()
 
-// Reader settings from localStorage
-const readerSettings = ref({
-  fontSize: 16,
-  fontFamily: 'sans-serif',
-  lineHeight: 'normal',
-})
+// Reader settings with real-time reactivity
+const { fontSize, fontFamily, lineHeight, lineHeightValue } = useReaderSettings()
 
 const renderedMarkdown = computed(() => {
   if (!bookmark.value?.cleaned_markdown) return ''
@@ -283,14 +279,14 @@ const renderedMarkdown = computed(() => {
 
 const readerClasses = computed(() => {
   const classes = []
-  if (readerSettings.value.fontFamily === 'serif') {
+  if (fontFamily.value === 'serif') {
     classes.push('font-serif')
   } else {
     classes.push('font-sans')
   }
-  if (readerSettings.value.lineHeight === 'compact') {
+  if (lineHeight.value === 'compact') {
     classes.push('leading-tight')
-  } else if (readerSettings.value.lineHeight === 'relaxed') {
+  } else if (lineHeight.value === 'relaxed') {
     classes.push('leading-relaxed')
   } else {
     classes.push('leading-normal')
@@ -310,18 +306,6 @@ const charCount = computed(() => {
 const availableTags = computed(() => {
   return allTags.value.filter(t => !bookmarkTags.value.includes(t.name))
 })
-
-function loadReaderSettings() {
-  const saved = localStorage.getItem('readerSettings')
-  if (saved) {
-    const settings = JSON.parse(saved)
-    readerSettings.value = {
-      fontSize: settings.fontSize || 16,
-      fontFamily: settings.fontFamily || 'sans-serif',
-      lineHeight: settings.lineHeight || 'normal',
-    }
-  }
-}
 
 async function loadBookmark() {
   loading.value = true
@@ -445,7 +429,6 @@ function formatDate(dateString: string): string {
 }
 
 onMounted(() => {
-  loadReaderSettings()
   loadBookmark()
 })
 </script>

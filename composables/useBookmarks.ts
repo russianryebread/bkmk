@@ -1,3 +1,6 @@
+import { useOfflineBookmarks } from './useOfflineBookmarks'
+import type { Bookmark, BookmarkFilters } from './useBookmarks'
+
 export interface Bookmark {
   id: string
   title: string
@@ -33,6 +36,7 @@ export interface BookmarkFilters {
 }
 
 export function useBookmarks() {
+  const offlineBookmarks = useOfflineBookmarks()
   const bookmarks = ref<Bookmark[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -44,26 +48,24 @@ export function useBookmarks() {
   })
 
   async function fetchBookmarks(filters: BookmarkFilters = {}) {
+    console.log('[useBookmarks] fetchBookmarks called with filters:', filters)
     loading.value = true
     error.value = null
     
     try {
-      const params = new URLSearchParams()
+      const results = await offlineBookmarks.fetchBookmarks(filters)
+      bookmarks.value = results
       
-      if (filters.page) params.set('page', filters.page.toString())
-      if (filters.limit) params.set('limit', filters.limit.toString())
-      if (filters.sort) params.set('sort', filters.sort)
-      if (filters.order) params.set('order', filters.order)
-      if (filters.favorite) params.set('favorite', 'true')
-      if (filters.tag) params.set('tag', filters.tag)
-      if (filters.domain) params.set('domain', filters.domain)
-      if (filters.unread) params.set('unread', 'true')
-
-      const response = await $fetch<{ bookmarks: Bookmark[]; pagination: typeof pagination.value }>(`/api/bookmarks?${params}`)
+      // Update pagination (simplified for offline)
+      pagination.value = {
+        ...pagination.value,
+        page: filters.page || 1,
+        limit: filters.limit || 20,
+      }
       
-      bookmarks.value = response.bookmarks
-      pagination.value = response.pagination
+      console.log('[useBookmarks] Loaded', results.length, 'bookmarks')
     } catch (e: any) {
+      console.error('[useBookmarks] Error:', e)
       error.value = e.message || 'Failed to fetch bookmarks'
     } finally {
       loading.value = false
@@ -71,51 +73,71 @@ export function useBookmarks() {
   }
 
   async function fetchBookmark(id: string): Promise<Bookmark | null> {
+    console.log('[useBookmarks] fetchBookmark called for id:', id)
     try {
-      const response = await $fetch<Bookmark>(`/api/bookmarks/${id}`)
-      return response
+      return await offlineBookmarks.fetchBookmark(id)
     } catch (e: any) {
+      console.error('[useBookmarks] Error fetching bookmark:', e)
       error.value = e.message || 'Failed to fetch bookmark'
       return null
     }
   }
 
   async function createBookmark(url: string): Promise<Bookmark | null> {
+    console.log('[useBookmarks] createBookmark called for url:', url)
+    loading.value = true
+    error.value = null
+    
     try {
+      // Create via API
       const response = await $fetch<Bookmark>('/api/scrape', {
         method: 'POST',
         body: { url },
       })
+      
+      // Refresh list
       await fetchBookmarks()
+      
       return response
     } catch (e: any) {
+      console.error('[useBookmarks] Error creating bookmark:', e)
       error.value = e.message || 'Failed to create bookmark'
       return null
+    } finally {
+      loading.value = false
     }
   }
 
   async function updateBookmark(id: string, updates: Partial<Bookmark>): Promise<boolean> {
+    console.log('[useBookmarks] updateBookmark called for id:', id, updates)
     try {
-      await $fetch(`/api/bookmarks/${id}`, {
-        method: 'PUT',
-        body: updates,
-      })
-      await fetchBookmarks()
-      return true
+      const success = await offlineBookmarks.updateBookmark(id, updates)
+      
+      // Update local state
+      const index = bookmarks.value.findIndex(b => b.id === id)
+      if (index !== -1) {
+        bookmarks.value[index] = { ...bookmarks.value[index], ...updates }
+      }
+      
+      return success
     } catch (e: any) {
+      console.error('[useBookmarks] Error updating bookmark:', e)
       error.value = e.message || 'Failed to update bookmark'
       return false
     }
   }
 
   async function deleteBookmark(id: string): Promise<boolean> {
+    console.log('[useBookmarks] deleteBookmark called for id:', id)
     try {
-      await $fetch(`/api/bookmarks/${id}`, {
-        method: 'DELETE',
-      })
+      const success = await offlineBookmarks.deleteBookmark(id)
+      
+      // Update local state
       bookmarks.value = bookmarks.value.filter(b => b.id !== id)
-      return true
+      
+      return success
     } catch (e: any) {
+      console.error('[useBookmarks] Error deleting bookmark:', e)
       error.value = e.message || 'Failed to delete bookmark'
       return false
     }
@@ -144,6 +166,8 @@ export function useBookmarks() {
     loading,
     error,
     pagination,
+    isOnline: offlineBookmarks.isOnline,
+    offlineError: offlineBookmarks.offlineError,
     fetchBookmarks,
     fetchBookmark,
     createBookmark,

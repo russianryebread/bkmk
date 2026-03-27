@@ -1,5 +1,5 @@
 export const useDarkMode = () => {
-  const isDark = useState('darkMode', () => false)
+  const isDark = useState<boolean>('darkMode', () => false)
 
   const init = () => {
     if (import.meta.client) {
@@ -31,12 +31,18 @@ export const useDarkMode = () => {
     }
   }
 
-  if (import.meta.client) {
+  // Initialize on client mount
+  onMounted(() => {
     init()
-  }
+  })
+
+  // Watch for changes and update class
+  watch(isDark, () => {
+    updateHtmlClass()
+  })
 
   return {
-    isDark: readonly(isDark),
+    isDark,
     toggle,
     init
   }

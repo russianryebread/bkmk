@@ -1,0 +1,15 @@
+node_modules
+.git
+.nuxt
+.output
+src-tauri
+data
+*.db
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage
+.nyc_output
+dist

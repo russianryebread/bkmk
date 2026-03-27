@@ -1,4 +1,4 @@
-# Bookmark App - Complete Planning Document
+# bkmk - Complete Planning Document
 
 ## Project Overview
 A full-featured personal bookmarking application with offline reading, content extraction, markdown support, and multi-device sync. Built with Nuxt 4, SQLite, and Tailwind CSS.

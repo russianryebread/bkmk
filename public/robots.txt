@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Allow PWA indexing
+Allow: /manifest.json
+Allow: /sw.js
+Allow: /workbox-*
+
+# Sitemap
+Sitemap: /sitemap.xml
