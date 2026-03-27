@@ -42,6 +42,13 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </a>
+
+          <button @click.stop="deleteBookmarkConfirm(bookmark)" class="p-2 rounded-lg hover:bg-gray-100" title="Delete">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         </div>
         
         <!-- Metadata -->
@@ -239,7 +246,7 @@
 
 <script setup lang="ts">
 const route = useRoute()
-const { fetchBookmark, updateBookmark } = useBookmarks()
+const { fetchBookmark, updateBookmark, deleteBookmark } = useBookmarks()
 const { loadAllTags, getTagColor } = useTagColors()
 
 interface Tag {
@@ -267,29 +274,18 @@ const modes = [
 const { render } = useMarkdown()
 
 // Reader settings with real-time reactivity
-const { fontSize, fontFamily, lineHeight, lineHeightValue } = useReaderSettings()
+const { fontSize, fontFamily, lineHeight } = useReaderSettings()
 
 const renderedMarkdown = computed(() => {
   if (!bookmark.value?.cleaned_markdown) return ''
   return render(bookmark.value.cleaned_markdown)
 })
 
-const readerClasses = computed(() => {
-  const classes = []
-  if (fontFamily.value === 'serif') {
-    classes.push('font-serif')
-  } else {
-    classes.push('font-sans')
+async function deleteBookmarkConfirm(bookmark: any) {
+  if (confirm(`Delete "${bookmark.title}"?`)) {
+    await deleteBookmark(bookmark.id)
   }
-  if (lineHeight.value === 'compact') {
-    classes.push('leading-tight')
-  } else if (lineHeight.value === 'relaxed') {
-    classes.push('leading-relaxed')
-  } else {
-    classes.push('leading-normal')
-  }
-  return classes.join(' ')
-})
+}
 
 const wordCount = computed(() => {
   if (!editContent.value) return 0

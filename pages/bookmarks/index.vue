@@ -130,24 +130,7 @@
           </div>
 
           <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-            <span
-              v-if="!bookmark.is_read"
-              class="text-xs px-2 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-full"
-            >
-              Unread
-            </span>
-            <span v-else class="text-xs text-gray-400">Read</span>
-            
             <div class="flex gap-2">
-              <button
-                @click.stop="toggleRead(bookmark.id)"
-                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                :title="bookmark.is_read ? 'Mark as unread' : 'Mark as read'"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
               <button
                 @click.stop="deleteBookmarkConfirm(bookmark)"
                 class="text-gray-400 hover:text-red-600"
@@ -194,19 +177,9 @@
               <span>{{ bookmark.source_domain }}</span>
               <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
               <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min</span>
-              <span v-if="!bookmark.is_read" class="mx-2">•</span>
-              <span v-if="!bookmark.is_read" class="text-primary-600">Unread</span>
             </div>
           </div>
           <div class="flex gap-2 flex-shrink-0">
-            <button
-              @click.stop="toggleRead(bookmark.id)"
-              class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </button>
             <button
               @click.stop="deleteBookmarkConfirm(bookmark)"
               class="text-gray-400 hover:text-red-600"
@@ -278,7 +251,7 @@
 
 <script setup lang="ts">
 const router = useRouter()
-const { bookmarks, loading, error, pagination, fetchBookmarks, createBookmark, toggleFavorite, toggleRead, deleteBookmark } = useBookmarks()
+const { bookmarks, loading, error, pagination, fetchBookmarks, createBookmark, toggleFavorite, deleteBookmark } = useBookmarks()
 const { results: searchResults, debouncedSearch, clearSearch } = useSearch()
 const { loadAllTags, getTagColor } = useTagColors()
 const { viewMode } = useViewMode()
