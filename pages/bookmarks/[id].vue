@@ -149,59 +149,16 @@
           </button>
         </div>
         
-        <!-- Current tags with colors -->
+        <!-- Tag Input with typeahead -->
         <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Tags</label>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="tag in bookmarkTags"
-              :key="tag"
-              class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full"
-              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
-            >
-              {{ tag }}
-              <button @click="removeTag(tag)" class="hover:opacity-75">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </span>
-            <span v-if="bookmarkTags.length === 0" class="text-sm text-gray-400">
-              No tags yet
-            </span>
-          </div>
-        </div>
-        
-        <!-- Add tag input -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Add New Tag</label>
-          <div class="flex gap-2">
-            <input
-              v-model="newTag"
-              type="text"
-              placeholder="Enter tag name..."
-              class="flex-1 input"
-              @keydown.enter.prevent="addTag"
-            />
-            <button @click="addTag" :disabled="!newTag.trim()" class="btn-primary">
-              Add
-            </button>
-          </div>
-        </div>
-        
-        <!-- Existing tags to select from -->
-        <div v-if="allTags.length > 0">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Or Select Existing</label>
-          <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-            <button
-              v-for="tag in availableTags"
-              :key="tag.id"
-              @click="selectExistingTag(tag)"
-              class="px-2 py-1 text-sm rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-            >
-              {{ tag.name }}
-            </button>
-          </div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+          <TagInput
+            ref="tagInputRef"
+            v-model="bookmarkTags"
+            placeholder="Search or create tags..."
+            @update:model-value="handleTagsUpdate"
+            @create-tag="handleCreateTag"
+          />
         </div>
         
         <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
@@ -264,6 +221,7 @@ const saving = ref(false)
 const bookmarkTags = ref<string[]>([])
 const allTags = ref<Tag[]>([])
 const newTag = ref('')
+const tagInputRef = ref<any>(null)
 
 const modes = [
   { id: 'reader', label: 'Reader' },
@@ -304,7 +262,7 @@ async function loadBookmark() {
   loading.value = true
   
   // Load tags first so colors are available
-  await loadAllTags()
+  await loadAllTags(true)
   
   const id = route.params.id as string
   bookmark.value = await fetchBookmark(id)
@@ -319,6 +277,97 @@ async function loadBookmark() {
   if (bookmark.value && !bookmark.value.is_read) {
     await updateBookmark(id, { is_read: true })
     bookmark.value.is_read = true
+  }
+}
+
+// Watch for tags modal open to ensure tags are loaded
+watch(showTagsModal, async (isOpen) => {
+  if (isOpen && allTags.value.length === 0) {
+    await loadAllTags(true)
+  }
+})
+
+// Handle tag updates from TagInput component
+async function handleTagsUpdate(newTags: string[]) {
+  if (!bookmark.value) return
+  
+  const oldTags = bookmark.value.tags || []
+  
+  // Find tags to add (in new but not in old)
+  const tagsToAdd = newTags.filter(t => !oldTags.includes(t))
+  
+  // Find tags to remove (in old but not in new)
+  const tagsToRemove = oldTags.filter(t => !newTags.includes(t))
+  
+  // Add new tags
+  for (const tagName of tagsToAdd) {
+    await addTagByName(tagName)
+  }
+  
+  // Remove old tags
+  for (const tagName of tagsToRemove) {
+    const tagInfo = allTags.value.find(t => t.name === tagName)
+    if (tagInfo) {
+      await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+        method: 'DELETE',
+        body: { tag_ids: [tagInfo.id] },
+      })
+    }
+  }
+  
+  // Update bookmark's tags
+  bookmark.value.tags = newTags
+}
+
+// Handle creating a new tag - called when user presses Enter on a new tag name
+async function handleCreateTag(name: string) {
+  try {
+    const response = await $fetch<{ tag: Tag }>('/api/tags', {
+      method: 'POST',
+      body: { name },
+    })
+    
+    // Add to local tags list
+    const tagData = allTags.value.find(t => t.id === response.tag.id)
+    if (!tagData) {
+      allTags.value.push({ id: response.tag.id, name: response.tag.name })
+    }
+    
+    // Call the TagInput component to add this tag to selected tags
+    if (tagInputRef.value?.onTagCreated) {
+      tagInputRef.value.onTagCreated({ id: response.tag.id, name: response.tag.name })
+    }
+    
+    // Also add the tag to the bookmark
+    if (bookmark.value) {
+      await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+        method: 'POST',
+        body: { tag_ids: [response.tag.id] },
+      })
+      
+      // Update local state
+      if (!bookmarkTags.value.includes(response.tag.name)) {
+        bookmarkTags.value.push(response.tag.name)
+        bookmark.value.tags = [...bookmarkTags.value]
+      }
+    }
+  } catch (e) {
+    console.error('Failed to create tag:', e)
+  }
+}
+
+// Add tag by name (internal function)
+async function addTagByName(tagName: string) {
+  const existingTag = allTags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase())
+  
+  if (existingTag) {
+    await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+      method: 'POST',
+      body: { tag_ids: [existingTag.id] },
+    })
+  } else {
+    // Create the tag and add it to the bookmark
+    await handleCreateTag(tagName)
   }
 }
 

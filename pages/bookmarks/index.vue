@@ -49,6 +49,17 @@
         </svg>
         Favorites
       </button>
+      
+      <!-- Top-level tag filters -->
+      <button
+        v-for="tag in topLevelTags"
+        :key="tag.id"
+        @click="toggleTagFilter(tag.name)"
+        :class="['btn', filters.tag === tag.name ? 'btn-primary' : 'btn-secondary']"
+        :style="filters.tag === tag.name ? {} : { backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text, borderColor: getTagColor(tag.name).bg }"
+      >
+        {{ tag.name }}
+      </button>
     </div>
 
     <!-- Loading -->
@@ -265,7 +276,29 @@ const addError = ref('')
 
 const filters = ref({
   favorite: false,
+  tag: '',
 })
+
+// Get all tags from useTagColors
+const allTags = computed(() => {
+  const { allTags: tagsData } = useTagColors()
+  return tagsData.value || []
+})
+
+// Filter top-level tags (tags without parent_tag_id)
+const topLevelTags = computed(() => {
+  return allTags.value.filter(t => !t.parentTagId)
+})
+
+// Toggle tag filter
+function toggleTagFilter(tagName: string) {
+  if (filters.value.tag === tagName) {
+    filters.value.tag = ''
+  } else {
+    filters.value.tag = tagName
+  }
+  loadBookmarks()
+}
 
 // Check if query is a URL
 function isUrl(query: string): boolean {
@@ -316,6 +349,7 @@ async function loadBookmarks() {
     sort: 'created_at',
     order: 'desc',
     favorite: filters.value.favorite || undefined,
+    tag: filters.value.tag || undefined,
   })
 }
 
