@@ -15,7 +15,7 @@ A personal bookmarking application with offline reading and sync capabilities.
 ## Tech Stack
 
 - **Runtime**: Bun
-- **Frontend**: Nuxt 3, Vue 3, Tailwind CSS
+- **Frontend**: Nuxt 4, Vue 3, Tailwind CSS
 - **Backend**: Nitro server
 - **Database**: SQLite (production), IndexedDB (offline)
 - **PWA**: @vite-pwa/nuxt with Workbox
