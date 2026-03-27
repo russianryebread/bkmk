@@ -200,6 +200,7 @@
 <script setup lang="ts">
 import { useOfflineSecrets } from '~/composables/useOfflineSecrets'
 import type { Secret } from '~/composables/idb'
+import { formatDate } from '~/utils/date'
 
 const offlineSecrets = useOfflineSecrets()
 const { viewMode } = useViewMode()
@@ -311,18 +312,6 @@ async function deleteSecretConfirm(secret: Secret) {
   } catch (e: any) {
     alert(e.message || 'Failed to delete')
   }
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return date.toLocaleDateString()
 }
 
 onMounted(() => {

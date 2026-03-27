@@ -237,6 +237,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatDate } from '~/utils/date'
+
 const router = useRouter()
 const { loadAllTags, getTagColor } = useTagColors()
 
@@ -446,20 +448,6 @@ function openResult(result: SearchResult) {
   } else {
     router.push(`/notes?id=${result.id}`)
   }
-}
-
-// Format date
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-  return date.toLocaleDateString()
 }
 
 // Global keyboard shortcut to focus search

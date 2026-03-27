@@ -307,6 +307,7 @@
 import { useOfflineNotes } from '~/composables/useOfflineNotes'
 import { useTagColors } from '~/composables/useTagColors'
 import type { Note } from '~/composables/idb'
+import { formatDate } from '~/utils/date'
 
 const { render } = useMarkdown()
 const { allTags, loadAllTags, getTagColor } = useTagColors()
@@ -319,7 +320,6 @@ const showEditor = ref(false)
 const showPreview = ref(false)
 const editorTitle = ref('')
 const editorContent = ref('')
-const originalContent = ref('')
 const editorTags = ref<string[]>([])
 const editingNote = ref<Note | null>(null)
 const newTag = ref('')
@@ -443,18 +443,6 @@ async function deleteNoteConfirm(note: Note) {
     await offlineNotes.deleteNote(note.id)
     notes.value = notes.value.filter(n => n.id !== note.id)
   }
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return date.toLocaleDateString()
 }
 
 // Watch for filter changes
