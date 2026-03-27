@@ -14,6 +14,7 @@ A personal bookmarking application with offline reading and sync capabilities.
 
 ## Tech Stack
 
+- **Runtime**: Bun
 - **Frontend**: Nuxt 3, Vue 3, Tailwind CSS
 - **Backend**: Nitro server
 - **Database**: SQLite (production), IndexedDB (offline)
@@ -23,16 +24,16 @@ A personal bookmarking application with offline reading and sync capabilities.
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Run development server
-npm run dev
+bun run dev
 
 # Build for production
-npm run build
+bun run build
 
 # Preview production build
-npm run preview
+bun run preview
 ```
 
 ## Docker
