@@ -1,8 +1,8 @@
-import { getDb } from '../utils/db'
-import { scrapeUrl, extractDomain } from '../utils/scraper'
+import { db, schema } from '~/server/database'
+import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const body = await readBody(event)
   
   const { url } = body
@@ -25,7 +25,12 @@ export default defineEventHandler(async (event) => {
   }
 
   // Check if bookmark already exists
-  const existing = db.prepare('SELECT id FROM bookmarks WHERE url = ?').get(url)
+  const [existing] = await db
+    .select({ id: schema.bookmarks.id })
+    .from(schema.bookmarks)
+    .where(eq(schema.bookmarks.url, url))
+    .limit(1)
+
   if (existing) {
     throw createError({
       statusCode: 409,
@@ -35,56 +40,76 @@ export default defineEventHandler(async (event) => {
 
   // Scrape the URL
   const scraped = await scrapeUrl(url)
-  
-  // Generate ID
-  const id = Array.from({ length: 16 }, () => 
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('')
 
   // Extract domain
   const sourceDomain = extractDomain(url)
 
   // Insert bookmark
-  db.prepare(`
-    INSERT INTO bookmarks (
-      id, title, url, description, original_html, cleaned_markdown,
-      reading_time_minutes, source_domain, word_count
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    scraped.title,
-    url,
-    scraped.description,
-    scraped.html,
-    scraped.markdown,
-    scraped.readingTimeMinutes,
-    sourceDomain,
-    scraped.wordCount
-  )
+  const [bookmark] = await db
+    .insert(schema.bookmarks)
+    .values({
+      id: crypto.randomUUID(),
+      title: scraped.title,
+      url: url,
+      description: scraped.description,
+      originalHtml: scraped.html,
+      cleanedMarkdown: scraped.markdown,
+      readingTimeMinutes: scraped.readingTimeMinutes,
+      sourceDomain: sourceDomain,
+      wordCount: scraped.wordCount,
+    })
+    .returning()
 
   // Update sync metadata
-  db.prepare(`
-    INSERT INTO sync_metadata (entity_type, entity_id, last_modified_at, sync_status)
-    VALUES ('bookmark', ?, CURRENT_TIMESTAMP, 'pending')
-  `).run(id)
+  await db
+    .insert(schema.syncMetadata)
+    .values({
+      id: crypto.randomUUID(),
+      entityType: 'bookmark',
+      entityId: bookmark.id,
+      syncStatus: 'pending',
+    })
 
-  // Get the created bookmark
-  const bookmark = db.prepare(`
-    SELECT b.*,
-      GROUP_CONCAT(DISTINCT t.name) as tags,
-      GROUP_CONCAT(DISTINCT t.id) as tag_ids
-    FROM bookmarks b
-    LEFT JOIN bookmark_tags bt ON b.id = bt.bookmark_id
-    LEFT JOIN tags t ON bt.tag_id = t.id
-    WHERE b.id = ?
-    GROUP BY b.id
-  `).get(id) as any
+  // Get the created bookmark with tags
+  const [fullBookmark] = await db
+    .select({
+      id: schema.bookmarks.id,
+      title: schema.bookmarks.title,
+      url: schema.bookmarks.url,
+      description: schema.bookmarks.description,
+      originalHtml: schema.bookmarks.originalHtml,
+      cleanedMarkdown: schema.bookmarks.cleanedMarkdown,
+      readingTimeMinutes: schema.bookmarks.readingTimeMinutes,
+      savedAt: schema.bookmarks.savedAt,
+      lastAccessedAt: schema.bookmarks.lastAccessedAt,
+      isFavorite: schema.bookmarks.isFavorite,
+      sortOrder: schema.bookmarks.sortOrder,
+      thumbnailImagePath: schema.bookmarks.thumbnailImagePath,
+      isRead: schema.bookmarks.isRead,
+      readAt: schema.bookmarks.readAt,
+      sourceDomain: schema.bookmarks.sourceDomain,
+      wordCount: schema.bookmarks.wordCount,
+      createdAt: schema.bookmarks.createdAt,
+      updatedAt: schema.bookmarks.updatedAt,
+    })
+    .from(schema.bookmarks)
+    .where(eq(schema.bookmarks.id, bookmark.id))
+
+  // Get tags for this bookmark
+  const bookmarkTags = await db
+    .select({
+      tagName: schema.tags.name,
+      tagId: schema.tags.id,
+    })
+    .from(schema.bookmarkTags)
+    .innerJoin(schema.tags, eq(schema.bookmarkTags.tagId, schema.tags.id))
+    .where(eq(schema.bookmarkTags.bookmarkId, bookmark.id))
 
   return {
-    ...bookmark,
-    is_favorite: Boolean(bookmark.is_favorite),
-    is_read: Boolean(bookmark.is_read),
-    tags: bookmark.tags ? bookmark.tags.split(',') : [],
-    tag_ids: bookmark.tag_ids ? bookmark.tag_ids.split(',') : [],
+    ...fullBookmark,
+    isFavorite: Boolean(fullBookmark.isFavorite),
+    isRead: Boolean(fullBookmark.isRead),
+    tags: bookmarkTags.map(bt => bt.tagName),
+    tagIds: bookmarkTags.map(bt => bt.tagId),
   }
 })

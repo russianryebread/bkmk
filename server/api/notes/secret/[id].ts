@@ -1,8 +1,8 @@
-import { getDb } from '../../../utils/db'
-import { verifyPassword } from '../../../utils/crypto'
+import { db, schema } from '~/server/database'
+import { verifyPassword, hashPassword } from '~/server/utils/crypto'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -18,8 +18,11 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event)
     const password = query.password as string
 
-    const note = db.prepare('SELECT * FROM secret_notes WHERE id = ?').get(id) as any
-    
+    const [note] = await db
+      .select()
+      .from(schema.secretNotes)
+      .where(eq(schema.secretNotes.id, id))
+
     if (!note) {
       throw createError({
         statusCode: 404,
@@ -32,15 +35,15 @@ export default defineEventHandler(async (event) => {
       return {
         id: note.id,
         title: note.title,
-        created_at: note.created_at,
-        updated_at: note.updated_at,
-        last_accessed_at: note.last_accessed_at,
-        requires_password: true,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+        lastAccessedAt: note.lastAccessedAt,
+        requiresPassword: true,
       }
     }
 
     // Verify password
-    const isValid = await verifyPassword(password, note.password_hash)
+    const isValid = await verifyPassword(password, note.passwordHash)
     
     if (!isValid) {
       throw createError({
@@ -50,13 +53,14 @@ export default defineEventHandler(async (event) => {
     }
 
     // Update last accessed
-    db.prepare(`
-      UPDATE secret_notes SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(id)
+    await db
+      .update(schema.secretNotes)
+      .set({ lastAccessedAt: new Date().toISOString() })
+      .where(eq(schema.secretNotes.id, id))
 
     return {
       ...note,
-      requires_password: false,
+      requiresPassword: false,
     }
   }
 
@@ -64,8 +68,11 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
     const { title, content, password, current_password } = body
 
-    const note = db.prepare('SELECT * FROM secret_notes WHERE id = ?').get(id) as any
-    
+    const [note] = await db
+      .select()
+      .from(schema.secretNotes)
+      .where(eq(schema.secretNotes.id, id))
+
     if (!note) {
       throw createError({
         statusCode: 404,
@@ -82,7 +89,7 @@ export default defineEventHandler(async (event) => {
         })
       }
 
-      const isValid = await verifyPassword(current_password, note.password_hash)
+      const isValid = await verifyPassword(current_password, note.passwordHash)
       if (!isValid) {
         throw createError({
           statusCode: 401,
@@ -91,32 +98,29 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const updates: string[] = ['updated_at = CURRENT_TIMESTAMP']
-    const params: any[] = []
+    const updates: Record<string, any> = {}
 
     if (title !== undefined) {
-      updates.push('title = ?')
-      params.push(title)
+      updates.title = title
     }
     if (content !== undefined) {
-      updates.push('content = ?')
-      params.push(content)
+      updates.content = content
     }
     if (password !== undefined) {
-      updates.push('password_hash = ?')
-      params.push(await hashPassword(password))
+      updates.passwordHash = await hashPassword(password)
     }
 
-    params.push(id)
-
-    db.prepare(`
-      UPDATE secret_notes SET ${updates.join(', ')} WHERE id = ?
-    `).run(...params)
-
-    const updatedNote = db.prepare(`
-      SELECT id, title, created_at, updated_at, last_accessed_at 
-      FROM secret_notes WHERE id = ?
-    `).get(id)
+    const [updatedNote] = await db
+      .update(schema.secretNotes)
+      .set(updates)
+      .where(eq(schema.secretNotes.id, id))
+      .returning({
+        id: schema.secretNotes.id,
+        title: schema.secretNotes.title,
+        createdAt: schema.secretNotes.createdAt,
+        updatedAt: schema.secretNotes.updatedAt,
+        lastAccessedAt: schema.secretNotes.lastAccessedAt,
+      })
 
     return { note: updatedNote }
   }
@@ -125,8 +129,11 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
     const { password } = body
 
-    const note = db.prepare('SELECT * FROM secret_notes WHERE id = ?').get(id) as any
-    
+    const [note] = await db
+      .select()
+      .from(schema.secretNotes)
+      .where(eq(schema.secretNotes.id, id))
+
     if (!note) {
       throw createError({
         statusCode: 404,
@@ -141,7 +148,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const isValid = await verifyPassword(password, note.password_hash)
+    const isValid = await verifyPassword(password, note.passwordHash)
     if (!isValid) {
       throw createError({
         statusCode: 401,
@@ -149,7 +156,10 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    db.prepare('DELETE FROM secret_notes WHERE id = ?').run(id)
+    await db
+      .delete(schema.secretNotes)
+      .where(eq(schema.secretNotes.id, id))
+
     return { success: true }
   }
 

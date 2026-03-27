@@ -1,7 +1,9 @@
-import { getDb } from '../../../utils/db'
+import { db } from '~/server/database'
+import { tags, bookmarkTags, syncMetadata, bookmarks } from '~/server/database/schema'
+import { eq, and } from 'drizzle-orm'
+import { getRouterParam } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -12,17 +14,36 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Check if bookmark exists
+  const existing = await db
+    .select({ id: bookmarks.id })
+    .from(bookmarks)
+    .where(eq(bookmarks.id, id))
+    .limit(1)
+
+  if (existing.length === 0) {
+    throw createError({
+      statusCode: 404,
+      message: 'Bookmark not found',
+    })
+  }
+
   if (method === 'GET') {
     // Get tags for bookmark
-    const tags = db.prepare(`
-      SELECT t.*
-      FROM tags t
-      JOIN bookmark_tags bt ON t.id = bt.tag_id
-      WHERE bt.bookmark_id = ?
-      ORDER BY t.name
-    `).all(id)
+    const result = await db
+      .select({
+        id: tags.id,
+        name: tags.name,
+        parent_tag_id: tags.parentTagId,
+        color: tags.color,
+        created_at: tags.createdAt,
+      })
+      .from(tags)
+      .innerJoin(bookmarkTags, eq(tags.id, bookmarkTags.tagId))
+      .where(eq(bookmarkTags.bookmarkId, id))
+      .orderBy(tags.name)
 
-    return { tags }
+    return { tags: result }
   }
 
   if (method === 'POST') {
@@ -37,20 +58,35 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const insertStmt = db.prepare(`
-      INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id)
-      VALUES (?, ?)
-    `)
-
+    // Insert new tag associations, ignoring duplicates
     for (const tagId of tag_ids) {
-      insertStmt.run(id, tagId)
+      await db
+        .insert(bookmarkTags)
+        .values({
+          id: crypto.randomUUID(),
+          bookmarkId: id,
+          tagId: tagId,
+        })
+        .onConflictDoNothing()
     }
 
     // Update sync metadata
-    db.prepare(`
-      INSERT OR REPLACE INTO sync_metadata (entity_type, entity_id, last_modified_at, sync_status)
-      VALUES ('bookmark', ?, CURRENT_TIMESTAMP, 'pending')
-    `).run(id)
+    await db
+      .insert(syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [syncMetadata.entityType, syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          syncStatus: 'pending',
+        },
+      })
 
     return { success: true }
   }
@@ -67,20 +103,34 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const deleteStmt = db.prepare(`
-      DELETE FROM bookmark_tags 
-      WHERE bookmark_id = ? AND tag_id = ?
-    `)
-
     for (const tagId of tag_ids) {
-      deleteStmt.run(id, tagId)
+      await db
+        .delete(bookmarkTags)
+        .where(
+          and(
+            eq(bookmarkTags.bookmarkId, id),
+            eq(bookmarkTags.tagId, tagId)
+          )
+        )
     }
 
     // Update sync metadata
-    db.prepare(`
-      INSERT OR REPLACE INTO sync_metadata (entity_type, entity_id, last_modified_at, sync_status)
-      VALUES ('bookmark', ?, CURRENT_TIMESTAMP, 'pending')
-    `).run(id)
+    await db
+      .insert(syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [syncMetadata.entityType, syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          syncStatus: 'pending',
+        },
+      })
 
     return { success: true }
   }

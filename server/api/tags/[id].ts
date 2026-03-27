@@ -1,7 +1,7 @@
-import { getDb } from '../../utils/db'
+import { db, schema } from '~/server/database'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -13,8 +13,11 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'GET') {
-    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(id)
-    
+    const [tag] = await db
+      .select()
+      .from(schema.tags)
+      .where(eq(schema.tags.id, id))
+
     if (!tag) {
       throw createError({
         statusCode: 404,
@@ -29,42 +32,41 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
     const { name, parent_tag_id, color } = body
 
-    const updates: string[] = []
-    const params: any[] = []
+    const updates: Record<string, any> = {}
 
     if (name !== undefined) {
-      updates.push('name = ?')
-      params.push(name.trim())
+      updates.name = name.trim()
     }
     if (parent_tag_id !== undefined) {
-      updates.push('parent_tag_id = ?')
-      params.push(parent_tag_id)
+      updates.parentTagId = parent_tag_id
     }
     if (color !== undefined) {
-      updates.push('color = ?')
-      params.push(color)
+      updates.color = color
     }
 
-    if (updates.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return { success: true }
     }
 
-    params.push(id)
+    const [tag] = await db
+      .update(schema.tags)
+      .set(updates)
+      .where(eq(schema.tags.id, id))
+      .returning()
 
-    db.prepare(`
-      UPDATE tags SET ${updates.join(', ')} WHERE id = ?
-    `).run(...params)
-
-    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(id)
     return { tag }
   }
 
   if (method === 'DELETE') {
     // Remove tag associations first
-    db.prepare('DELETE FROM bookmark_tags WHERE tag_id = ?').run(id)
-    
+    await db
+      .delete(schema.bookmarkTags)
+      .where(eq(schema.bookmarkTags.tagId, id))
+
     // Delete the tag
-    db.prepare('DELETE FROM tags WHERE id = ?').run(id)
+    await db
+      .delete(schema.tags)
+      .where(eq(schema.tags.id, id))
 
     return { success: true }
   }

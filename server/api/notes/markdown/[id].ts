@@ -1,7 +1,7 @@
-import { getDb } from '../../../utils/db'
+import { db, schema } from '~/server/database'
+import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const id = getRouterParam(event, 'id')
   const method = event.method
 
@@ -13,8 +13,11 @@ export default defineEventHandler(async (event) => {
   }
 
   if (method === 'GET') {
-    const note = db.prepare('SELECT * FROM markdown_notes WHERE id = ?').get(id) as any
-    
+    const [note] = await db
+      .select()
+      .from(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.id, id))
+
     if (!note) {
       throw createError({
         statusCode: 404,
@@ -24,60 +27,55 @@ export default defineEventHandler(async (event) => {
 
     return {
       ...note,
-      is_favorite: Boolean(note.is_favorite),
+      isFavorite: Boolean(note.isFavorite),
       tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
     }
   }
 
   if (method === 'PUT') {
     const body = await readBody(event)
-    const { title, content, is_favorite, sort_order, tags } = body
+    const { title, content, isFavorite, sortOrder, tags } = body
 
-    const updates: string[] = ['updated_at = CURRENT_TIMESTAMP']
-    const params: any[] = []
+    const updates: Record<string, any> = {}
 
     if (title !== undefined) {
-      updates.push('title = ?')
-      params.push(title)
+      updates.title = title
     }
     if (content !== undefined) {
-      updates.push('content = ?')
-      params.push(content)
+      updates.content = content
     }
-    if (is_favorite !== undefined) {
-      updates.push('is_favorite = ?')
-      params.push(is_favorite ? 1 : 0)
+    if (isFavorite !== undefined) {
+      updates.isFavorite = isFavorite ? 1 : 0
     }
-    if (sort_order !== undefined) {
-      updates.push('sort_order = ?')
-      params.push(sort_order)
+    if (sortOrder !== undefined) {
+      updates.sortOrder = sortOrder
     }
     if (tags !== undefined) {
-      updates.push('tags = ?')
       // Handle tags as array or comma-separated string
-      const tagsString = Array.isArray(tags) 
-        ? tags.join(',') 
+      const tagsString = Array.isArray(tags)
+        ? tags.join(',')
         : (typeof tags === 'string' ? tags : '')
-      params.push(tagsString)
+      updates.tags = tagsString
     }
 
-    params.push(id)
-
-    db.prepare(`
-      UPDATE markdown_notes SET ${updates.join(', ')} WHERE id = ?
-    `).run(...params)
-
-    const note = db.prepare('SELECT * FROM markdown_notes WHERE id = ?').get(id) as any
+    const [note] = await db
+      .update(schema.markdownNotes)
+      .set(updates)
+      .where(eq(schema.markdownNotes.id, id))
+      .returning()
 
     return {
       ...note,
-      is_favorite: Boolean(note.is_favorite),
+      isFavorite: Boolean(note.isFavorite),
       tags: note.tags ? note.tags.split(',').filter(Boolean) : [],
     }
   }
 
   if (method === 'DELETE') {
-    db.prepare('DELETE FROM markdown_notes WHERE id = ?').run(id)
+    await db
+      .delete(schema.markdownNotes)
+      .where(eq(schema.markdownNotes.id, id))
+
     return { success: true }
   }
 

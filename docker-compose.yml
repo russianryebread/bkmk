@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - POSTGRES_URL=postgresql://bkmk:bkmk123@postgres:5432/bkmk
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        sleep 2 &&
+        bunx drizzle-kit push &&
+        echo 'Starting application...' &&
+        bun run .output/server/index.mjs
+      "
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=bkmk
+      - POSTGRES_PASSWORD=bkmk123
+      - POSTGRES_DB=bkmk
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bkmk -d bkmk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

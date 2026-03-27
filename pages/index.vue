@@ -60,7 +60,7 @@
             </div>
             <div>
               <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.totalSecretNotes }}</p>
-              <p class="text-sm text-gray-500 dark:text-gray-400">Secret Notes</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Secrets</p>
             </div>
           </div>
         </NuxtLink>

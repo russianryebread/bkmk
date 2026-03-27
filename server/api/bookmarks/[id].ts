@@ -1,7 +1,9 @@
-import { getDb } from '../../utils/db'
+import { db } from '~/server/database'
+import { bookmarks, bookmarkTags, tags, syncMetadata } from '~/server/database/schema'
+import { eq } from 'drizzle-orm'
+import { getRouterParam } from 'h3'
 
 export default defineEventHandler(async (event) => {
-  const db = getDb()
   const id = getRouterParam(event, 'id')
 
   if (!id) {
@@ -14,42 +16,98 @@ export default defineEventHandler(async (event) => {
   const method = event.method
 
   if (method === 'GET') {
-    // Get single bookmark
-    const bookmark = db.prepare(`
-      SELECT b.*,
-        GROUP_CONCAT(DISTINCT t.name) as tags,
-        GROUP_CONCAT(DISTINCT t.id) as tag_ids
-      FROM bookmarks b
-      LEFT JOIN bookmark_tags bt ON b.id = bt.bookmark_id
-      LEFT JOIN tags t ON bt.tag_id = t.id
-      WHERE b.id = ?
-      GROUP BY b.id
-    `).get(id) as any
+    // Get single bookmark with tags
+    const result = await db
+      .select({
+        id: bookmarks.id,
+        title: bookmarks.title,
+        url: bookmarks.url,
+        description: bookmarks.description,
+        cleaned_markdown: bookmarks.cleanedMarkdown,
+        original_html: bookmarks.originalHtml,
+        reading_time_minutes: bookmarks.readingTimeMinutes,
+        saved_at: bookmarks.savedAt,
+        last_accessed_at: bookmarks.lastAccessedAt,
+        is_favorite: bookmarks.isFavorite,
+        sort_order: bookmarks.sortOrder,
+        thumbnail_image_path: bookmarks.thumbnailImagePath,
+        is_read: bookmarks.isRead,
+        read_at: bookmarks.readAt,
+        source_domain: bookmarks.sourceDomain,
+        word_count: bookmarks.wordCount,
+        created_at: bookmarks.createdAt,
+        updated_at: bookmarks.updatedAt,
+        tagName: tags.name,
+        tagId: tags.id,
+      })
+      .from(bookmarks)
+      .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
+      .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
+      .where(eq(bookmarks.id, id))
 
-    if (!bookmark) {
+    if (result.length === 0 || !result[0].id) {
       throw createError({
         statusCode: 404,
         message: 'Bookmark not found',
       })
     }
 
-    // Update last accessed time
-    db.prepare(`
-      UPDATE bookmarks 
-      SET last_accessed_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).run(id)
-
-    return {
-      ...bookmark,
-      is_favorite: Boolean(bookmark.is_favorite),
-      is_read: Boolean(bookmark.is_read),
-      tags: bookmark.tags ? bookmark.tags.split(',') : [],
-      tag_ids: bookmark.tag_ids ? bookmark.tag_ids.split(',') : [],
+    // Group tags
+    const firstRow = result[0]
+    const bookmark = {
+      id: firstRow.id,
+      title: firstRow.title,
+      url: firstRow.url,
+      description: firstRow.description,
+      cleaned_markdown: firstRow.cleaned_markdown,
+      original_html: firstRow.original_html,
+      reading_time_minutes: firstRow.reading_time_minutes,
+      saved_at: firstRow.saved_at,
+      last_accessed_at: firstRow.last_accessed_at,
+      is_favorite: Boolean(firstRow.is_favorite),
+      sort_order: firstRow.sort_order,
+      thumbnail_image_path: firstRow.thumbnail_image_path,
+      is_read: Boolean(firstRow.is_read),
+      read_at: firstRow.read_at,
+      source_domain: firstRow.source_domain,
+      word_count: firstRow.word_count,
+      created_at: firstRow.created_at,
+      updated_at: firstRow.updated_at,
+      tags: [] as string[],
+      tag_ids: [] as string[],
     }
+
+    for (const row of result) {
+      if (row.tagName) {
+        bookmark.tags.push(row.tagName)
+        bookmark.tag_ids.push(row.tagId!)
+      }
+    }
+
+    // Update last accessed time
+    await db
+      .update(bookmarks)
+      .set({ lastAccessedAt: new Date().toISOString() })
+      .where(eq(bookmarks.id, id))
+
+    return bookmark
   }
 
   if (method === 'PUT') {
+    // Check if bookmark exists
+    const existing = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, id))
+      .limit(1)
+
+    if (existing.length === 0) {
+      throw createError({
+        statusCode: 404,
+        message: 'Bookmark not found',
+      })
+    }
+
     // Update bookmark
     const body = await readBody(event)
     const {
@@ -62,69 +120,83 @@ export default defineEventHandler(async (event) => {
       sort_order,
     } = body
 
-    const updates: string[] = []
-    const params: any[] = []
+    const updates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    }
 
-    if (title !== undefined) {
-      updates.push('title = ?')
-      params.push(title)
-    }
-    if (url !== undefined) {
-      updates.push('url = ?')
-      params.push(url)
-    }
-    if (description !== undefined) {
-      updates.push('description = ?')
-      params.push(description)
-    }
-    if (cleaned_markdown !== undefined) {
-      updates.push('cleaned_markdown = ?')
-      params.push(cleaned_markdown)
-    }
-    if (is_favorite !== undefined) {
-      updates.push('is_favorite = ?')
-      params.push(is_favorite ? 1 : 0)
-    }
+    if (title !== undefined) updates.title = title
+    if (url !== undefined) updates.url = url
+    if (description !== undefined) updates.description = description
+    if (cleaned_markdown !== undefined) updates.cleanedMarkdown = cleaned_markdown
+    if (is_favorite !== undefined) updates.isFavorite = is_favorite ? 1 : 0
     if (is_read !== undefined) {
-      updates.push('is_read = ?')
-      params.push(is_read ? 1 : 0)
+      updates.isRead = is_read ? 1 : 0
       if (is_read) {
-        updates.push('read_at = CURRENT_TIMESTAMP')
+        updates.readAt = new Date().toISOString()
       }
     }
-    if (sort_order !== undefined) {
-      updates.push('sort_order = ?')
-      params.push(sort_order)
-    }
+    if (sort_order !== undefined) updates.sortOrder = sort_order
 
-    updates.push('updated_at = CURRENT_TIMESTAMP')
-    params.push(id)
-
-    if (updates.length > 1) {
-      db.prepare(`
-        UPDATE bookmarks 
-        SET ${updates.join(', ')}
-        WHERE id = ?
-      `).run(...params)
-    }
+    await db.update(bookmarks).set(updates).where(eq(bookmarks.id, id))
 
     // Update sync metadata
-    db.prepare(`
-      INSERT OR REPLACE INTO sync_metadata (entity_type, entity_id, last_modified_at, sync_status)
-      VALUES ('bookmark', ?, CURRENT_TIMESTAMP, 'pending')
-    `).run(id)
+    await db
+      .insert(syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [syncMetadata.entityType, syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          syncStatus: 'pending',
+        },
+      })
 
     return { success: true }
   }
 
   if (method === 'DELETE') {
-    db.prepare('DELETE FROM bookmarks WHERE id = ?').run(id)
-    
+    // Check if bookmark exists
+    const existing = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, id))
+      .limit(1)
+
+    if (existing.length === 0) {
+      throw createError({
+        statusCode: 404,
+        message: 'Bookmark not found',
+      })
+    }
+
+    // Delete bookmark (cascade will handle bookmark_tags)
+    await db.delete(bookmarks).where(eq(bookmarks.id, id))
+
     // Update sync metadata
-    db.prepare(`
-      INSERT OR REPLACE INTO sync_metadata (entity_type, entity_id, last_modified_at, is_deleted, sync_status)
-      VALUES ('bookmark', ?, CURRENT_TIMESTAMP, 1, 'pending')
-    `).run(id)
+    await db
+      .insert(syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        isDeleted: 1,
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [syncMetadata.entityType, syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          isDeleted: 1,
+          syncStatus: 'pending',
+        },
+      })
 
     return { success: true }
   }

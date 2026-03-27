@@ -1,38 +1,12 @@
-import { getDb } from '../utils/db'
+import { db, schema } from '~/server/database'
+import { eq, sql } from 'drizzle-orm'
 
 export default defineEventHandler(async () => {
-  const db = getDb()
+  const [{ count: totalBookmarks }] = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks)
+  const [{ count: unreadBookmarks }] = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks).where(eq(schema.bookmarks.isRead, 0))
+  const [{ count: totalNotes }] = await db.select({ count: sql<number>`count(*)` }).from(schema.markdownNotes)
+  const [{ count: totalSecretNotes }] = await db.select({ count: sql<number>`count(*)` }).from(schema.secretNotes)
+  const [{ count: totalTags }] = await db.select({ count: sql<number>`count(*)` }).from(schema.tags)
 
-  // Get total bookmarks count
-  const { total: totalBookmarks } = db.prepare(
-    'SELECT COUNT(*) as total FROM bookmarks'
-  ).get() as { total: number }
-
-  // Get unread bookmarks count
-  const { total: unreadBookmarks } = db.prepare(
-    'SELECT COUNT(*) as total FROM bookmarks WHERE is_read = 0'
-  ).get() as { total: number }
-
-  // Get total notes count (markdown_notes table)
-  const { total: totalNotes } = db.prepare(
-    'SELECT COUNT(*) as total FROM markdown_notes'
-  ).get() as { total: number }
-
-  // Get total secret notes count
-  const { total: totalSecretNotes } = db.prepare(
-    'SELECT COUNT(*) as total FROM secret_notes'
-  ).get() as { total: number }
-
-  // Get total tags count
-  const { total: totalTags } = db.prepare(
-    'SELECT COUNT(*) as total FROM tags'
-  ).get() as { total: number }
-
-  return {
-    totalBookmarks,
-    unreadBookmarks,
-    totalNotes,
-    totalSecretNotes,
-    totalTags,
-  }
+  return { totalBookmarks, unreadBookmarks, totalNotes, totalSecretNotes, totalTags }
 })

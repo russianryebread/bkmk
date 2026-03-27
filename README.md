@@ -17,14 +17,25 @@ A personal bookmarking application with offline reading and sync capabilities.
 - **Runtime**: Bun
 - **Frontend**: Nuxt 4, Vue 3, Tailwind CSS
 - **Backend**: Nitro server
-- **Database**: SQLite (production), IndexedDB (offline)
+- **Database**: PostgreSQL with Drizzle ORM, IndexedDB (offline)
 - **PWA**: @vite-pwa/nuxt with Workbox
 
-## Development
+## Setup
 
 ```bash
 # Install dependencies
 bun install
+
+# Copy environment file and configure database
+cp .env.example .env
+# Edit .env with your DATABASE_URL
+
+# Database commands (uses drizzle-kit)
+bun run db:generate  # Generate migrations from schema
+bun run db:push      # Push schema to database (quick sync)
+bun run db:migrate   # Run migrations
+bun run db:studio    # Open Drizzle Studio
+bun run db:check     # Check migrations
 
 # Run development server
 bun run dev
@@ -38,19 +49,43 @@ bun run preview
 
 ## Docker
 
+### Docker Compose (Recommended for local development)
+
+```bash
+# Start all services (app + PostgreSQL)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+
+# With fresh database
+docker compose down -v && docker compose up -d
+```
+
+### Manual Docker
+
 ```bash
 # Build image
 docker build -t bkmk .
 
-# Run container
-docker run -p 3000:3000 -v ./data:/app/data bkmk
+# Run with PostgreSQL
+docker run -p 3000:3000 -e POSTGRES_URL=postgresql://... bkmk
 ```
 
-## Data Storage
+## Database
 
-- SQLite database in `./data/bookmarks.db`
-- Local settings stored in IndexedDB for offline access
-- Settings persisted in localStorage
+- **ORM**: Drizzle ORM with PostgreSQL
+- **Migrations**: Run `bunx drizzle-kit push` or `bunx drizzle-kit migrate`
+- **Schema**: See `server/database/schema.ts`
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_URL` | PostgreSQL connection string |
 
 ## API Endpoints
 
