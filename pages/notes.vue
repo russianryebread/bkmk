@@ -5,7 +5,7 @@
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Markdown Notes</h1>
       <div class="flex gap-2">
         <ViewToggle />
-        <button @click="showEditor = true" class="btn-primary">
+        <button @click="startNewNote" class="btn-primary">
           <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
@@ -62,7 +62,7 @@
       </svg>
       <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No notes yet</h3>
       <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first markdown note</p>
-      <button @click="showEditor = true" class="btn-primary">Create Note</button>
+      <button @click="startNewNote" class="btn-primary">Create Note</button>
     </div>
 
     <div v-else>
@@ -287,8 +287,9 @@
         
         <!-- Footer -->
         <div class="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <button @click="closeEditor" class="btn-secondary">Cancel</button>
+          <button @click="closeEditor" class="btn-secondary">Close</button>
           <button 
+            v-if="hasChanges"
             @click="saveNote" 
             class="btn-primary" 
             :disabled="saving || !editorTitle.trim()"
@@ -315,8 +316,10 @@ const { viewMode } = useViewMode()
 const notes = ref<Note[]>([])
 const loading = ref(true)
 const showEditor = ref(false)
+const showPreview = ref(false)
 const editorTitle = ref('')
 const editorContent = ref('')
+const originalContent = ref('')
 const editorTags = ref<string[]>([])
 const editingNote = ref<Note | null>(null)
 const newTag = ref('')
@@ -324,6 +327,14 @@ const filterTag = ref('')
 const saving = ref(false)
 
 const renderedPreview = computed(() => render(editorContent.value))
+
+// Check if there are unsaved changes
+const hasChanges = computed(() => {
+  if (!editingNote.value) return editorTitle.value.trim() || editorContent.value.trim()
+  return editorTitle.value !== editingNote.value.title ||
+    editorContent.value !== editingNote.value.content ||
+    JSON.stringify(editorTags.value) !== JSON.stringify(editingNote.value.tags || [])
+})
 
 // Suggested tags based on all available tags minus current editor tags
 const suggestedTags = computed(() => {
@@ -349,6 +360,18 @@ function editNote(note: Note) {
   editorTitle.value = note.title
   editorContent.value = note.content
   editorTags.value = [...(note.tags || [])]
+  // When opening an existing note, start in preview mode
+  showPreview.value = true
+  showEditor.value = true
+}
+
+function startNewNote() {
+  editingNote.value = null
+  editorTitle.value = ''
+  editorContent.value = ''
+  editorTags.value = []
+  // When creating a new note, start in edit mode
+  showPreview.value = false
   showEditor.value = true
 }
 
