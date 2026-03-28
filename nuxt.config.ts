@@ -56,6 +56,7 @@ export default defineNuxtConfig({
       display: 'standalone',
       orientation: 'portrait-primary',
       start_url: '/',
+      scope: '/',
       icons: [
         {
           src: '/favicon.svg',
@@ -76,51 +77,14 @@ export default defineNuxtConfig({
       ]
     },
     workbox: {
+      // Navigate to index for all non-API requests (handles SPA routing offline)
       navigateFallback: '/',
-      // Cache all assets for offline use
-      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,woff,ttf,eot}'],
-      // Additional caching strategies
-      runtimeCaching: [
-        // Cache API responses with network-first strategy
-        {
-          urlPattern: /^https:\/\/.*\/api\/.*/i,
-          handler: 'NetworkFirst',
-          options: {
-            cacheName: 'api-cache',
-            expiration: {
-              maxEntries: 100,
-              maxAgeSeconds: 60 * 60 * 24 * 7 // 1 week
-            },
-            cacheableResponse: {
-              statuses: [0, 200]
-            }
-          }
-        },
-        // Cache images
-        {
-          urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
-          handler: 'CacheFirst',
-          options: {
-            cacheName: 'images-cache',
-            expiration: {
-              maxEntries: 50,
-              maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-            }
-          }
-        },
-        // Cache fonts
-        {
-          urlPattern: /\.(?:woff|woff2|ttf|eot)$/i,
-          handler: 'CacheFirst',
-          options: {
-            cacheName: 'fonts-cache',
-            expiration: {
-              maxEntries: 10,
-              maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-            }
-          }
-        }
-      ]
+      // Cache ALL assets - this is critical for offline
+      globPatterns: [
+        '**/*.{js,css,html,json,png,svg,ico,woff,woff2,ttf,eot}',
+      ],
+      // Increase max cache size
+      maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
     },
     client: {
       installPrompt: true,
