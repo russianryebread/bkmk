@@ -3,45 +3,53 @@
     <div v-if="bookmark" class="max-w-6xl mx-auto">
       <!-- Header -->
       <div class="mb-6">
-        
+
         <!-- Action buttons row - icons only -->
-        <div class="flex items-center justify-between mb-3">
-          <button
-            @click="toggleFavorite"
-            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Favorite"
-          >
-            <svg
-              class="w-5 h-5"
-              :class="bookmark.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+        <div class="flex items-center justify-between mb-3 md:flex-row md:gap-2 md:justify-end">
+          <button @click="$router.push('/bookmarks')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 md:hidden"
+            title="Back to list">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          
-          <button @click="showTagsModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Tags">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+
+          <button @click="toggleFavorite" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Favorite">
+            <svg class="w-5 h-5" :class="bookmark.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </button>
-          
-          <button @click="showEditModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit">
+
+          <button @click="showTagsModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Tags">
             <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
           </button>
-          
-          <a :href="bookmark.url" target="_blank" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Open original">
+
+          <button @click="showEditModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Edit">
             <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+
+          <a :href="bookmark.url" target="_blank" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="Open original">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </a>
 
           <button @click.stop="deleteBookmarkConfirm(bookmark)" class="p-2 rounded-lg hover:bg-gray-100" title="Delete">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700 hover:text-red-600" fill="none"
+              stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -51,10 +59,11 @@
         <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
           {{ bookmark.title }}
         </h1>
-        
+
         <!-- Metadata -->
 
-        <a :href="bookmark.url" target="_blank" rel="noopener" class="hover:text-primary-600 mb-2 inline-block text-sm text-gray-500 dark:text-gray-400">
+        <a :href="bookmark.url" target="_blank" rel="noopener"
+          class="hover:text-primary-600 mb-2 inline-block text-sm text-gray-500 dark:text-gray-400">
           {{ bookmark.source_domain }}
         </a>
 
@@ -66,12 +75,8 @@
 
         <!-- Tags display with colors -->
         <div v-if="bookmark.tags && bookmark.tags.length > 0" class="flex flex-wrap gap-2">
-          <span
-            v-for="tag in bookmark.tags"
-            :key="tag"
-            class="px-2.5 py-0.5 text-xs rounded-full"
-            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
-          >
+          <span v-for="tag in bookmark.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
+            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
             {{ tag }}
           </span>
         </div>
@@ -80,17 +85,12 @@
       <!-- Reading Mode Tabs -->
       <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav class="flex gap-4">
-          <button
-            v-for="mode in modes"
-            :key="mode.id"
-            @click="currentMode = mode.id"
-            :class="[
-              'pb-3 px-1 text-sm font-medium border-b-2 transition-colors',
-              currentMode === mode.id
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            ]"
-          >
+          <button v-for="mode in modes" :key="mode.id" @click="currentMode = mode.id" :class="[
+            'pb-3 px-1 text-sm font-medium border-b-2 transition-colors',
+            currentMode === mode.id
+              ? 'border-primary-600 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          ]">
             {{ mode.label }}
           </button>
         </nav>
@@ -99,25 +99,22 @@
       <!-- Content -->
       <div class="prose dark:prose-invert max-w-none">
         <!-- Reader Mode -->
-        <div 
-          v-if="currentMode === 'reader'" 
-          class="reader-content"
+        <div v-if="currentMode === 'reader'" class="reader-content"
           :class="[fontFamily === 'serif' ? 'font-serif' : 'font-sans', lineHeight === 'compact' ? 'leading-tight' : lineHeight === 'relaxed' ? 'leading-relaxed' : 'leading-normal']"
-          :style="{ fontSize: fontSize + 'px' }"
-          v-html="renderedMarkdown"
-        ></div>
-        
+          :style="{ fontSize: fontSize + 'px' }" v-html="renderedMarkdown"></div>
+
         <!-- Snapshot Mode -->
         <div v-else-if="currentMode === 'snapshot'" class="card p-6">
           <div v-html="bookmark.original_html" class="max-w-none"></div>
         </div>
-        
+
         <!-- Markdown Mode -->
         <div v-else class="card p-6">
           <pre class="whitespace-pre-wrap font-mono text-sm">{{ bookmark.cleaned_markdown }}</pre>
           <button @click="copyMarkdown" class="btn-secondary mt-4">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
             Copy
           </button>
@@ -129,7 +126,9 @@
     <div v-else-if="loading" class="flex justify-center py-12">
       <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+        </path>
       </svg>
     </div>
 
@@ -150,19 +149,14 @@
             </svg>
           </button>
         </div>
-        
+
         <!-- Tag Input with typeahead -->
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
-          <TagInput
-            ref="tagInputRef"
-            v-model="bookmarkTags"
-            placeholder="Search or create tags..."
-            @update:model-value="handleTagsUpdate"
-            @create-tag="handleCreateTag"
-          />
+          <TagInput ref="tagInputRef" v-model="bookmarkTags" placeholder="Search or create tags..."
+            @update:model-value="handleTagsUpdate" @create-tag="handleCreateTag" />
         </div>
-        
+
         <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
           <button @click="showTagsModal = false" class="btn-primary">Done</button>
         </div>
@@ -177,20 +171,19 @@
           <button @click="showEditModal = false" class="px-4 py-2 text-gray-300 hover:text-white">
             Cancel
           </button>
-          <button @click="saveEdit" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700" :disabled="saving">
+          <button @click="saveEdit" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            :disabled="saving">
             {{ saving ? 'Saving...' : 'Save' }}
           </button>
         </div>
       </div>
-      
+
       <div class="flex-1 p-4 overflow-hidden">
-        <textarea
-          v-model="editContent"
+        <textarea v-model="editContent"
           class="w-full h-full resize-none bg-gray-800 border border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          placeholder="Edit markdown content..."
-        ></textarea>
+          placeholder="Edit markdown content..."></textarea>
       </div>
-      
+
       <div class="p-4 bg-gray-800 border-t border-gray-700 flex justify-between items-center">
         <div class="text-sm text-gray-400">
           {{ wordCount }} words • {{ charCount }} characters
@@ -262,19 +255,19 @@ const availableTags = computed(() => {
 
 async function loadBookmark() {
   loading.value = true
-  
+
   // Load tags first so colors are available
   await loadAllTags(true)
-  
+
   const id = route.params.id as string
   bookmark.value = await fetchBookmark(id)
   loading.value = false
-  
+
   if (bookmark.value) {
     editContent.value = bookmark.value.cleaned_markdown || ''
     bookmarkTags.value = bookmark.value.tags || []
   }
-  
+
   // Mark as read
   if (bookmark.value && !bookmark.value.is_read) {
     await updateBookmark(id, { is_read: true })
@@ -292,20 +285,20 @@ watch(showTagsModal, async (isOpen) => {
 // Handle tag updates from TagInput component
 async function handleTagsUpdate(newTags: string[]) {
   if (!bookmark.value) return
-  
+
   const oldTags = bookmark.value.tags || []
-  
+
   // Find tags to add (in new but not in old)
   const tagsToAdd = newTags.filter(t => !oldTags.includes(t))
-  
+
   // Find tags to remove (in old but not in new)
   const tagsToRemove = oldTags.filter(t => !newTags.includes(t))
-  
+
   // Add new tags
   for (const tagName of tagsToAdd) {
     await addTagByName(tagName)
   }
-  
+
   // Remove old tags
   for (const tagName of tagsToRemove) {
     const tagInfo = allTags.value.find(t => t.name === tagName)
@@ -316,7 +309,7 @@ async function handleTagsUpdate(newTags: string[]) {
       })
     }
   }
-  
+
   // Update bookmark's tags
   bookmark.value.tags = newTags
 }
@@ -328,25 +321,25 @@ async function handleCreateTag(name: string) {
       method: 'POST',
       body: { name },
     })
-    
+
     // Add to local tags list
     const tagData = allTags.value.find(t => t.id === response.tag.id)
     if (!tagData) {
       allTags.value.push({ id: response.tag.id, name: response.tag.name })
     }
-    
+
     // Call the TagInput component to add this tag to selected tags
     if (tagInputRef.value?.onTagCreated) {
       tagInputRef.value.onTagCreated({ id: response.tag.id, name: response.tag.name })
     }
-    
+
     // Also add the tag to the bookmark
     if (bookmark.value) {
       await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
         method: 'POST',
         body: { tag_ids: [response.tag.id] },
       })
-      
+
       // Update local state
       if (!bookmarkTags.value.includes(response.tag.name)) {
         bookmarkTags.value.push(response.tag.name)
@@ -361,7 +354,7 @@ async function handleCreateTag(name: string) {
 // Add tag by name (internal function)
 async function addTagByName(tagName: string) {
   const existingTag = allTags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase())
-  
+
   if (existingTag) {
     await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
       method: 'POST',
@@ -387,11 +380,11 @@ function copyMarkdown() {
 async function addTag() {
   const tag = newTag.value.trim()
   if (!tag || bookmarkTags.value.includes(tag)) return
-  
+
   // Create tag if it doesn't exist
   let tagId: string | null = null
   const existingTag = allTags.value.find(t => t.name.toLowerCase() === tag.toLowerCase())
-  
+
   if (existingTag) {
     tagId = existingTag.id
   } else {
@@ -407,7 +400,7 @@ async function addTag() {
       return
     }
   }
-  
+
   // Add tag to bookmark
   if (tagId) {
     await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
@@ -417,42 +410,42 @@ async function addTag() {
     bookmarkTags.value.push(tag)
     bookmark.value.tags = [...bookmarkTags.value]
   }
-  
+
   newTag.value = ''
 }
 
 async function removeTag(tag: string) {
   const tagInfo = allTags.value.find(t => t.name === tag)
   if (!tagInfo) return
-  
+
   await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
     method: 'DELETE',
     body: { tag_ids: [tagInfo.id] },
   })
-  
+
   bookmarkTags.value = bookmarkTags.value.filter(t => t !== tag)
   bookmark.value.tags = [...bookmarkTags.value]
 }
 
 async function selectExistingTag(tag: Tag) {
   if (bookmarkTags.value.includes(tag.name)) return
-  
+
   await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
     method: 'POST',
     body: { tag_ids: [tag.id] },
   })
-  
+
   bookmarkTags.value.push(tag.name)
   bookmark.value.tags = [...bookmarkTags.value]
 }
 
 async function saveEdit() {
   if (!bookmark.value) return
-  
+
   saving.value = true
   try {
-    await updateBookmark(bookmark.value.id, { 
-      cleaned_markdown: editContent.value 
+    await updateBookmark(bookmark.value.id, {
+      cleaned_markdown: editContent.value
     })
     bookmark.value.cleaned_markdown = editContent.value
     showEditModal.value = false
