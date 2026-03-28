@@ -14,18 +14,56 @@ interface SignupCredentials {
   password: string
 }
 
+// Storage key for offline auth
+const AUTH_STORAGE_KEY = 'bkmk_auth'
+
 export const useAuth = () => {
-  const user = useState<AuthUser | null>('auth-user', () => null)
+  // Try to restore user from localStorage on client
+  const getStoredAuth = (): AuthUser | null => {
+    if (import.meta.client) {
+      try {
+        const stored = localStorage.getItem(AUTH_STORAGE_KEY)
+        if (stored) {
+          return JSON.parse(stored)
+        }
+      } catch (e) {
+        console.warn('[Auth] Failed to parse stored auth:', e)
+      }
+    }
+    return null
+  }
+
+  // Initialize from stored auth if available
+  const storedUser = import.meta.client ? getStoredAuth() : null
+  const user = useState<AuthUser | null>('auth-user', () => storedUser)
   const isAuthenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.role === 'admin')
   const isLoading = useState<boolean>('auth-loading', () => true)
+
+  // Save user to localStorage for offline access
+  const saveToStorage = (authUser: AuthUser | null) => {
+    if (import.meta.client) {
+      if (authUser) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser))
+      } else {
+        localStorage.removeItem(AUTH_STORAGE_KEY)
+      }
+    }
+  }
 
   const fetchUser = async (): Promise<AuthUser | null> => {
     try {
       const response = await $fetch<{ user: AuthUser }>('/api/auth/me')
       user.value = response.user
+      saveToStorage(response.user)
       return response.user
     } catch {
+      // Check if we have cached user for offline
+      const cached = getStoredAuth()
+      if (cached) {
+        user.value = cached
+        return cached
+      }
       user.value = null
       return null
     }
@@ -39,6 +77,7 @@ export const useAuth = () => {
         body: credentials
       })
       user.value = response.user
+      saveToStorage(response.user)
       return response.user
     } finally {
       isLoading.value = false
@@ -53,6 +92,7 @@ export const useAuth = () => {
         body: credentials
       })
       user.value = response.user
+      saveToStorage(response.user)
       return response.user
     } finally {
       isLoading.value = false
@@ -64,16 +104,34 @@ export const useAuth = () => {
     try {
       await $fetch('/api/auth/logout', { method: 'POST' })
       user.value = null
+      saveToStorage(null)
       await navigateTo('/login')
     } finally {
       isLoading.value = false
     }
   }
 
-  // Initialize auth state on client
+  // Initialize auth state on client - try to use cached auth first for offline
   const init = async (): Promise<void> => {
     if (import.meta.client) {
       isLoading.value = true
+      
+      // First check for cached user (instant, works offline)
+      const cached = getStoredAuth()
+      if (cached) {
+        user.value = cached
+        isLoading.value = false
+        
+        // Then try to validate with server in background
+        try {
+          await fetchUser()
+        } catch {
+          // Keep using cached user if server fails (offline)
+        }
+        return
+      }
+      
+      // No cached user, need to fetch from server
       await fetchUser()
       isLoading.value = false
     }

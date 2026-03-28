@@ -64,12 +64,12 @@ export default defineNuxtConfig({
           purpose: 'any maskable'
         },
         {
-          src: '/icon-192.png',
+          src: '/web-app-manifest-192x192.png',
           sizes: '192x192',
           type: 'image/png'
         },
         {
-          src: '/icon-512.png',
+          src: '/web-app-manifest-512x512.png',
           sizes: '512x512',
           type: 'image/png'
         }
@@ -77,7 +77,50 @@ export default defineNuxtConfig({
     },
     workbox: {
       navigateFallback: '/',
-      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
+      // Cache all assets for offline use
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,woff,ttf,eot}'],
+      // Additional caching strategies
+      runtimeCaching: [
+        // Cache API responses with network-first strategy
+        {
+          urlPattern: /^https:\/\/.*\/api\/.*/i,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'api-cache',
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 60 * 60 * 24 * 7 // 1 week
+            },
+            cacheableResponse: {
+              statuses: [0, 200]
+            }
+          }
+        },
+        // Cache images
+        {
+          urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'images-cache',
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+            }
+          }
+        },
+        // Cache fonts
+        {
+          urlPattern: /\.(?:woff|woff2|ttf|eot)$/i,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'fonts-cache',
+            expiration: {
+              maxEntries: 10,
+              maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+            }
+          }
+        }
+      ]
     },
     client: {
       installPrompt: true,
