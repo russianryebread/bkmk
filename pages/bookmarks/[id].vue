@@ -3,12 +3,9 @@
     <div v-if="bookmark" class="max-w-6xl mx-auto">
       <!-- Header -->
       <div class="mb-6">
-        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          {{ bookmark.title }}
-        </h1>
         
         <!-- Action buttons row - icons only -->
-        <div class="flex items-center gap-1 mb-3">
+        <div class="flex items-center justify-between mb-3">
           <button
             @click="toggleFavorite"
             class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -50,13 +47,18 @@
             </svg>
           </button>
         </div>
+
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {{ bookmark.title }}
+        </h1>
         
         <!-- Metadata -->
-        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <a :href="bookmark.url" target="_blank" rel="noopener" class="hover:text-primary-600">
-            {{ bookmark.source_domain }}
-          </a>
-          <span class="mx-2">•</span>
+
+        <a :href="bookmark.url" target="_blank" rel="noopener" class="hover:text-primary-600 mb-2 inline-block text-sm text-gray-500 dark:text-gray-400">
+          {{ bookmark.source_domain }}
+        </a>
+
+        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
           <span>Saved {{ formatDate(bookmark.saved_at) }}</span>
           <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
           <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>

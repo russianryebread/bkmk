@@ -2,9 +2,8 @@
   <div class="bg-gray-50 dark:bg-gray-900">
     <div class="max-w-6xl mx-auto">
       <!-- Header -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
-        <p class="text-gray-600 dark:text-gray-400">Your bookmarks at a glance</p>
+      <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
       </div>
 
       <!-- Stats Section -->
@@ -74,7 +73,7 @@
             v-model="searchQuery"
             type="text"
             placeholder="Search bookmarks and notes... (Press / to focus)"
-            class="input pl-12 pr-32 text-lg"
+            class="input pl-12 text-lg"
             @input="handleSearch"
             @keydown="handleKeydown"
           />
@@ -203,7 +202,7 @@
                 </svg>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Browse Bookmarks</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Bookmarks</h3>
                 <p class="text-gray-500 dark:text-gray-400">View and manage all your saved links</p>
               </div>
             </div>
@@ -222,7 +221,7 @@
                 </svg>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Markdown Notes</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Notes</h3>
                 <p class="text-gray-500 dark:text-gray-400">Create and edit markdown notes</p>
               </div>
             </div>
