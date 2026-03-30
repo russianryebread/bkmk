@@ -194,6 +194,7 @@ const router = useRouter()
 const { bookmarks, loading, error, pagination, fetchBookmarks, createBookmark, toggleFavorite, deleteBookmark } = useBookmarks()
 const { results: searchResults, debouncedSearch, clearSearch } = useSearch()
 const { loadAllTags, getTagColor } = useTagColors()
+const { tags, getAllTags } = useTags()
 const { viewMode } = useViewMode()
 
 const searchQuery = ref('')
@@ -208,13 +209,12 @@ const filters = ref({
   tag: '',
 })
 
-// Get all tags from useTagColors
+// Get all tags from centralized useTags
 const allTags = computed(() => {
-  const { allTags: tagsData } = useTagColors()
-  return tagsData.value || []
+  return tags.value || []
 })
 
-// Filter top-level tags (tags without parent_tag_id)
+// Filter top-level tags (tags without parentTagId)
 const topLevelTags = computed(() => {
   return allTags.value.filter(t => !t.parentTagId)
 })

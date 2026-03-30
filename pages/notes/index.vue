@@ -1,11 +1,25 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Notes</h1>
+    <!-- Header with actions -->
+    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+      <!-- Search -->
+      <div class="flex-1">
+        <div class="relative">
+          <input ref="searchInputRef" v-model="searchQuery" type="text"
+            placeholder="Search notes... (Press / to focus)" class="input pl-10 pr-24" @input="handleSearch" />
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+            viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Actions -->
       <div class="flex gap-2">
         <ViewToggle />
-        <button @click="startNewNote" class="btn-primary">
+        <button @click="router.push('/notes/new')" class="btn-primary">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
@@ -13,36 +27,7 @@
       </div>
     </div>
 
-    <!-- Offline Indicator -->
-    <div v-if="offlineNotes.isOnline.value === false"
-      class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-lg text-sm">
-      <span class="font-medium">Offline Mode:</span> Changes will sync when you're back online.
-    </div>
-
-    <!-- Error message -->
-    <div v-if="offlineNotes.offlineError.value"
-      class="mb-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
-      {{ offlineNotes.offlineError.value }}
-    </div>
-
-    <!-- Search and Filter Row -->
-    <div class="mb-4 flex flex-col sm:flex-row gap-3">
-      <!-- Search -->
-      <div class="flex-1">
-        <div class="relative">
-          <input ref="searchInputRef" v-model="searchQuery" type="text"
-            placeholder="Search notes... (Press / to focus)" class="input pl-10" @input="handleSearch" />
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <button v-if="searchQuery" @click="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
+    <div class="mb-4">
       <!-- Tag Filter -->
       <div class="flex flex-wrap gap-2">
         <button @click="filterTag = ''" class="px-3 py-1 text-sm rounded-full transition-colors" :class="filterTag === ''
@@ -76,19 +61,20 @@
       </svg>
       <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No notes yet</h3>
       <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first markdown note</p>
-      <button @click="startNewNote" class="btn-primary">Create Note</button>
+      <button @click="router.push('/notes/new')" class="btn-primary">Create Note</button>
     </div>
 
     <div v-else>
-          <!-- Card View -->
-          <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div v-for="note in filteredNotes" :key="note.id" class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-              @click="openNote(note)">
+      <!-- Card View -->
+      <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div v-for="note in filteredNotes" :key="note.id"
+          class="card p-4 hover:shadow-md transition-shadow cursor-pointer" @click="openNote(note)">
           <div class="flex justify-between items-start mb-2">
             <h3 class="font-medium text-gray-900 dark:text-white">{{ note.title }}</h3>
             <div>
               <button @click.stop="toggleFavorite(note)" class="p-1">
-                <svg class="w-5 h-5" :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 hover:text-yellow-300'"
+                <svg class="w-5 h-5"
+                  :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400 hover:text-yellow-300'"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -152,164 +138,28 @@
         </div>
       </div>
     </div>
-
-    <!-- Editor Modal - Full Screen on Mobile -->
-    <div v-if="showEditor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-0 md:p-4">
-      <div class="card w-full h-full md:h-auto md:max-h-[95vh] md:max-w-4xl flex flex-col">
-        <!-- Header with Save button on top -->
-        <div
-          class="flex items-center justify-between p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 sm:rounded-t-lg rounded-none dark:bg-gray-800">
-          <div class="flex items-center gap-2 flex-1">
-            <button @click="closeEditor"
-              class="p-2 -ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <input v-model="editorTitle" type="text" placeholder="Note title..."
-              class="text-lg md:text-xl font-bold bg-transparent border-none focus:outline-none text-gray-900 dark:text-white flex-1 min-w-0" />
-          </div>
-          <button v-if="hasChanges" @click="saveNote" class="btn-primary text-sm py-1.5 md:text-base md:py-2"
-            :disabled="saving || !editorTitle.trim()"
-            :class="{ 'opacity-50 cursor-not-allowed': saving || !editorTitle.trim() }">
-            {{ saving ? 'Saving...' : 'Save' }}
-          </button>
-        </div>
-
-        <!-- Editor/Preview toggle and content -->
-        <div class="flex-1 overflow-hidden flex flex-col min-h-0">
-          <!-- Toggle buttons -->
-          <div class="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-            <button @click="showPreview = false" class="px-4 py-2 text-sm font-medium transition-colors" :class="!showPreview
-              ? 'text-primary-600 border-b-2 border-primary-600'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
-              Edit
-            </button>
-            <button @click="showPreview = true" class="px-4 py-2 text-sm font-medium transition-colors" :class="showPreview
-              ? 'text-primary-600 border-b-2 border-primary-600'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
-              Preview
-            </button>
-          </div>
-
-          <!-- Editor or Preview content -->
-          <div class="flex-1 overflow-auto">
-            <!-- Editor -->
-            <div v-if="!showPreview" class="p-3 md:p-4">
-              <textarea v-model="editorContent" placeholder="Write your markdown here..."
-                class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"></textarea>
-            </div>
-
-            <!-- Preview -->
-            <div v-else class="p-3 md:p-4">
-              <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">{{ editorTitle || 'Untitled' }}</h2>
-              <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tags Section - Only shown when editing (not preview) -->
-        <div v-if="!showPreview" class="border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div class="p-3 flex-shrink-0">
-            <div class="flex items-center gap-3 flex-wrap">
-              <!-- Tags label -->
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
-
-              <!-- Current tags (horizontal list) -->
-              <div class="flex flex-wrap gap-1 items-center">
-                <span v-for="tag in editorTags" :key="tag"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
-                  :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-                  {{ tag }}
-                  <button @click="removeTag(tag)" class="hover:opacity-75 flex-shrink-0">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
-                <span v-if="editorTags.length === 0" class="text-xs text-gray-400">
-                  No tags
-                </span>
-              </div>
-
-              <!-- Divider -->
-              <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-
-              <!-- Add tag input -->
-              <input v-model="newTag" type="text" placeholder="Add tag..."
-                class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent flex-shrink-0"
-                @keydown.enter.prevent="addTag" />
-              <button @click="addTag" :disabled="!newTag.trim()"
-                class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
-                Add
-              </button>
-
-              <!-- Suggested tags -->
-              <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
-                <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
-                <button v-for="tag in suggestedTags" :key="tag" @click="addSuggestedTag(tag)"
-                  class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0">
-                  {{ tag }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer - Close button only (Save is now in header) - hidden on mobile -->
-        <div
-          class="hidden md:flex justify-end gap-2 p-3 md:p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
-          <button @click="closeEditor" class="btn-secondary">Close</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useOfflineNotes } from '~/composables/useOfflineNotes'
 import { useTagColors } from '~/composables/useTagColors'
+import { useTags } from '~/composables/useTags'
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
+import type search from '~/server/api/bookmarks/search'
 
-const route = useRoute()
 const router = useRouter()
-const { render } = useMarkdown()
-const { allTags, loadAllTags, getTagColor } = useTagColors()
 const offlineNotes = useOfflineNotes()
+const { allTags, loadAllTags, getTagColor } = useTagColors()
+const { tags, getAllTags } = useTags()
 const { viewMode } = useViewMode()
 
 const notes = ref<Note[]>([])
 const loading = ref(true)
-const showEditor = ref(false)
-const showPreview = ref(false)
-const editorTitle = ref('')
-const editorContent = ref('')
-const editorTags = ref<string[]>([])
-const editingNote = ref<Note | null>(null)
-const newTag = ref('')
 const filterTag = ref('')
-const saving = ref(false)
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
-
-const renderedPreview = computed(() => render(editorContent.value))
-
-// Check if there are unsaved changes
-const hasChanges = computed(() => {
-  if (!editingNote.value) return editorTitle.value.trim() || editorContent.value.trim()
-  return editorTitle.value !== editingNote.value.title ||
-    editorContent.value !== editingNote.value.content ||
-    JSON.stringify(editorTags.value) !== JSON.stringify(editingNote.value.tags || [])
-})
-
-// Suggested tags based on all available tags minus current editor tags
-const suggestedTags = computed(() => {
-  return allTags.value
-    .map(t => t.name)
-    .filter(tag => !editorTags.value.includes(tag))
-    .slice(0, 5)
-})
 
 async function loadNotes() {
   loading.value = true
@@ -321,84 +171,6 @@ async function loadNotes() {
     loading.value = false
   }
 }
-
-function editNote(note: Note) {
-  editingNote.value = note
-  editorTitle.value = note.title
-  editorContent.value = note.content
-  editorTags.value = [...(note.tags || [])]
-  // When editing from list view, start in edit mode
-  showPreview.value = false
-  showEditor.value = true
-}
-
-function startNewNote() {
-  editingNote.value = null
-  editorTitle.value = ''
-  editorContent.value = ''
-  editorTags.value = []
-  // When creating a new note, start in edit mode
-  showPreview.value = false
-  showEditor.value = true
-}
-
-function closeEditor() {
-  showEditor.value = false
-  editorTitle.value = ''
-  editorContent.value = ''
-  editorTags.value = []
-  editingNote.value = null
-  newTag.value = ''
-}
-
-function addTag() {
-  const tag = newTag.value.trim()
-  if (tag && !editorTags.value.includes(tag)) {
-    editorTags.value.push(tag)
-  }
-  newTag.value = ''
-}
-
-function addSuggestedTag(tag: string) {
-  if (!editorTags.value.includes(tag)) {
-    editorTags.value.push(tag)
-  }
-}
-
-function removeTag(tag: string) {
-  editorTags.value = editorTags.value.filter(t => t !== tag)
-}
-
-async function saveNote() {
-  if (!editorTitle.value.trim()) return
-
-  saving.value = true
-
-  try {
-    if (editingNote.value) {
-      await offlineNotes.updateNote(editingNote.value.id, {
-        title: editorTitle.value,
-        content: editorContent.value,
-        tags: editorTags.value,
-      })
-    } else {
-      await offlineNotes.createNote({
-        title: editorTitle.value,
-        content: editorContent.value,
-        tags: editorTags.value,
-      })
-    }
-    closeEditor()
-    loadNotes()
-    // Force reload tags after saving in case new tags were created
-    loadAllTags(true)
-  } catch (e) {
-    console.error('Failed to save note:', e)
-  } finally {
-    saving.value = false
-  }
-}
-
 
 async function toggleFavorite(note: Note) {
   await offlineNotes.toggleFavorite(note.id)
@@ -428,10 +200,6 @@ function handleSearch() {
   // Search is handled by computed property
 }
 
-function clearSearch() {
-  searchQuery.value = ''
-}
-
 function openNote(note: Note) {
   router.push(`/notes/${note.id}`)
 }
@@ -441,15 +209,20 @@ watch(filterTag, () => {
   loadNotes()
 })
 
-onMounted(() => {
+onMounted(async () => {
+  await getAllTags()
   loadNotes()
-  loadAllTags()
+
+  // Focus search on mount
+  nextTick(() => {
+    searchInputRef.value?.focus()
+  })
 
   // Listen for online status to refresh data when coming back online
   window.addEventListener('online', () => {
     console.log('[Notes] Back online, refreshing data...')
     loadNotes()
-    loadAllTags(true)
+    getAllTags(true)
   })
 
   // Listen for '/' key to focus search

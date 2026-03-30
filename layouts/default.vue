@@ -14,11 +14,6 @@
 
           <!-- Desktop Navigation - Right aligned -->
           <nav class="hidden md:flex items-center space-x-1">
-            <NuxtLink to="/"
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300">
-              Home
-            </NuxtLink>
             <NuxtLink to="/bookmarks"
               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300">

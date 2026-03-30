@@ -1,29 +1,34 @@
 <template>
-  <div>
-    <div v-if="note" class="max-w-4xl mx-auto">
+  <div class="max-w-4xl mx-auto">
+    <!-- Loading -->
+    <div v-if="loading" class="flex justify-center py-12">
+      <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+        </path>
+      </svg>
+    </div>
+
+    <!-- Note View/Edit -->
+    <div v-else-if="note || isNew">
       <!-- Header -->
       <div class="mb-6">
         <div class="flex items-center justify-between mb-4">
           <!-- Back button -->
-          <button @click="$router.push('/notes')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Back to notes">
+          <button @click="handleBack" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" :title="isNew ? 'Back to notes' : 'Back to notes'">
             <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
 
-          <div class="flex items-center gap-2">
+          <!-- Action buttons (existing note view mode) -->
+          <div v-if="!isNew && !editing" class="flex items-center gap-2">
             <button @click="toggleFavorite" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Favorite">
-              <svg class="w-5 h-5" :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
+              <svg class="w-5 h-5" :class="note?.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-
-            <button @click="showTagsModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" title="Tags">
-              <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
               </svg>
             </button>
 
@@ -43,122 +48,152 @@
           </div>
         </div>
 
-        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          {{ note.title }}
-        </h1>
-
-        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-          <span>Updated {{ formatDate(note.updatedAt) }}</span>
-          <span class="mx-2">•</span>
-          <span>{{ wordCount }} words</span>
+        <!-- Title -->
+        <div class="mb-4">
+          <!-- View mode title (existing note, not editing) -->
+          <div v-if="!isNew && !editing" @click="startEditing" class="group cursor-pointer">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
+              {{ note?.title }}
+            </h1>
+          </div>
+          <!-- Editor mode title (new or editing) -->
+          <input v-else v-model="editorTitle" type="text" :placeholder="titlePlaceholder"
+            class="w-full text-2xl md:text-3xl font-bold bg-transparent border-b-2 border-transparent focus:border-primary-500 focus:outline-none text-gray-900 dark:text-white placeholder-gray-400"
+            @keydown.enter="saveNote" />
         </div>
 
-        <!-- Tags display with colors -->
-        <div v-if="note.tags && note.tags.length > 0" class="flex flex-wrap gap-2">
-          <span v-for="tag in note.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
+        <!-- Metadata and tags (view mode - existing note) -->
+        <template v-if="!isNew && !editing">
+          <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <span>Updated {{ formatDate(note?.updatedAt) }}</span>
+            <span class="mx-2">•</span>
+            <span>{{ wordCount }} words</span>
+          </div>
+
+          <div v-if="note?.tags && note.tags.length > 0" class="flex flex-wrap gap-2">
+            <span v-for="tag in note.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
+              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
+              {{ tag }}
+            </span>
+          </div>
+        </template>
+
+        <!-- Editor tags display (new or editing) -->
+        <div v-else-if="editorTags.length > 0" class="flex flex-wrap gap-2 mb-4">
+          <span v-for="tag in editorTags" :key="tag"
+            class="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full"
             :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
             {{ tag }}
+            <button @click="removeTag(tag)" class="hover:opacity-75">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </span>
         </div>
       </div>
 
-      <!-- Reading Mode Tabs -->
-      <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav class="flex gap-4">
-          <button @click="currentMode = 'preview'" :class="[
-            'pb-3 px-1 text-sm font-medium border-b-2 transition-colors',
-            currentMode === 'preview'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          ]">
-            Preview
-          </button>
-          <button @click="currentMode = 'edit'" :class="[
-            'pb-3 px-1 text-sm font-medium border-b-2 transition-colors',
-            currentMode === 'edit'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          ]">
+      <!-- View mode content (existing note, not editing) -->
+      <template v-if="!isNew && !editing">
+        <hr>
+        <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedMarkdown"></div>
+      </template>
+
+      <!-- Editor mode (new or editing) -->
+      <div v-else class="card">
+        <!-- Edit/Preview Toggle -->
+        <div class="flex border-b border-gray-200 dark:border-gray-700">
+          <button @click="showPreview = false" class="px-4 py-2 text-sm font-medium transition-colors" :class="!showPreview
+            ? 'text-primary-600 border-b-2 border-primary-600'
+            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
             Edit
           </button>
-        </nav>
-      </div>
-
-      <!-- Content -->
-      <div class="prose dark:prose-invert max-w-none">
-        <!-- Preview Mode -->
-        <div v-if="currentMode === 'preview'" class="reader-content">
-          <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">{{ note.title }}</h2>
-          <div v-html="renderedMarkdown"></div>
+          <button @click="showPreview = true" class="px-4 py-2 text-sm font-medium transition-colors" :class="showPreview
+            ? 'text-primary-600 border-b-2 border-primary-600'
+            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
+            Preview
+          </button>
         </div>
 
-        <!-- Edit Mode -->
-        <div v-else class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
-            <input v-model="editorTitle" type="text" class="input w-full" placeholder="Note title..." />
+        <!-- Content Area -->
+        <div class="min-h-[300px]">
+          <!-- Editor -->
+          <div v-if="!showPreview" class="p-4">
+            <textarea v-model="editorContent" placeholder="Write your markdown here..."
+              class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"
+              autofocus></textarea>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content (Markdown)</label>
-            <textarea v-model="editorContent" rows="20"
-              class="input w-full font-mono text-sm resize-none"
-              placeholder="Write your markdown here..."></textarea>
+          <!-- Preview -->
+          <div v-else class="p-4">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">{{ displayTitle }}</h2>
+            <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
           </div>
+        </div>
 
-          <div class="flex justify-between items-center">
-            <div class="text-sm text-gray-500 dark:text-gray-400">
-              {{ editorWordCount }} words
+        <!-- Tags Section - Only shown when editing (not preview) -->
+        <div v-if="!showPreview" class="border-t border-gray-200 dark:border-gray-700 p-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
+            
+            <!-- Current tags -->
+            <div class="flex flex-wrap gap-1 items-center">
+              <span v-for="tag in editorTags" :key="tag"
+                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
+                :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
+                {{ tag }}
+                <button @click="removeTag(tag)" class="hover:opacity-75">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+              <span v-if="editorTags.length === 0" class="text-xs text-gray-400">No tags</span>
             </div>
-            <div class="flex gap-2">
-              <button @click="cancelEditing" class="btn-secondary">Cancel</button>
-              <button @click="saveNote" class="btn-primary" :disabled="saving || !editorTitle.trim()">
-                {{ saving ? 'Saving...' : 'Save' }}
+
+            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
+
+            <!-- Tag input -->
+            <div class="relative">
+              <input v-model="newTag" type="text" placeholder="Add tag..."
+                class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent"
+                @keydown.enter.prevent="addTag" @keydown.comma.prevent="addTag" />
+            </div>
+            <button @click="addTag" :disabled="!newTag.trim()"
+              class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              Add
+            </button>
+
+            <!-- Suggested tags -->
+            <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
+              <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
+              <button v-for="tag in suggestedTags" :key="tag" @click="addSuggestedTag(tag)"
+                class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
+                {{ tag }}
               </button>
             </div>
           </div>
         </div>
+
+        <!-- Footer -->
+        <div class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div class="text-sm text-gray-500 dark:text-gray-400">
+            {{ editorWordCount }} words
+          </div>
+          <div class="flex gap-2">
+            <button v-if="!isNew && editing" @click="cancelEditing" class="btn-secondary">Cancel</button>
+            <button @click="saveNote" class="btn-primary" :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorTitle.trim())">
+              {{ saving ? 'Saving...' : (isNew ? 'Save' : (hasChanges ? 'Save' : 'Saved')) }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-else-if="loading" class="flex justify-center py-12">
-      <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-        </path>
-      </svg>
-    </div>
-
-    <!-- Error -->
+    <!-- Error: Note not found -->
     <div v-else class="text-center py-12">
       <p class="text-gray-500 dark:text-gray-400">Note not found</p>
       <NuxtLink to="/notes" class="btn-primary mt-4">Go Back</NuxtLink>
-    </div>
-
-    <!-- Tags Modal -->
-    <div v-if="showTagsModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div class="card max-w-md w-full p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Manage Tags</h2>
-          <button @click="showTagsModal = false" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Tag Input with typeahead -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
-          <TagInput v-model="editorTags" placeholder="Search or create tags..." />
-        </div>
-
-        <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
-          <button @click="showTagsModal = false" class="btn-primary">Done</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -166,23 +201,47 @@
 <script setup lang="ts">
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
+import { useTags } from '~/composables/useTags'
 
 const route = useRoute()
 const router = useRouter()
-const { getNoteById, updateNote, deleteNote: deleteNoteFn, toggleFavorite: toggleFavoriteFn } = useOfflineNotes()
+const { getNoteById, createNote, updateNote, deleteNote: deleteNoteFn, toggleFavorite: toggleFavoriteFn } = useOfflineNotes()
 const { render } = useMarkdown()
 const { getTagColor, loadAllTags } = useTagColors()
+const { tags, getAllTags, handleCreateTag } = useTags()
 
+// State
 const note = ref<Note | null>(null)
 const loading = ref(true)
-const currentMode = ref('preview')
-const showTagsModal = ref(false)
+const editing = ref(false)
+const showPreview = ref(false)
 const editorTitle = ref('')
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
+const newTag = ref('')
 const saving = ref(false)
 
+// Determine mode - use isNew computed property
+const isNew = computed(() => route.params.id === 'new')
+
+// Title placeholder for new notes
+const titlePlaceholder = computed(() => {
+  const today = new Date()
+  const formatted = today.toISOString().split('T')[0]
+  return `Untitled ${formatted}`
+})
+
+// Display title (for preview)
+const displayTitle = computed(() => {
+  if (isNew.value) {
+    return editorTitle.value || titlePlaceholder.value
+  }
+  return editorTitle.value || 'Untitled'
+})
+
+// Computed properties
 const renderedMarkdown = computed(() => render(note.value?.content || ''))
+const renderedPreview = computed(() => render(editorContent.value))
 
 const wordCount = computed(() => {
   if (!note.value?.content) return 0
@@ -194,63 +253,125 @@ const editorWordCount = computed(() => {
   return editorContent.value.split(/\s+/).filter(w => w.length > 0).length
 })
 
+// Check if there are unsaved changes
+const hasChanges = computed(() => {
+  if (!note.value) return editorTitle.value.trim() || editorContent.value.trim()
+  return editorTitle.value !== note.value.title ||
+    editorContent.value !== note.value.content ||
+    JSON.stringify(editorTags.value) !== JSON.stringify(note.value.tags || [])
+})
+
+// Suggested tags based on all available tags minus current editor tags
+const suggestedTags = computed(() => {
+  return tags.value
+    .map(t => t.name)
+    .filter(tag => !editorTags.value.includes(tag))
+    .slice(0, 5)
+})
+
+// Initialize editor state for new note
+function initNewNote() {
+  editorTitle.value = ''
+  editorContent.value = ''
+  editorTags.value = []
+  newTag.value = ''
+  showPreview.value = false
+  editing.value = true
+  note.value = null
+}
+
+// Initialize editor state from existing note
+function initFromNote() {
+  if (note.value) {
+    editorTitle.value = note.value.title
+    editorContent.value = note.value.content
+    editorTags.value = [...(note.value.tags || [])]
+  }
+  newTag.value = ''
+  showPreview.value = false
+}
+
+// Load existing note
 async function loadNote() {
   loading.value = true
 
   // Load tags first so colors are available
-  await loadAllTags(true)
+  await getAllTags(true)
 
   const id = route.params.id as string
   note.value = await getNoteById(id)
   loading.value = false
 
   if (note.value) {
-    editorTitle.value = note.value.title
-    editorContent.value = note.value.content
-    editorTags.value = [...(note.value.tags || [])]
+    initFromNote()
   }
 }
 
 function startEditing() {
-  if (note.value) {
-    editorTitle.value = note.value.title
-    editorContent.value = note.value.content
-    editorTags.value = [...(note.value.tags || [])]
-    currentMode.value = 'edit'
-  }
+  editing.value = true
+  showPreview.value = false
+  initFromNote()
 }
 
 function cancelEditing() {
-  currentMode.value = 'preview'
-  if (note.value) {
-    editorTitle.value = note.value.title
-    editorContent.value = note.value.content
-    editorTags.value = [...(note.value.tags || [])]
+  editing.value = false
+  initFromNote()
+}
+
+function handleBack() {
+  if (isNew.value || editing.value) {
+    // If creating or editing, go back to notes list
+    router.push('/notes')
+  } else {
+    // Otherwise just stop editing
+    cancelEditing()
   }
 }
 
+// Unified save logic - handles both create and update
 async function saveNote() {
-  if (!note.value || !editorTitle.value.trim()) return
+  if (!editorTitle.value.trim()) return
 
   saving.value = true
-  try {
-    await updateNote(note.value.id, {
-      title: editorTitle.value,
-      content: editorContent.value,
-      tags: editorTags.value,
-    })
 
-    // Update local note
-    note.value = {
-      ...note.value,
-      title: editorTitle.value,
-      content: editorContent.value,
-      tags: editorTags.value,
-      updatedAt: new Date().toISOString(),
+  try {
+    // Handle tag creation for any new tags
+    const newTags = editorTags.value.filter(tag => !tags.value.find(t => t.name.toLowerCase() === tag.toLowerCase()))
+    for (const tagName of newTags) {
+      await handleCreateTag(tagName)
     }
 
-    currentMode.value = 'preview'
-    loadAllTags(true) // Refresh tags
+    if (isNew.value) {
+      // Create new note
+      const noteToSave = await createNote({
+        title: editorTitle.value,
+        content: editorContent.value,
+        tags: editorTags.value,
+      })
+
+      if (noteToSave) {
+        router.replace(`/notes/${noteToSave.id}`)
+      }
+    } else if (note.value) {
+      // Update existing note
+      await updateNote(note.value.id, {
+        title: editorTitle.value,
+        content: editorContent.value,
+        tags: editorTags.value,
+      })
+
+      // Update local note
+      note.value = {
+        ...note.value,
+        title: editorTitle.value,
+        content: editorContent.value,
+        tags: editorTags.value,
+        updatedAt: new Date().toISOString(),
+      }
+
+      editing.value = false
+      loadAllTags(true) // Refresh tags
+    }
   } catch (e) {
     console.error('Failed to save note:', e)
   } finally {
@@ -273,20 +394,37 @@ async function deleteNoteConfirm() {
   }
 }
 
-// Watch for tags changes
-watch(editorTags, async (newTags) => {
-  if (!note.value) return
-
-  // Only update if we have a note loaded
-  const oldTags = note.value.tags || []
-  if (JSON.stringify(newTags) !== JSON.stringify(oldTags)) {
-    await updateNote(note.value.id, { tags: newTags })
-    note.value.tags = newTags
-    loadAllTags(true)
+// Unified tag management functions
+function addTag() {
+  const tag = newTag.value.trim()
+  if (tag && !editorTags.value.includes(tag)) {
+    editorTags.value.push(tag)
   }
-}, { deep: true })
+  newTag.value = ''
+}
 
-onMounted(() => {
-  loadNote()
+function addSuggestedTag(tag: string) {
+  if (!editorTags.value.includes(tag)) {
+    editorTags.value.push(tag)
+  }
+}
+
+function removeTag(tag: string) {
+  editorTags.value = editorTags.value.filter(t => t !== tag)
+}
+
+// Watch for route changes to reload data
+watch(() => route.params.id, async (newId) => {
+  if (newId === 'new') {
+    initNewNote()
+    loading.value = false
+  } else {
+    await loadNote()
+  }
+}, { immediate: true })
+
+onMounted(async () => {
+  await getAllTags(true)
+  loadAllTags(true)
 })
 </script>

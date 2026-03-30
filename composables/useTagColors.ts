@@ -11,67 +11,33 @@ const tagColorsMap: Record<string, { bg: string; text: string }> = {
 
 const defaultColors = Object.values(tagColorsMap)
 
+// Re-export Tag type from useTags
+export type { Tag } from './useTags'
+
 export function useTagColors() {
-  // Import Tag from useTags to share the interface
-  const { tags: allTagsData } = useTags()
-  const allTags = useState<{ id: string; name: string; color?: string }[]>('allTagsColor', () => [])
+  // Directly use the shared tags from useTags
+  const { tags, getAllTags } = useTags()
   
-  // Get IDB instance to access offline tags
-  const idb = useIdb()
+  // Derive the allTags state from the centralized tags
+  const allTags = computed(() => {
+    return tags.value.map(t => ({
+      id: t.id,
+      name: t.name,
+      color: t.color || undefined,
+    }))
+  })
   
   async function loadAllTags(forceRefresh = false) {
-    // Check online status
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : false
-    
-    // Only skip loading if we have cached data and not forcing refresh
-    if (!forceRefresh && allTags.value.length > 0) {
-      // If we're offline and have cached data, we're good
-      if (!isOnline) {
-        return
-      }
-      // If online, still refresh if data is stale (older than 5 minutes)
-      // For simplicity, just return if we have data and are online
-      return
-    }
-    
-    // If online, try server first
-    if (isOnline) {
-      try {
-        const response = await $fetch<{ tags: { id: string; name: string; color?: string }[] }>('/api/tags')
-        allTags.value = response.tags
-        // Also save to IndexedDB for offline use
-        if (response.tags && response.tags.length > 0) {
-          await idb.saveTags(response.tags.map(t => ({
-            id: t.id,
-            name: t.name,
-            parentTagId: null,
-            color: t.color || null,
-            createdAt: new Date().toISOString(),
-          })))
-        }
-        return
-      } catch (e: any) {
-        console.warn('[TagColors] Failed to fetch tags from server, falling back to IndexedDB:', e?.message || e)
-      }
-    }
-    
-    // Fallback to IndexedDB when offline or server fetch failed
-    try {
-      const offlineTags = await idb.getAllTags()
-      allTags.value = offlineTags.map(t => ({
-        id: t.id,
-        name: t.name,
-        color: t.color || undefined,
-      }))
-    } catch (e: any) {
-      console.error('[TagColors] Failed to load tags from IndexedDB:', e?.message || e)
-    }
+    await getAllTags(forceRefresh)
   }
 
-
-
+  /**
+   * Get color for a tag by name
+   * @param tagName - The name of the tag
+   * @returns Object with bg and text color
+   */
   function getTagColor(tagName: string): { bg: string; text: string } {
-    const tag = allTags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase())
+    const tag = tags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase())
     if (tag && tag.color && tagColorsMap[tag.color]) {
       return tagColorsMap[tag.color]!
     }
@@ -80,11 +46,18 @@ export function useTagColors() {
     return defaultColors[hash % defaultColors.length]!
   }
 
+  /**
+   * Get all unique tag colors as a map
+   */
+  function getTagColorsMap() {
+    return tagColorsMap
+  }
 
   return {
     allTags,
     loadAllTags,
     getTagColor,
+    getTagColorsMap,
     tagColorsMap,
   }
 }

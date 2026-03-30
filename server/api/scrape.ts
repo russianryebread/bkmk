@@ -2,6 +2,7 @@ import { db, schema } from '~/server/database'
 import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
+import { UrlCleaner } from '~/server/utils/url-cleaner'
 import {
   processAndStoreImage,
   extractImageUrls,
@@ -81,8 +82,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // Validate URL
+  let cleanUrl: string
   try {
-    new URL(url)
+    cleanUrl = UrlCleaner.clean(url)
   } catch {
     throw createError({
       statusCode: 400,
@@ -90,12 +92,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Check if bookmark already exists for this user
+  // Check if bookmark already exists for this user (use cleaned URL)
   const [existing] = await db
     .select({ id: schema.bookmarks.id })
     .from(schema.bookmarks)
     .where(and(
-      eq(schema.bookmarks.url, url),
+      eq(schema.bookmarks.url, cleanUrl),
       eq(schema.bookmarks.userId, currentUser.id)
     ))
     .limit(1)
@@ -150,14 +152,18 @@ export default defineEventHandler(async (event) => {
       console.log('[Scrape] Could not fetch video metadata, using defaults:', e)
     }
 
+    // For video bookmarks, set content as a markdown link that can be edited
+    const videoContent = `[Add content for ${platform} video](${cleanUrl})`
+
     const [bookmark] = await db
       .insert(schema.bookmarks)
       .values({
         id: crypto.randomUUID(),
         userId: currentUser.id,
         title: videoTitle,
-        url: url,
+        url: cleanUrl,
         description: videoDescription || `Saved from ${platform}`,
+        cleanedMarkdown: videoContent,
         sourceDomain: sourceDomain,
         savedAt: now,
         createdAt: now,
@@ -201,7 +207,7 @@ export default defineEventHandler(async (event) => {
       id: crypto.randomUUID(),
       userId: currentUser.id,
       title: scraped.title,
-      url: url,
+      url: cleanUrl,
       description: scraped.description,
       originalHtml: scraped.html,
       cleanedMarkdown: scraped.markdown,

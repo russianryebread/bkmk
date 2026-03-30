@@ -69,18 +69,23 @@
 
 <script setup lang="ts">
 import { useTagColors } from '~/composables/useTagColors'
+import { useTags } from '~/composables/useTags'
 
-interface Tag {
+interface TagItem {
   id: string
   name: string
   bookmarkCount?: number
+  color?: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string[]
   placeholder?: string
   excludeCurrentTags?: boolean
-}>()
+}>(), {
+  placeholder: 'Search or create tags...',
+  excludeCurrentTags: true,
+})
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string[]): void
@@ -89,13 +94,14 @@ const emit = defineEmits<{
 }>()
 
 const { allTags, getTagColor, loadAllTags } = useTagColors()
+const { handleCreateTag } = useTags()
 
 const searchQuery = ref('')
 const showDropdown = ref(false)
 const highlightedIndex = ref(-1)
 const creatingTag = ref(false)
 
-const filteredTags = computed(() => {
+const filteredTags = computed((): TagItem[] => {
   if (!allTags.value) return []
   
   let tags = allTags.value
@@ -111,14 +117,14 @@ const filteredTags = computed(() => {
     tags = tags.filter(t => !props.modelValue.includes(t.name))
   }
   
-  return tags.slice(0, 10) // Limit to 10 results
+  return (tags as TagItem[]).slice(0, 10) // Limit to 10 results
 })
 
 function removeTag(tag: string) {
   emit('update:modelValue', props.modelValue.filter(t => t !== tag))
 }
 
-function selectTag(tag: Tag) {
+function selectTag(tag: TagItem) {
   if (!props.modelValue.includes(tag.name)) {
     emit('update:modelValue', [...props.modelValue, tag.name])
   }
@@ -175,8 +181,9 @@ function selectHighlighted() {
   if (!query) return
 
   // Check if highlighted item exists
-  if (highlightedIndex.value >= 0 && filteredTags.value[highlightedIndex.value]) {
-    selectTag(filteredTags.value[highlightedIndex.value])
+  const highlightedTag = filteredTags.value[highlightedIndex.value]
+  if (highlightedIndex.value >= 0 && highlightedTag) {
+    selectTag(highlightedTag)
     return
   }
 
