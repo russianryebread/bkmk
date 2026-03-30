@@ -62,7 +62,9 @@ export function useOfflineTags() {
           createdAt: t.createdAt,
           bookmarkCount: t.bookmarkCount,
         }))
-        await saveTags(tags)
+        // Convert to plain object to avoid Vue proxy cloning issues with IndexedDB
+        const plainTags = JSON.parse(JSON.stringify(tags))
+        await saveTags(plainTags)
         console.log('[OfflineTags] Cache refreshed with', tags.length, 'tags')
       }
     } catch (e: any) {

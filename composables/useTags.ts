@@ -76,7 +76,9 @@ export function useTags() {
 
   async function cacheTagsToIndexedDB(serverTags: import('./idb').Tag[]) {
     try {
-      await idb.saveTags(serverTags)
+      // Convert to plain object to avoid Vue proxy cloning issues with IndexedDB
+      const plainTags = JSON.parse(JSON.stringify(serverTags))
+      await idb.saveTags(plainTags)
     } catch (e: any) {
       console.error('[Tags] Failed to cache to IndexedDB:', e)
     }

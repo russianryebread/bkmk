@@ -1,6 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   devtools: { enabled: true },
+
+  ssr: false, // Client-side only for better offline support and simpler architecture
   
   modules: [
     '@nuxtjs/tailwindcss',

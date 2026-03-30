@@ -146,7 +146,9 @@ export function useSync() {
             createdAt: t.createdAt,
             bookmarkCount: t.bookmarkCount,
           }))
-          await idb.saveTags(tags)
+          // Convert to plain object to avoid Vue proxy cloning issues with IndexedDB
+          const plainTags = JSON.parse(JSON.stringify(tags))
+          await idb.saveTags(plainTags)
           console.log('[Sync] Synced', tags.length, 'tags to IndexedDB')
         }
       } catch (e: any) {
