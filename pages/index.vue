@@ -1,13 +1,8 @@
 <template>
   <div class="bg-gray-50 dark:bg-gray-900">
     <div class="max-w-6xl mx-auto">
-      <!-- Header -->
-      <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-      </div>
-
       <!-- Stats Section -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 hidden sm:block">
         <NuxtLink to="/bookmarks" class="card p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">

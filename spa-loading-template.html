@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Loading…</title>
+    <style>
+        /* Inline critical styles so the loading screen shows immediately */
+        html,
+        body {
+            height: 100%;
+            margin: 0
+        }
+
+        .spa-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: #0f172a;
+            color: #fff;
+            font-family: system-ui, Segoe UI, Roboto, Arial
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 5px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #fff;
+            animation: spin 1s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="__nuxt" class="spa-loading">
+        <div>
+            <div class="spinner" aria-hidden="true"></div>
+            <div style="margin-top:12px;text-align:center">Loading app…</div>
+        </div>
+    </div>
+</body>
+
+</html>

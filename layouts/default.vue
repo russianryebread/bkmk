@@ -118,7 +118,7 @@
                       <button
                         @click="setFontFamily('serif')"
                         :class="[
-                          'flex-1 py-1.5 text-xs rounded border transition-colors',
+                          'flex-1 py-1.5 text-xs rounded border transition-colors font-serif',
                           fontFamily === 'serif'
                             ? 'bg-primary-100 border-primary-600 text-primary-700 dark:bg-primary-900 dark:border-primary-500 dark:text-primary-300'
                             : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
@@ -185,13 +185,6 @@
       <!-- Mobile Navigation -->
       <div v-if="mobileMenuOpen" class="md:hidden border-t border-gray-200 dark:border-gray-700">
         <div class="px-4 py-3 space-y-2">
-          <NuxtLink 
-            to="/" 
-            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            @click="mobileMenuOpen = false"
-          >
-            Home
-          </NuxtLink>
           <NuxtLink 
             to="/bookmarks" 
             class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
