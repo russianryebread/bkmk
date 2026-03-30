@@ -25,19 +25,38 @@
       {{ offlineNotes.offlineError.value }}
     </div>
 
-    <!-- Tag Filter -->
-    <div v-if="allTags.length > 0" class="mb-4 flex flex-wrap gap-2">
-      <button @click="filterTag = ''" class="px-3 py-1 text-sm rounded-full transition-colors" :class="filterTag === ''
-        ? 'bg-primary-600 text-white'
-        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'">
-        All
-      </button>
-      <button v-for="tag in allTags" :key="tag.name" @click="filterTag = tag.name"
-        class="px-3 py-1 text-sm rounded-full transition-colors" :class="filterTag === tag.name
+    <!-- Search and Filter Row -->
+    <div class="mb-4 flex flex-col sm:flex-row gap-3">
+      <!-- Search -->
+      <div class="flex-1">
+        <div class="relative">
+          <input ref="searchInputRef" v-model="searchQuery" type="text"
+            placeholder="Search notes... (Press / to focus)" class="input pl-10" @input="handleSearch" />
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <button v-if="searchQuery" @click="clearSearch" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tag Filter -->
+      <div class="flex flex-wrap gap-2">
+        <button @click="filterTag = ''" class="px-3 py-1 text-sm rounded-full transition-colors" :class="filterTag === ''
           ? 'bg-primary-600 text-white'
           : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'">
-        {{ tag.name }}
-      </button>
+          All
+        </button>
+        <button v-for="tag in allTags" :key="tag.name" @click="filterTag = tag.name"
+          class="px-3 py-1 text-sm rounded-full transition-colors"
+          :style="filterTag === tag.name ? {} : { backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text, borderColor: getTagColor(tag.name).bg }"
+          :class="filterTag === tag.name ? 'bg-primary-600 text-white' : ''">
+          {{ tag.name }}
+        </button>
+      </div>
     </div>
 
     <!-- Notes List -->
@@ -61,10 +80,10 @@
     </div>
 
     <div v-else>
-      <!-- Card View -->
-      <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div v-for="note in notes" :key="note.id" class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-          @click="editNote(note)">
+          <!-- Card View -->
+          <div v-if="viewMode === 'card'" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div v-for="note in filteredNotes" :key="note.id" class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
+              @click="openNote(note)">
           <div class="flex justify-between items-start mb-2">
             <h3 class="font-medium text-gray-900 dark:text-white">{{ note.title }}</h3>
             <div>
@@ -104,9 +123,9 @@
 
       <!-- List View -->
       <div v-else class="space-y-2">
-        <div v-for="note in notes" :key="note.id"
+        <div v-for="note in filteredNotes" :key="note.id"
           class="card p-4 hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4"
-          @click="editNote(note)">
+          @click="openNote(note)">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ note.title }}</h3>
@@ -253,6 +272,8 @@ import { useTagColors } from '~/composables/useTagColors'
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 
+const route = useRoute()
+const router = useRouter()
 const { render } = useMarkdown()
 const { allTags, loadAllTags, getTagColor } = useTagColors()
 const offlineNotes = useOfflineNotes()
@@ -269,6 +290,8 @@ const editingNote = ref<Note | null>(null)
 const newTag = ref('')
 const filterTag = ref('')
 const saving = ref(false)
+const searchQuery = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
 
 const renderedPreview = computed(() => render(editorContent.value))
 
@@ -304,8 +327,8 @@ function editNote(note: Note) {
   editorTitle.value = note.title
   editorContent.value = note.content
   editorTags.value = [...(note.tags || [])]
-  // When opening an existing note, start in preview mode
-  showPreview.value = true
+  // When editing from list view, start in edit mode
+  showPreview.value = false
   showEditor.value = true
 }
 
@@ -389,6 +412,30 @@ async function deleteNoteConfirm(note: Note) {
   }
 }
 
+// Filter notes based on search query
+const filteredNotes = computed(() => {
+  if (!searchQuery.value.trim()) return notes.value
+
+  const query = searchQuery.value.toLowerCase()
+  return notes.value.filter(note =>
+    note.title.toLowerCase().includes(query) ||
+    note.content.toLowerCase().includes(query) ||
+    note.tags?.some(tag => tag.toLowerCase().includes(query))
+  )
+})
+
+function handleSearch() {
+  // Search is handled by computed property
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+}
+
+function openNote(note: Note) {
+  router.push(`/notes/${note.id}`)
+}
+
 // Watch for filter changes
 watch(filterTag, () => {
   loadNotes()
@@ -403,6 +450,20 @@ onMounted(() => {
     console.log('[Notes] Back online, refreshing data...')
     loadNotes()
     loadAllTags(true)
+  })
+
+  // Listen for '/' key to focus search
+  const handleGlobalKeydown = (e: KeyboardEvent) => {
+    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      e.preventDefault()
+      searchInputRef.value?.focus()
+    }
+  }
+
+  window.addEventListener('keydown', handleGlobalKeydown)
+
+  onUnmounted(() => {
+    window.removeEventListener('keydown', handleGlobalKeydown)
   })
 })
 </script>

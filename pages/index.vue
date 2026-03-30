@@ -535,7 +535,7 @@ function openResult(result: SearchResult) {
   if (result.type === 'bookmark') {
     router.push(`/bookmarks/${result.id}`)
   } else {
-    router.push(`/notes?id=${result.id}`)
+    router.push(`/notes/${result.id}`)
   }
 }
 

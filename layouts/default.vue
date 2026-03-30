@@ -233,11 +233,20 @@
     <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
       <slot />
     </main>
+
+    <!-- Global Search Modal -->
+    <GlobalSearch ref="globalSearchRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 const route = useRoute()
+const globalSearchRef = ref<any>(null)
+
+// Provide global search to child components
+provide('openGlobalSearch', () => {
+  globalSearchRef.value?.open()
+})
 const mobileMenuOpen = ref(false)
 const menuOpen = ref(false)
 const { isDark, toggle: toggleDarkMode } = useDarkMode()

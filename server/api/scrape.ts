@@ -9,6 +9,62 @@ import {
   replaceImageUrlsInMarkdown,
 } from '~/server/utils/images'
 
+// Video platform detection patterns
+const VIDEO_PATTERNS = [
+  // YouTube
+  /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)/,
+  // YouTube Shorts
+  /youtube\.com\/shorts\//,
+  // Vimeo
+  /vimeo\.com\//,
+  // Facebook videos
+  /facebook\.com\/.*\/videos\//,
+  /facebook\.com\/watch\/?\?v=/,
+  // Instagram
+  /instagram\.com\/(?:p|reel|tv)\//,
+  // TikTok
+  /tiktok\.com\//,
+  // Twitter/X videos
+  /twitter\.com\//,
+  /x\.com\//,
+  // Dailymotion
+  /dailymotion\.com\//,
+]
+
+function isVideoUrl(url: string): boolean {
+  return VIDEO_PATTERNS.some(pattern => pattern.test(url))
+}
+
+function getVideoPlatform(url: string): string | null {
+  if (/youtube\.com|youtu\.be/.test(url)) return 'youtube'
+  if (/vimeo\.com/.test(url)) return 'vimeo'
+  if (/facebook\.com/.test(url)) return 'facebook'
+  if (/instagram\.com/.test(url)) return 'instagram'
+  if (/tiktok\.com/.test(url)) return 'tiktok'
+  if (/twitter\.com|x\.com/.test(url)) return 'twitter'
+  if (/dailymotion\.com/.test(url)) return 'dailymotion'
+  return null
+}
+
+// Helper function to extract YouTube video ID
+function extractYouTubeId(videoUrl: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ]
+  for (const pattern of patterns) {
+    const match = videoUrl.match(pattern)
+    if (match) return match[1]
+  }
+  return null
+}
+
+// Helper function to extract Vimeo video ID
+function extractVimeoId(videoUrl: string): string | null {
+  const match = videoUrl.match(/vimeo\.com\/(\d+)/)
+  return match ? match[1] : null
+}
+
 export default defineEventHandler(async (event) => {
   // Require authentication
   const currentUser = await requireAuth(event)
@@ -49,6 +105,85 @@ export default defineEventHandler(async (event) => {
       statusCode: 409,
       message: 'Bookmark already exists',
     })
+  }
+
+  // For video URLs, create a bookmark with video metadata
+  if (isVideoUrl(url)) {
+    const sourceDomain = extractDomain(url)
+    const platform = getVideoPlatform(url)
+    const now = new Date().toISOString()
+    
+    // Try to fetch video metadata from oEmbed APIs
+    let videoTitle = `${platform?.charAt(0).toUpperCase()}${platform?.slice(1)} Video`
+    let videoDescription = `Saved from ${platform}`
+    
+    try {
+      if (platform === 'youtube') {
+        // Extract video ID and fetch oEmbed data
+        const youtubeId = extractYouTubeId(url)
+        if (youtubeId) {
+          const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtubeId}&format=json`
+          const oembedResponse = await fetch(oembedUrl)
+          if (oembedResponse.ok) {
+            const oembedData = await oembedResponse.json() as { title?: string; author_name?: string }
+            if (oembedData.title) {
+              videoTitle = oembedData.title
+              videoDescription = oembedData.author_name ? `by ${oembedData.author_name}` : ''
+            }
+          }
+        }
+      } else if (platform === 'vimeo') {
+        const vimeoId = extractVimeoId(url)
+        if (vimeoId) {
+          const oembedUrl = `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${vimeoId}`
+          const oembedResponse = await fetch(oembedUrl)
+          if (oembedResponse.ok) {
+            const oembedData = await oembedResponse.json() as { title?: string; author_name?: string }
+            if (oembedData.title) {
+              videoTitle = oembedData.title
+              videoDescription = oembedData.author_name ? `by ${oembedData.author_name}` : ''
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[Scrape] Could not fetch video metadata, using defaults:', e)
+    }
+
+    const [bookmark] = await db
+      .insert(schema.bookmarks)
+      .values({
+        id: crypto.randomUUID(),
+        userId: currentUser.id,
+        title: videoTitle,
+        url: url,
+        description: videoDescription || `Saved from ${platform}`,
+        sourceDomain: sourceDomain,
+        savedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+
+    // Update sync metadata
+    await db
+      .insert(schema.syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: bookmark.id,
+        syncStatus: 'pending',
+      })
+
+    return {
+      ...bookmark,
+      isFavorite: Boolean(bookmark.isFavorite),
+      isRead: Boolean(bookmark.isRead),
+      tags: [],
+      tagIds: [],
+      isVideo: true,
+      platform,
+    }
   }
 
   // Scrape the URL

@@ -68,7 +68,7 @@
         </a>
 
         <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-          <span>Saved {{ formatDate(bookmark.saved_at) }}</span>
+          <span>Saved {{ formatDateFull(bookmark.saved_at) }}</span>
           <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
           <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>
         </div>
@@ -98,14 +98,47 @@
 
       <!-- Content -->
       <div class="prose dark:prose-invert max-w-none">
+        <!-- Video Embed (when URL is a video platform) -->
+        <div v-if="videoInfo.isVideo && videoInfo.embedUrl" class="mb-6">
+          <div class="relative w-full" style="padding-bottom: 56.25%;">
+            <iframe
+              :src="videoInfo.embedUrl"
+              class="absolute inset-0 w-full h-full rounded-lg"
+              frameborder="0"
+              allowfullscreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            ></iframe>
+          </div>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center capitalize">
+            {{ videoInfo.platform }}
+          </p>
+        </div>
+
+        <!-- URL Only Mode (no scraped content) -->
+        <div v-else-if="!bookmark.cleaned_markdown && !bookmark.original_html" class="card p-6 text-center">
+          <div class="mb-4">
+            <p class="text-gray-500 dark:text-gray-400 mb-4">
+              The content was not scraped or was removed.
+            </p>
+            <a :href="bookmark.url" target="_blank" class="btn-primary inline-flex items-center gap-2 truncate">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span class="truncate">{{ bookmark.url }}</span>
+            </a>
+          </div>
+        </div>
+
         <!-- Reader Mode -->
-        <div v-if="currentMode === 'reader'" class="reader-content"
+        <div v-else-if="currentMode === 'reader'" class="reader-content"
           :class="[fontFamily === 'serif' ? 'font-serif' : 'font-sans', lineHeight === 'compact' ? 'leading-tight' : lineHeight === 'relaxed' ? 'leading-relaxed' : 'leading-normal']"
           :style="{ fontSize: fontSize + 'px' }" v-html="renderedMarkdown"></div>
 
         <!-- Snapshot Mode -->
         <div v-else-if="currentMode === 'snapshot'" class="card p-6">
-          <div v-html="bookmark.original_html" class="max-w-none"></div>
+          <!-- Sanitize HTML by removing script tags and inline event handlers -->
+          <div class="max-w-none" v-html="sanitizeSnapshotHtml(bookmark.original_html)"></div>
         </div>
 
         <!-- Markdown Mode -->
@@ -117,6 +150,17 @@
                 d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
             Copy
+          </button>
+        </div>
+
+        <!-- Switch to URL Only button (when content exists) -->
+        <div v-if="bookmark.cleaned_markdown || bookmark.original_html" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <button @click="switchToUrlOnly" class="btn-secondary text-sm">
+            <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            Switch to URL Only
           </button>
         </div>
       </div>
@@ -197,7 +241,10 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateFull } from '~/utils/date'
+
 const route = useRoute()
+const router = useRouter()
 const { fetchBookmark, updateBookmark, deleteBookmark } = useBookmarks()
 const { loadAllTags, getTagColor } = useTagColors()
 
@@ -237,7 +284,121 @@ const renderedMarkdown = computed(() => {
 async function deleteBookmarkConfirm(bookmark: any) {
   if (confirm(`Delete "${bookmark.title}"?`)) {
     await deleteBookmark(bookmark.id)
+    router.push('/bookmarks')
   }
+}
+
+// Detect video URL and return embed info
+function detectVideo(url: string): { isVideo: boolean; embedUrl: string | null; platform: string | null } {
+  // YouTube
+  const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (youtubeMatch) {
+    return {
+      isVideo: true,
+      embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}`,
+      platform: 'youtube'
+    }
+  }
+
+  // YouTube Shorts
+  const youtubeShortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
+  if (youtubeShortsMatch) {
+    return {
+      isVideo: true,
+      embedUrl: `https://www.youtube.com/embed/${youtubeShortsMatch[1]}`,
+      platform: 'youtube'
+    }
+  }
+
+  // Vimeo
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/)
+  if (vimeoMatch) {
+    return {
+      isVideo: true,
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+      platform: 'vimeo'
+    }
+  }
+
+  // Facebook
+  const facebookMatch = url.match(/facebook\.com\/.*\/videos\/(\d+)/) || url.match(/facebook\.com\/watch\/?\?v=(\d+)/)
+  if (facebookMatch) {
+    return {
+      isVideo: true,
+      embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
+      platform: 'facebook'
+    }
+  }
+
+  // Instagram
+  const instagramMatch = url.match(/instagram\.com\/(?:p|reel|tv)\/([a-zA-Z0-9_-]+)/)
+  if (instagramMatch) {
+    return {
+      isVideo: true,
+      embedUrl: null, // Instagram requires oEmbed or embed script
+      platform: 'instagram'
+    }
+  }
+
+  return { isVideo: false, embedUrl: null, platform: null }
+}
+
+const videoInfo = computed(() => {
+  if (!bookmark.value?.url) return { isVideo: false, embedUrl: null, platform: null }
+  return detectVideo(bookmark.value.url)
+})
+
+// Switch to URL-only mode (remove scraped content)
+async function switchToUrlOnly() {
+  if (!bookmark.value) return
+
+  if (confirm('This will remove the scraped content and keep only the URL and metadata. Continue?')) {
+    try {
+      await updateBookmark(bookmark.value.id, {
+        original_html: null,
+        cleaned_markdown: null,
+      })
+      bookmark.value.original_html = null
+      bookmark.value.cleaned_markdown = null
+    } catch (e) {
+      console.error('Failed to switch to URL-only:', e)
+    }
+  }
+}
+
+// Sanitize snapshot HTML - remove scripts and event handlers
+function sanitizeSnapshotHtml(html: string | null): string {
+  if (!html) return ''
+  
+  // Create a temporary div to parse HTML
+  const div = document.createElement('div')
+  div.innerHTML = html
+  
+  // Remove all script tags
+  const scripts = div.querySelectorAll('script')
+  scripts.forEach(s => s.remove())
+  
+  // Remove inline event handlers (onclick, onload, etc.)
+  const allElements = div.querySelectorAll('*')
+  allElements.forEach(el => {
+    const attributes = Array.from(el.attributes)
+    attributes.forEach(attr => {
+      if (attr.name.startsWith('on')) {
+        el.removeAttribute(attr.name)
+      }
+    })
+    
+    // Remove javascript: hrefs
+    if (el.tagName === 'A') {
+      const href = el.getAttribute('href')
+      if (href?.startsWith('javascript:')) {
+        el.removeAttribute('href')
+        el.style.cursor = 'default'
+      }
+    }
+  })
+  
+  return div.innerHTML
 }
 
 const wordCount = computed(() => {
@@ -377,68 +538,6 @@ function copyMarkdown() {
   navigator.clipboard.writeText(bookmark.value.cleaned_markdown)
 }
 
-async function addTag() {
-  const tag = newTag.value.trim()
-  if (!tag || bookmarkTags.value.includes(tag)) return
-
-  // Create tag if it doesn't exist
-  let tagId: string | null = null
-  const existingTag = allTags.value.find(t => t.name.toLowerCase() === tag.toLowerCase())
-
-  if (existingTag) {
-    tagId = existingTag.id
-  } else {
-    try {
-      const response = await $fetch<{ tag: Tag }>('/api/tags', {
-        method: 'POST',
-        body: { name: tag },
-      })
-      tagId = response.tag.id
-      allTags.value.push(response.tag)
-    } catch (e) {
-      console.error('Failed to create tag:', e)
-      return
-    }
-  }
-
-  // Add tag to bookmark
-  if (tagId) {
-    await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-      method: 'POST',
-      body: { tag_ids: [tagId] },
-    })
-    bookmarkTags.value.push(tag)
-    bookmark.value.tags = [...bookmarkTags.value]
-  }
-
-  newTag.value = ''
-}
-
-async function removeTag(tag: string) {
-  const tagInfo = allTags.value.find(t => t.name === tag)
-  if (!tagInfo) return
-
-  await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-    method: 'DELETE',
-    body: { tag_ids: [tagInfo.id] },
-  })
-
-  bookmarkTags.value = bookmarkTags.value.filter(t => t !== tag)
-  bookmark.value.tags = [...bookmarkTags.value]
-}
-
-async function selectExistingTag(tag: Tag) {
-  if (bookmarkTags.value.includes(tag.name)) return
-
-  await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-    method: 'POST',
-    body: { tag_ids: [tag.id] },
-  })
-
-  bookmarkTags.value.push(tag.name)
-  bookmark.value.tags = [...bookmarkTags.value]
-}
-
 async function saveEdit() {
   if (!bookmark.value) return
 
@@ -454,15 +553,6 @@ async function saveEdit() {
   } finally {
     saving.value = false
   }
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
 }
 
 onMounted(() => {

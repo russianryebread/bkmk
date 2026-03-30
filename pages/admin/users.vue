@@ -69,7 +69,7 @@
                 </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                {{ formatDate(user.createdAt) }}
+                {{ formatDateShort(user.createdAt) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
@@ -104,6 +104,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateShort } from '~/utils/date'
+
 definePageMeta({
   middleware: []
 })
@@ -178,14 +180,6 @@ async function deleteUser(userId: string) {
   } finally {
     deleting.value = null
   }
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
 }
 
 onMounted(() => {
