@@ -2,7 +2,7 @@
   <div class="bg-gray-50 dark:bg-gray-900">
     <div class="max-w-6xl mx-auto">
       <!-- Stats Section -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 hidden sm:block">
+      <div class="md:grid md:grid-cols-4 gap-4 mb-8 hidden">
         <NuxtLink to="/bookmarks" class="card p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
