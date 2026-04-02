@@ -1,60 +1,10 @@
 <template>
   <div>
     <div v-if="bookmark" class="max-w-6xl mx-auto">
+      <StickyToolbar show-back back-label="Back to bookmarks" back-to="/bookmarks" :actions="toolbarActions" />
+
       <!-- Header -->
       <div class="mb-6">
-
-        <!-- Action buttons row - icons only -->
-        <div class="flex items-center justify-between mb-3 md:flex-row md:gap-2 md:justify-end">
-          <button @click="$router.push('/bookmarks')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 md:hidden"
-            title="Back to list">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-
-          <button @click="toggleFavorite" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Favorite">
-            <svg class="w-5 h-5" :class="bookmark.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
-              fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-          </button>
-
-          <button @click="showTagsModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Tags">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-          </button>
-
-          <button @click="showEditModal = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Edit">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </button>
-
-          <a :href="bookmark.url" target="_blank" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Open original">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
-
-          <button @click.stop="deleteBookmarkConfirm(bookmark)" class="p-2 rounded-lg hover:bg-gray-100" title="Delete">
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 dark:hover:bg-gray-700 hover:text-red-600" fill="none"
-              stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
 
         <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2" :class="fontFamily === 'serif' ? 'font-serif' : 'font-sans'">
           {{ bookmark.title }}
@@ -281,9 +231,9 @@ const renderedMarkdown = computed(() => {
   return render(bookmark.value.cleaned_markdown)
 })
 
-async function deleteBookmarkConfirm(bookmark: any) {
-  if (confirm(`Delete "${bookmark.title}"?`)) {
-    await deleteBookmark(bookmark.id)
+async function deleteBookmarkConfirm(bm: any) {
+  if (confirm(`Delete "${bm.title}"?`)) {
+    await deleteBookmark(bm.id)
     router.push('/bookmarks')
   }
 }
@@ -393,7 +343,7 @@ function sanitizeSnapshotHtml(html: string | null): string {
       const href = el.getAttribute('href')
       if (href?.startsWith('javascript:')) {
         el.removeAttribute('href')
-        el.style.cursor = 'default'
+        (el as HTMLElement).style.cursor = 'default'
       }
     }
   })
@@ -411,7 +361,7 @@ const charCount = computed(() => {
 })
 
 const availableTags = computed(() => {
-  return allTags.value.filter(t => !bookmarkTags.value.includes(t.name))
+  return allTags.value.filter((t: Tag) => !bookmarkTags.value.includes(t.name))
 })
 
 async function loadBookmark() {
@@ -447,13 +397,13 @@ watch(showTagsModal, async (isOpen) => {
 async function handleTagsUpdate(newTags: string[]) {
   if (!bookmark.value) return
 
-  const oldTags = bookmark.value.tags || []
+  const oldTags: string[] = bookmark.value.tags || []
 
   // Find tags to add (in new but not in old)
-  const tagsToAdd = newTags.filter(t => !oldTags.includes(t))
+  const tagsToAdd = newTags.filter((t: string) => !oldTags.includes(t))
 
   // Find tags to remove (in old but not in new)
-  const tagsToRemove = oldTags.filter(t => !newTags.includes(t))
+  const tagsToRemove = oldTags.filter((t: string) => !newTags.includes(t))
 
   // Add new tags
   for (const tagName of tagsToAdd) {
@@ -554,6 +504,37 @@ async function saveEdit() {
     saving.value = false
   }
 }
+
+// Toolbar actions for the sticky toolbar - defined after all functions
+const toolbarActions = computed(() => [
+  {
+    icon: 'heart' as const,
+    title: bookmark.value?.is_favorite ? 'Remove from favorites' : 'Add to favorites',
+    active: bookmark.value?.is_favorite,
+    handler: () => toggleFavorite(),
+  },
+  {
+    icon: 'tag' as const,
+    title: 'Manage tags',
+    handler: () => { showTagsModal.value = true },
+  },
+  {
+    icon: 'edit' as const,
+    title: 'Edit content',
+    handler: () => { showEditModal.value = true },
+  },
+  {
+    icon: 'external' as const,
+    title: 'Open original',
+    handler: () => { window.open(bookmark.value?.url, '_blank') },
+  },
+  {
+    icon: 'trash' as const,
+    title: 'Delete bookmark',
+    variant: 'danger' as const,
+    handler: () => { if (bookmark.value) deleteBookmarkConfirm(bookmark.value) },
+  },
+])
 
 onMounted(() => {
   loadBookmark()
