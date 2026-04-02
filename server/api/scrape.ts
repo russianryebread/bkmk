@@ -199,8 +199,71 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Scrape the URL
-  const scraped = await scrapeUrl(url)
+  // Try to scrape the URL, but handle failures gracefully
+  let scraped = null
+  let scrapeError: string | null = null
+  
+  try {
+    scraped = await scrapeUrl(url)
+  } catch (e: any) {
+    scrapeError = e.message
+    console.log('[Scrape] Failed to scrape URL, creating text bookmark:', scrapeError)
+  }
+  
+  // If scraping failed, create a text URL bookmark
+  if (!scraped) {
+    const sourceDomain = extractDomain(url)
+    const now = new Date().toISOString()
+    
+    // Extract a readable domain for the title
+    let title = sourceDomain
+    if (title.includes('www.')) {
+      title = title.replace('www.', '')
+    }
+    // Capitalize first letter of domain name
+    if (title) {
+      title = title.charAt(0).toUpperCase() + title.slice(1)
+    }
+    
+    // Create a markdown link as the content
+    const markdownContent = `[${cleanUrl}](${cleanUrl})`
+    
+    const [bookmark] = await db
+      .insert(schema.bookmarks)
+      .values({
+        id: crypto.randomUUID(),
+        userId: currentUser.id,
+        title: title || 'Bookmark',
+        url: cleanUrl,
+        description: `Saved from ${sourceDomain || 'unknown source'}`,
+        cleanedMarkdown: markdownContent,
+        sourceDomain: sourceDomain,
+        savedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+
+    // Update sync metadata
+    await db
+      .insert(schema.syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'bookmark',
+        entityId: bookmark.id,
+        syncStatus: 'pending',
+      })
+
+    return {
+      ...bookmark,
+      isFavorite: Boolean(bookmark.isFavorite),
+      isRead: Boolean(bookmark.isRead),
+      tags: [],
+      tagIds: [],
+      scrapeError,
+      fallbackBookmark: true,
+    }
+  }
 
   // Extract domain
   const sourceDomain = extractDomain(url)

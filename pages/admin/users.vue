@@ -49,8 +49,10 @@
           <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
             <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-800">
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ user.email }}</div>
-                <div v-if="user.id === currentUser?.id" class="text-xs text-primary-600">(You)</div>
+                <div class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ user.email }}
+                  <span v-if="user.id === currentUser?.id" class="text-xs text-gray-400">(You)</span>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <select

@@ -23,11 +23,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (event) {
       const { getCurrentUser } = await import('~/server/utils/auth')
       const serverUser = await getCurrentUser(event)
-      
+
       if (serverUser) {
-        // Update the client state with server auth
-        user.value = serverUser
-        isLoading.value = false
+        // User is authenticated, allow the request through
+        // Don't try to update the readonly client state refs
+        // The client-side init() will handle syncing auth state
         return
       }
     }
