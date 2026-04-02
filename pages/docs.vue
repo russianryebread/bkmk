@@ -10,7 +10,28 @@ const htmlContent = computed(() => {
 
     let html = text
 
-    // Headers with IDs - add scroll-mt-20 to offset sticky header when scrolling
+    // STEP 1: Protect code blocks with placeholders (blocks with 3+ backticks)
+    const codeBlocks: string[] = []
+    html = html.replace(/```[\s\S]*?```/g, (match: string) => {
+        const index = codeBlocks.length
+        // Extract content between ``` markers
+        const codeContent = match.slice(3, -3)
+        const firstNewline = codeContent.indexOf('\n')
+        const code = firstNewline > 0 ? codeContent.slice(firstNewline + 1) : codeContent
+        codeBlocks.push(`<pre class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 overflow-x-auto my-4 text-sm"><code class="text-gray-800 dark:text-gray-200 font-mono">${escapeHtml(code.trim())}</code></pre>`)
+        return `__CODEBLOCK_${index}__`
+    })
+
+    // STEP 2: Protect inline code with placeholders
+    const inlineCodeBlocks: string[] = []
+    html = html.replace(/`[^`\n]+`/g, (match: string) => {
+        const index = inlineCodeBlocks.length
+        const codeContent = match.slice(1, -1)
+        inlineCodeBlocks.push(codeContent)
+        return `__INLINECODE_${index}__`
+    })
+
+    // STEP 3: Now process headers (safe - code blocks are protected)
     html = html.replace(/^#### (.+)$/gm, (_m: string, t: string) => {
         const id = t.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
         return `<h4 id="${id}" class="text-md font-semibold mt-6 mb-3 text-gray-900 dark:text-gray-100 scroll-mt-20">${t}</h4>`
@@ -27,15 +48,17 @@ const htmlContent = computed(() => {
         return `<h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 scroll-mt-20">${t}</h1>`
     })
 
-    // Code blocks
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m: string, _lang: string, code: string) => {
-        return `<pre class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 overflow-x-auto my-4 text-sm"><code class="text-gray-800 dark:text-gray-200 font-mono">${escapeHtml(code.trim())}</code></pre>`
+    // STEP 4: Restore code blocks
+    codeBlocks.forEach((block: string, index: number) => {
+        html = html.replace(`__CODEBLOCK_${index}__`, block)
     })
 
-    // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-purple-600 dark:text-purple-400">$1</code>')
+    // STEP 5: Restore inline code
+    inlineCodeBlocks.forEach((code: string, index: number) => {
+        html = html.replace(`__INLINECODE_${index}__`, `<code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono text-purple-600 dark:text-purple-400">${escapeHtml(code)}</code>`)
+    })
 
-    // Tables
+    // STEP 6: Tables
     html = html.replace(/\|(.+)\|\n\|[-| ]+\|\n((?:\|.+\|\n?)+)/g, (_m: string, header: string, body: string) => {
         const headers = header.split('|').filter((h: string) => h.trim()).map((h: string) => h.trim())
         const rows = body.trim().split('\n').map((row: string) =>
@@ -59,42 +82,38 @@ const htmlContent = computed(() => {
         return table
     })
 
-    // Lists
+    // STEP 7: Lists
     html = html.replace(/^- \[x\] (.+)$/gm, '<li class="flex items-start gap-2 my-1"><span class="text-green-500 mt-1">✅</span><span>$1</span></li>')
     html = html.replace(/^- \[ \] (.+)$/gm, '<li class="flex items-start gap-2 my-1"><span class="text-gray-400 mt-1">🔲</span><span>$1</span></li>')
     html = html.replace(/^- (.+)$/gm, '<li class="my-1 ml-4 text-gray-700 dark:text-gray-300">$1</li>')
 
-    // Bold
+    // STEP 8: Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
 
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text, url) => {
+    // STEP 9: Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m: string, text: string, url: string) => {
         try {
-            // Treat fragment and root-relative as internal
             if (url.startsWith('#') || url.startsWith('/')) {
                 return `<a href="${url}" class="text-blue-600 dark:text-blue-400 hover:underline">${text}</a>`;
             }
-            // Parse absolute URLs and compare origins
             const parsed = new URL(url, location.origin);
             if (parsed.origin === location.origin) {
                 return `<a href="${url}" class="text-blue-600 dark:text-blue-400 hover:underline">${text}</a>`;
             }
-            // External: open in new tab, noopener/noreferrer
             return `<a href="${url}" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">${text}</a>`;
         } catch (e) {
-            // On parse failure, treat as internal fallback
             return `<a href="${url}" class="text-blue-600 dark:text-blue-400 hover:underline">${text}</a>`;
         }
     });
 
-    // Horizontal rules
+    // STEP 10: Horizontal rules
     html = html.replace(/(^|\n)\s*---+\s*(?=\n|$)/g, '\n<hr/>\n');
 
-    // Paragraphs and line breaks
+    // STEP 11: Paragraphs
     html = html.replace(/\n\n/g, '</p><p class="my-4 text-gray-700 dark:text-gray-300">')
     html = '<p class="my-4 text-gray-700 dark:text-gray-300">' + html + '</p>'
 
-    // Clean up empty paragraphs
+    // Clean up
     html = html.replace(/<p class="my-4 text-gray-700 dark:text-gray-300"><\/p>/g, '')
     html = html.replace(/<p class="my-4 text-gray-700 dark:text-gray-300">(\s*<(?:h[1-6]|ul|ol|table|div|pre|blockquote))/g, '$1')
     html = html.replace(/(<\/(?:h[1-6]|ul|ol|table|div|pre|blockquote)>)\s*<\/p>/g, '$1')
@@ -176,7 +195,7 @@ useHead({
                 </aside>
 
                 <!-- Main Content -->
-                <div class="\mt-0 lg:col-span-3">
+                <div class="mt-0 lg:col-span-3">
                     <article class="prose prose-gray dark:prose-invert max-w-none" v-html="htmlContent" />
                 </div>
             </div>
