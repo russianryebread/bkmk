@@ -15,7 +15,7 @@ Content-Type: application/json
 
 ## Authentication
 
-### Bearer Token Authentication (Recommended)
+### Bearer Token Authentication
 
 The API supports Bearer token authentication for third-party apps, browser extensions, CLI tools, and mobile apps:
 

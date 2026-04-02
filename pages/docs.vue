@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Fetch raw markdown file from server API
-const { data: markdownContent } = await useFetch<string>('/api/docs.md')
-const content = computed(() => markdownContent.value || '')
+// Import markdown directly as raw string (works on Vercel and dev)
+import apiMdContent from '~/public/api.md?raw'
+const content = computed(() => apiMdContent || '')
 
 // Simple markdown to HTML conversion
 const htmlContent = computed(() => {

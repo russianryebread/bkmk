@@ -94,7 +94,10 @@ export default defineEventHandler(async (event) => {
 
   // Check if bookmark already exists for this user (use cleaned URL)
   const [existing] = await db
-    .select({ id: schema.bookmarks.id })
+    .select({
+      id: schema.bookmarks.id,
+      url: schema.bookmarks.url,
+    })
     .from(schema.bookmarks)
     .where(and(
       eq(schema.bookmarks.url, cleanUrl),
@@ -106,6 +109,10 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 409,
       message: 'Bookmark already exists',
+      data: {
+        existingUrl: `/bookmarks/${existing.id}`,
+        bookmarkId: existing.id,
+      },
     })
   }
 

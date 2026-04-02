@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   const { isAuthenticated, init, isLoading, user } = useAuth()
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password']
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/docs']
 
   // Allow public routes
   if (publicRoutes.includes(to.path)) {
