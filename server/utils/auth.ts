@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { H3Event, getCookie, setCookie, deleteCookie } from 'h3'
+import { H3Event, getCookie, setCookie, deleteCookie, getHeader } from 'h3'
 import { db } from '~/server/database'
 import { users } from '~/server/database/schema'
 import { eq } from 'drizzle-orm'
@@ -77,7 +77,22 @@ export function setAuthCookie(event: H3Event, token: string): void {
 
 // Get auth token from cookie
 export function getAuthToken(event: H3Event): string | undefined {
+  // First check Authorization header for Bearer token (for API access)
+  const authHeader = getHeader(event, 'authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7)
+  }
+  // Fall back to cookie for web app
   return getCookie(event, COOKIE_NAME)
+}
+
+// Extract Bearer token from Authorization header only
+export function getBearerToken(event: H3Event): string | undefined {
+  const authHeader = getHeader(event, 'authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7)
+  }
+  return undefined
 }
 
 // Clear auth cookie
