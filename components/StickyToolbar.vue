@@ -1,10 +1,10 @@
 <template>
-  <div class="sticky top-2 z-50 mb-6">
+  <div class="sticky top-2 z-200 mb-6">
     <!-- Glass effect toolbar -->
     <div
       class="relative flex items-center justify-between gap-2 py-2 mx-auto transition-all duration-200"
       :class="[
-        isScrolled ? 'bg-white dark:bg:gray-800 rounded-xl' : '',
+        isScrolled ? 'bg-white dark:bg-gray-800 rounded-xl' : '',
       ]"
     >
       <!-- Left slot (usually back button) -->

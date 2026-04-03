@@ -28,20 +28,11 @@
     </div>
 
     <div class="mb-4">
-      <!-- Tag Filter -->
-      <div class="flex flex-wrap gap-2">
-        <button @click="filterTag = ''" class="px-3 py-1 text-sm rounded-full transition-colors" :class="filterTag === ''
-          ? 'bg-primary-600 text-white'
-          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'">
-          All
-        </button>
-        <button v-for="tag in allTags" :key="tag.name" @click="filterTag = tag.name"
-          class="px-3 py-1 text-sm rounded-full transition-colors"
-          :style="filterTag === tag.name ? {} : { backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text, borderColor: getTagColor(tag.name).bg }"
-          :class="filterTag === tag.name ? 'bg-primary-600 text-white' : ''">
-          {{ tag.name }}
-        </button>
-      </div>
+      <TagFilter
+        :tags="allTags"
+        :selected-tag="filterTag"
+        @update:selected-tag="filterTag = $event"
+      />
     </div>
 
     <!-- Notes List -->

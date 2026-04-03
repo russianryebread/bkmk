@@ -12,6 +12,11 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      zIndex: {
+        '100': '100',
+        '150': '150',
+        '200': '200',
+      },
       colors: {
         primary: {
           50: '#eff6ff',

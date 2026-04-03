@@ -32,21 +32,13 @@
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-2 mb-6">
-      <button @click="toggleFilter('favorite')" :class="['btn', filters.favorite ? 'btn-primary' : 'btn-secondary']">
-        <svg class="w-4 h-4 mr-1" :class="filters.favorite ? 'text-white' : 'text-gray-500'" fill="currentColor"
-          viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-        Favorites
-      </button>
-
-      <!-- Top-level tag filters -->
-      <button v-for="tag in topLevelTags" :key="tag.id" @click="toggleTagFilter(tag.name)"
-        :class="['btn', filters.tag === tag.name ? 'btn-primary' : 'btn-secondary']"
-        :style="filters.tag === tag.name ? {} : { backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text, borderColor: getTagColor(tag.name).bg }">
-        {{ tag.name }}
-      </button>
+    <div class="mb-6">
+      <TagFilter
+        :tags="topLevelTags"
+        :selected-tag="filters.tag"
+        :show-favorites="true"
+        @update:selected-tag="filters.tag = $event; loadBookmarks()"
+      />
     </div>
 
     <!-- Loading -->
@@ -230,16 +222,6 @@ const topLevelTags = computed(() => {
   return allTags.value.filter(t => !t.parentTagId)
 })
 
-// Toggle tag filter
-function toggleTagFilter(tagName: string) {
-  if (filters.value.tag === tagName) {
-    filters.value.tag = ''
-  } else {
-    filters.value.tag = tagName
-  }
-  loadBookmarks()
-}
-
 // Check if query is a URL
 function isUrl(query: string): boolean {
   try {
@@ -285,17 +267,14 @@ function handleSearch() {
 }
 
 async function loadBookmarks() {
+  const favorite = filters.value.tag === 'favorite' ? true : undefined
+  const tag = filters.value.tag && filters.value.tag !== 'favorite' ? filters.value.tag : undefined
   await fetchBookmarks({
     sort: 'created_at',
     order: 'desc',
-    favorite: filters.value.favorite || undefined,
-    tag: filters.value.tag || undefined,
+    favorite,
+    tag,
   })
-}
-
-function toggleFilter(filter: 'favorite') {
-  filters.value[filter] = !filters.value[filter]
-  loadBookmarks()
 }
 
 async function addBookmark() {
