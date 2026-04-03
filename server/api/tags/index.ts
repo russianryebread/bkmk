@@ -15,6 +15,9 @@ export default defineEventHandler(async (event) => {
         name: schema.tags.name,
         parentTagId: schema.tags.parentTagId,
         color: schema.tags.color,
+        type: schema.tags.type,
+        description: schema.tags.description,
+        icon: schema.tags.icon,
         createdAt: schema.tags.createdAt,
         bookmarkCount: sql<number>`count(${schema.bookmarkTags.bookmarkId})`,
       })
@@ -29,16 +32,30 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'POST') {
     const body = await readBody(event)
-    const { name, parent_tag_id, color } = body
+    const { name, parent_tag_id, color, type, description, icon } = body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       throw createError({ statusCode: 400, message: 'Tag name is required' })
     }
 
+    // Validate type
+    if (type && !['bookmark', 'note', 'both'].includes(type)) {
+      throw createError({ statusCode: 400, message: 'Invalid tag type. Must be "bookmark", "note", or "both"' })
+    }
+
     try {
       const [tag] = await db
         .insert(schema.tags)
-        .values({ id: crypto.randomUUID(), userId: currentUser.id, name: name.trim(), parentTagId: parent_tag_id || null, color: color || null })
+        .values({
+          id: crypto.randomUUID(),
+          userId: currentUser.id,
+          name: name.trim(),
+          parentTagId: parent_tag_id || null,
+          color: color || null,
+          type: type || 'both',
+          description: description || null,
+          icon: icon || null,
+        })
         .returning()
 
       return { tag }

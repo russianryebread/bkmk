@@ -180,14 +180,32 @@
 <script setup lang="ts">
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
-import { useTags } from '~/composables/useTags'
+import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
 const route = useRoute()
 const router = useRouter()
 const { getNoteById, createNote, updateNote, deleteNote: deleteNoteFn, toggleFavorite: toggleFavoriteFn } = useOfflineNotes()
 const { render } = useMarkdown()
-const { getTagColor, loadAllTags } = useTagColors()
-const { tags, getAllTags, handleCreateTag } = useTags()
+
+const {
+  tags,
+  getTagColor,
+  fetchTags,
+  createTag,
+  syncItemTags,
+} = useTagSystem()
+
+async function loadAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
+
+async function getAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
+
+async function handleCreateTag(name: string) {
+  await createTag({ name })
+}
 
 // State
 const note = ref<Note | null>(null)
@@ -243,6 +261,7 @@ const hasChanges = computed(() => {
 // Suggested tags based on all available tags minus current editor tags
 const suggestedTags = computed(() => {
   return tags.value
+    .filter(t => t.type === 'note' || t.type === 'both')
     .map(t => t.name)
     .filter(tag => !editorTags.value.includes(tag))
     .slice(0, 5)

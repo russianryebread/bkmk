@@ -75,11 +75,15 @@ export const tags = pgTable('tags', {
   name: text('name').notNull(),
   parentTagId: text('parent_tag_id'),
   color: text('color'),
+  type: text('type').default('both'), // 'bookmark' | 'note' | 'both'
+  description: text('description'),
+  icon: text('icon'),
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
   index('idx_tags_user').on(table.userId),
   index('idx_tags_name').on(table.name),
   index('idx_tags_parent').on(table.parentTagId),
+  index('idx_tags_type').on(table.type),
   uniqueIndex('idx_tags_user_name').on(table.userId, table.name),
 ])
 

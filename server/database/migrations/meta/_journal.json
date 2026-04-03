@@ -43,6 +43,13 @@
       "when": 1774645654876,
       "tag": "0005_swift_the_call",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775186793693,
+      "tag": "0006_wealthy_stark_industries",
+      "breakpoints": true
     }
   ]
 }

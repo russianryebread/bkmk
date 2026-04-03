@@ -95,5 +95,16 @@ export default defineNuxtConfig({
     }
   },
 
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@vue/devtools-core',
+        '@vue/devtools-kit',
+        'workbox-window',
+        'markdown-it',
+      ]
+    }
+  },
+
   compatibilityDate: '2024-11-01'
 })

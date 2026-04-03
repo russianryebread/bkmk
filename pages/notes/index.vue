@@ -143,17 +143,33 @@
 
 <script setup lang="ts">
 import { useOfflineNotes } from '~/composables/useOfflineNotes'
-import { useTagColors } from '~/composables/useTagColors'
-import { useTags } from '~/composables/useTags'
+import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
-import type search from '~/server/api/bookmarks/search'
 
 const router = useRouter()
 const offlineNotes = useOfflineNotes()
-const { allTags, loadAllTags, getTagColor } = useTagColors()
-const { tags, getAllTags } = useTags()
 const { viewMode } = useViewMode()
+
+const {
+  tags,
+  getTagColor,
+  fetchTags,
+  getTagsByType,
+} = useTagSystem()
+
+async function loadAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
+
+async function getAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
+
+// Get all tags filtered by type (note tags only)
+const allTags = computed(() => {
+  return getTagsByType('note')
+})
 
 const notes = ref<Note[]>([])
 const loading = ref(true)

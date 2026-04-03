@@ -68,23 +68,25 @@
 </template>
 
 <script setup lang="ts">
-import { useTagColors } from '~/composables/useTagColors'
-import { useTags } from '~/composables/useTags'
+import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
 interface TagItem {
   id: string
   name: string
   bookmarkCount?: number
   color?: string
+  type?: TagType
 }
 
 const props = withDefaults(defineProps<{
   modelValue: string[]
   placeholder?: string
   excludeCurrentTags?: boolean
+  tagType?: TagType
 }>(), {
   placeholder: 'Search or create tags...',
   excludeCurrentTags: true,
+  tagType: 'both',
 })
 
 const emit = defineEmits<{
@@ -93,8 +95,26 @@ const emit = defineEmits<{
   (e: 'tagCreated', tag: { id: string; name: string }): void
 }>()
 
-const { allTags, getTagColor, loadAllTags } = useTagColors()
-const { handleCreateTag } = useTags()
+const { tags, getTagColor, fetchTags, createTag: createSystemTag } = useTagSystem()
+
+// Derive allTags from centralized tags, filtered by type if specified
+const allTags = computed(() => {
+  let result = tags.value
+  if (props.tagType && props.tagType !== 'both') {
+    result = result.filter(t => t.type === props.tagType || t.type === 'both')
+  }
+  return result.map(t => ({
+    id: t.id,
+    name: t.name,
+    bookmarkCount: t.bookmarkCount,
+    color: t.color || undefined,
+    type: t.type,
+  }))
+})
+
+async function loadAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
 
 const searchQuery = ref('')
 const showDropdown = ref(false)
@@ -133,7 +153,7 @@ function selectTag(tag: TagItem) {
   highlightedIndex.value = -1
 }
 
-async function createTag(name: string) {
+async function handleCreateTag(name: string) {
   if (creatingTag.value) return
   creatingTag.value = true
   
@@ -195,7 +215,7 @@ function selectHighlighted() {
   }
 
   // No match found - create new tag
-  createTag(query)
+  handleCreateTag(query)
 }
 
 function handleBackspace() {

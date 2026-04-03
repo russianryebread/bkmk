@@ -151,7 +151,7 @@
             @update:model-value="handleTagsUpdate" @create-tag="handleCreateTag" />
         </div>
 
-        <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
+        <div class="flex justify-end gap-2 mt-4 pt-4">
           <button @click="showTagsModal = false" class="btn-primary">Done</button>
         </div>
       </div>
@@ -192,15 +192,28 @@
 
 <script setup lang="ts">
 import { formatDateFull } from '~/utils/date'
+import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
 const route = useRoute()
 const router = useRouter()
 const { fetchBookmark, updateBookmark, deleteBookmark } = useBookmarks()
-const { loadAllTags, getTagColor } = useTagColors()
+
+const {
+  tags,
+  getTagColor,
+  fetchTags,
+  createTag,
+  syncItemTags,
+} = useTagSystem()
+
+async function loadAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
 
 interface Tag {
   id: string
   name: string
+  type?: TagType
 }
 
 const bookmark = ref<any>(null)
@@ -399,27 +412,8 @@ async function handleTagsUpdate(newTags: string[]) {
 
   const oldTags: string[] = bookmark.value.tags || []
 
-  // Find tags to add (in new but not in old)
-  const tagsToAdd = newTags.filter((t: string) => !oldTags.includes(t))
-
-  // Find tags to remove (in old but not in new)
-  const tagsToRemove = oldTags.filter((t: string) => !newTags.includes(t))
-
-  // Add new tags
-  for (const tagName of tagsToAdd) {
-    await addTagByName(tagName)
-  }
-
-  // Remove old tags
-  for (const tagName of tagsToRemove) {
-    const tagInfo = allTags.value.find(t => t.name === tagName)
-    if (tagInfo) {
-      await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-        method: 'DELETE',
-        body: { tag_ids: [tagInfo.id] },
-      })
-    }
-  }
+  // Use centralized sync function
+  await syncItemTags(oldTags, newTags, bookmark.value.id, 'bookmark')
 
   // Update bookmark's tags
   bookmark.value.tags = newTags
@@ -428,33 +422,32 @@ async function handleTagsUpdate(newTags: string[]) {
 // Handle creating a new tag - called when user presses Enter on a new tag name
 async function handleCreateTag(name: string) {
   try {
-    const response = await $fetch<{ tag: Tag }>('/api/tags', {
-      method: 'POST',
-      body: { name },
-    })
+    const newTag = await createTag({ name })
 
-    // Add to local tags list
-    const tagData = allTags.value.find(t => t.id === response.tag.id)
-    if (!tagData) {
-      allTags.value.push({ id: response.tag.id, name: response.tag.name })
-    }
+    if (newTag) {
+      // Add to local tags list
+      const tagData = allTags.value.find(t => t.id === newTag.id)
+      if (!tagData) {
+        allTags.value.push({ id: newTag.id, name: newTag.name, type: newTag.type })
+      }
 
-    // Call the TagInput component to add this tag to selected tags
-    if (tagInputRef.value?.onTagCreated) {
-      tagInputRef.value.onTagCreated({ id: response.tag.id, name: response.tag.name })
-    }
+      // Call the TagInput component to add this tag to selected tags
+      if (tagInputRef.value?.onTagCreated) {
+        tagInputRef.value.onTagCreated({ id: newTag.id, name: newTag.name })
+      }
 
-    // Also add the tag to the bookmark
-    if (bookmark.value) {
-      await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-        method: 'POST',
-        body: { tag_ids: [response.tag.id] },
-      })
+      // Also add the tag to the bookmark
+      if (bookmark.value) {
+        await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
+          method: 'POST',
+          body: { tag_ids: [newTag.id] },
+        })
 
-      // Update local state
-      if (!bookmarkTags.value.includes(response.tag.name)) {
-        bookmarkTags.value.push(response.tag.name)
-        bookmark.value.tags = [...bookmarkTags.value]
+        // Update local state
+        if (!bookmarkTags.value.includes(newTag.name)) {
+          bookmarkTags.value.push(newTag.name)
+          bookmark.value.tags = [...bookmarkTags.value]
+        }
       }
     }
   } catch (e) {
@@ -462,19 +455,11 @@ async function handleCreateTag(name: string) {
   }
 }
 
-// Add tag by name (internal function)
+// Add tag by name (internal function) - uses centralized system
 async function addTagByName(tagName: string) {
-  const existingTag = allTags.value.find(t => t.name.toLowerCase() === tagName.toLowerCase())
-
-  if (existingTag) {
-    await $fetch(`/api/bookmarks/${bookmark.value.id}/tags`, {
-      method: 'POST',
-      body: { tag_ids: [existingTag.id] },
-    })
-  } else {
-    // Create the tag and add it to the bookmark
-    await handleCreateTag(tagName)
-  }
+  // Import the function from the composable at the top level
+  const tagSystem = useTagSystem()
+  await tagSystem.addTagByName(tagName, bookmark.value.id, 'bookmark')
 }
 
 async function toggleFavorite() {

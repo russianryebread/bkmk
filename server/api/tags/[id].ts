@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
       })
     }
     const body = await readBody(event)
-    const { name, parent_tag_id, color } = body
+    const { name, parent_tag_id, color, type, description, icon } = body
 
     const updates: Record<string, any> = {}
 
@@ -65,6 +65,19 @@ export default defineEventHandler(async (event) => {
     }
     if (color !== undefined) {
       updates.color = color
+    }
+    if (type !== undefined) {
+      // Validate type
+      if (!['bookmark', 'note', 'both'].includes(type)) {
+        throw createError({ statusCode: 400, message: 'Invalid tag type. Must be "bookmark", "note", or "both"' })
+      }
+      updates.type = type
+    }
+    if (description !== undefined) {
+      updates.description = description
+    }
+    if (icon !== undefined) {
+      updates.icon = icon
     }
 
     if (Object.keys(updates).length === 0) {

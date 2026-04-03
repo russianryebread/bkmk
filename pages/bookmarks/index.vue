@@ -190,12 +190,23 @@
 </template>
 
 <script setup lang="ts">
+import { useTagSystem, type TagType } from '~/composables/useTagSystem'
+
 const router = useRouter()
 const { bookmarks, loading, error, pagination, fetchBookmarks, createBookmark, toggleFavorite, deleteBookmark } = useBookmarks()
 const { results: searchResults, debouncedSearch, clearSearch } = useSearch()
-const { loadAllTags, getTagColor } = useTagColors()
-const { tags, getAllTags } = useTags()
 const { viewMode } = useViewMode()
+
+const {
+  tags,
+  getTagColor,
+  fetchTags,
+  getTagsByType,
+} = useTagSystem()
+
+async function loadAllTags(forceRefresh = false) {
+  await fetchTags(forceRefresh)
+}
 
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -209,9 +220,9 @@ const filters = ref({
   tag: '',
 })
 
-// Get all tags from centralized useTags
+// Get all tags filtered by type (bookmark tags only)
 const allTags = computed(() => {
-  return tags.value || []
+  return getTagsByType('bookmark')
 })
 
 // Filter top-level tags (tags without parentTagId)

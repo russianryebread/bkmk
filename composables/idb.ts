@@ -36,6 +36,9 @@ export interface Tag {
   name: string
   parentTagId: string | null
   color: string | null
+  type: 'bookmark' | 'note' | 'both'
+  description: string | null
+  icon: string | null
   createdAt: string
   bookmarkCount?: number
 }
