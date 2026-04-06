@@ -12,8 +12,9 @@ import { relations } from 'drizzle-orm'
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
+  passwordHash: text('password_hash'), // Nullable for OAuth users
   role: text('role').notNull().default('user'), // 'user' or 'admin'
+  avatarUrl: text('avatar_url'),
   
   // Password reset fields
   passwordResetToken: text('password_reset_token'),
@@ -24,6 +25,23 @@ export const users = pgTable('users', {
 }, (table) => [
   uniqueIndex('idx_users_email').on(table.email),
   index('idx_users_created').on(table.createdAt),
+])
+
+// Linked Accounts for OAuth providers
+export const userAccounts = pgTable('user_accounts', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  providerUserId: text('provider_user_id').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at', { mode: 'string' }),
+  
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
+}, (table) => [
+  uniqueIndex('idx_user_accounts_provider_unique').on(table.provider, table.providerUserId),
+  index('idx_user_accounts_user').on(table.userId),
 ])
 
 // Bookmarks Table

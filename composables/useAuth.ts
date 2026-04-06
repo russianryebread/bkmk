@@ -1,7 +1,10 @@
-interface AuthUser {
+// Type definitions for our auth user
+export interface AuthUser {
   id: string
   email: string
   role: 'user' | 'admin'
+  avatarUrl?: string | null
+  hasPassword: boolean  // true if user has set a password (not OAuth-only)
 }
 
 interface LoginCredentials {
@@ -38,6 +41,7 @@ export const useAuth = () => {
   const user = useState<AuthUser | null>('auth-user', () => storedUser)
   const isAuthenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.role === 'admin')
+  const hasPassword = computed(() => user.value?.hasPassword ?? false)
   const isLoading = useState<boolean>('auth-loading', () => true)
 
   // Save user to localStorage for offline access
@@ -137,15 +141,23 @@ export const useAuth = () => {
     }
   }
 
+  // For OAuth login - redirect to generic OAuth endpoint
+  const signInWithOAuth = (provider: 'google' | 'github') => {
+    // Redirect to OAuth endpoint (uses generic handler)
+    window.location.href = `/api/auth/${provider}`
+  }
+
   return {
     user: readonly(user),
     isAuthenticated,
     isAdmin,
+    hasPassword,
     isLoading: readonly(isLoading),
     fetchUser,
     login,
     signup,
     logout,
-    init
+    init,
+    signInWithOAuth
   }
 }

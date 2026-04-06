@@ -40,6 +40,10 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    // Private keys (server-only)
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    // Public keys (exposed to client)
     public: {
       appName: 'bkmk'
     }

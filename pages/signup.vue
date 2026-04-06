@@ -125,7 +125,6 @@ definePageMeta({
   layout: false
 })
 
-const { signup } = useAuth()
 const router = useRouter()
 
 const email = ref('')
@@ -170,7 +169,10 @@ async function handleSignup() {
   loading.value = true
 
   try {
-    await signup({ email: email.value, password: password.value })
+    await $fetch('/api/auth/signup', {
+      method: 'POST',
+      body: { email: email.value, password: password.value }
+    })
     success.value = true
     setTimeout(() => {
       router.push('/login')

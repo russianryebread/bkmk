@@ -19,6 +19,7 @@ export interface AuthUser {
   id: string
   email: string
   role: 'user' | 'admin'
+  hasPassword: boolean
 }
 
 // Hash password with bcrypt
@@ -39,7 +40,7 @@ function generateToken(): string {
 }
 
 // Create a simple JWT-like token (base64 encoded JSON)
-function createToken(payload: Omit<TokenPayload, 'exp'>): string {
+export function createToken(payload: Omit<TokenPayload, 'exp'>): string {
   const exp = Date.now() + TOKEN_EXPIRY
   const data: TokenPayload = { ...payload, exp }
   const json = JSON.stringify(data)
@@ -120,7 +121,8 @@ export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
     .select({
       id: users.id,
       email: users.email,
-      role: users.role
+      role: users.role,
+      passwordHash: users.passwordHash
     })
     .from(users)
     .where(eq(users.id, payload.userId))
@@ -134,7 +136,8 @@ export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
   return {
     id: user.id,
     email: user.email,
-    role: user.role as 'user' | 'admin'
+    role: user.role as 'user' | 'admin',
+    hasPassword: !!user.passwordHash
   }
 }
 
@@ -226,7 +229,8 @@ export async function signup(email: string, password: string): Promise<{ user: A
     user: {
       id: userId,
       email: email.toLowerCase(),
-      role: 'user'
+      role: 'user',
+      hasPassword: true
     },
     token
   }
@@ -274,7 +278,8 @@ export async function login(email: string, password: string): Promise<{ user: Au
     user: {
       id: user.id,
       email: user.email,
-      role: user.role as 'user' | 'admin'
+      role: user.role as 'user' | 'admin',
+      hasPassword: !!user.passwordHash
     },
     token
   }

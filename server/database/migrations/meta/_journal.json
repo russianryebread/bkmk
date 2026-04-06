@@ -50,6 +50,13 @@
       "when": 1775186793693,
       "tag": "0006_wealthy_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775489171796,
+      "tag": "0007_whole_junta",
+      "breakpoints": true
     }
   ]
 }
