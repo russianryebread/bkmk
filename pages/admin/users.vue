@@ -36,6 +36,9 @@
                 Email
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Type
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Role
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -53,6 +56,12 @@
                   {{ user.email }}
                   <span v-if="user.id === currentUser?.id" class="text-xs text-gray-400">(You)</span>
                 </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  :class="user.hasPassword ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'">
+                  {{ user.hasPassword ? 'Password' : 'OAuth' }}
+                </span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <select
@@ -116,6 +125,7 @@ interface User {
   id: string
   email: string
   role: 'user' | 'admin'
+  hasPassword: boolean
   createdAt: string
   updatedAt: string
 }

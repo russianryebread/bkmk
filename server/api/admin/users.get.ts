@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
       id: users.id,
       email: users.email,
       role: users.role,
+      passwordHash: users.passwordHash,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt
     })
@@ -24,6 +25,7 @@ export default defineEventHandler(async (event) => {
       id: u.id,
       email: u.email,
       role: u.role,
+      hasPassword: !!u.passwordHash,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt
     }))
