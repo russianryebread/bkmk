@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { hashPassword } from '~/server/utils/crypto'
+import { hashPassword } from '~/server/utils/auth'
 import { desc, eq } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 
