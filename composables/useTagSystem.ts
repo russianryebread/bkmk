@@ -2,25 +2,9 @@
 // Consolidates useTags, useOfflineTags, and useTagColors functionality
 // Supports filtering by type (bookmark/note/both), hierarchical tree structure, and unified offline sync
 
-import { useIdb, type Tag } from './idb'
-import { tagColorsMap, defaultColors, getTagColorByName } from '~/utils/tagColors'
+import { useIdb, type Tag, type TagNode, type TagType } from './idb'
+import { tagColorsMap, defaultColors } from '~/utils/tagColors'
 
-// Re-export Tag from idb for convenience
-export type { Tag }
-
-export type TagType = 'bookmark' | 'note' | 'both'
-
-export interface TagNode extends Tag {
-  children: TagNode[]
-  depth: number
-  expanded: boolean
-}
-
-export interface TagFilterOptions {
-  type?: TagType
-  includeHierarchy?: boolean
-  searchQuery?: string
-}
 
 // Module-level state for shared access
 let _tags: Tag[] | null = null

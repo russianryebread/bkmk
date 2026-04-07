@@ -1,8 +1,12 @@
 import { useIdb } from './idb'
 import type { Bookmark, BookmarkFilters } from './useBookmarks'
 
+export interface CursorBookmarkFilters extends BookmarkFilters {
+  search?: string
+}
+
 export function useOfflineBookmarks() {
-  const { saveBookmark, saveBookmarks, getBookmark, getAllBookmarks, deleteBookmark: idbDeleteBookmark } = useIdb()
+  const { saveBookmark, saveBookmarks, getBookmark, getAllBookmarks, deleteBookmark: idbDeleteBookmark, searchBookmarks } = useIdb()
   
   const isOnline = ref(true)
   const offlineError = ref<string | null>(null)
@@ -23,16 +27,18 @@ export function useOfflineBookmarks() {
     })
   })
 
-  // ALWAYS read from IndexedDB first for local-first performance
-  async function fetchBookmarks(filters: BookmarkFilters = {}): Promise<Bookmark[]> {
+  // Fetch bookmarks with cursor-based pagination for infinite scroll
+  async function fetchBookmarksPaginated(
+    cursor: string | null,
+    filters: CursorBookmarkFilters = {},
+    limit: number = 20
+  ): Promise<{ bookmarks: Bookmark[]; nextCursor: string | null; hasMore: boolean }> {
     offlineError.value = null
     
-    // First, read from IndexedDB (instant, local-first)
-    console.log('[OfflineBookmarks] Fetching bookmarks from IndexedDB (local-first)')
     try {
       let bookmarks = await getAllBookmarks()
       
-      // Apply filters locally
+      // Apply filters
       if (filters.favorite) {
         bookmarks = bookmarks.filter(b => b.is_favorite)
       }
@@ -43,36 +49,69 @@ export function useOfflineBookmarks() {
         bookmarks = bookmarks.filter(b => b.tags && b.tags.includes(filters.tag!))
       }
       
+      // Apply search filter
+      if (filters.search) {
+        const query = filters.search.toLowerCase()
+        bookmarks = bookmarks.filter(b => 
+          b.title?.toLowerCase().includes(query) ||
+          b.description?.toLowerCase().includes(query) ||
+          b.url?.toLowerCase().includes(query) ||
+          b.source_domain?.toLowerCase().includes(query) ||
+          b.tags?.some(tag => tag.toLowerCase().includes(query))
+        )
+      }
+      
       // Sort
       const sort = filters.sort || 'saved_at'
       const order = filters.order || 'desc'
       bookmarks.sort((a, b) => {
         const aVal = (a as any)[sort] || ''
         const bVal = (b as any)[sort] || ''
+        if (typeof aVal === 'boolean') return order === 'desc' ? (bVal ? 1 : -1) : (aVal ? 1 : -1)
         return order === 'desc' 
-          ? (bVal > aVal ? 1 : -1)
-          : (aVal > bVal ? 1 : -1)
+          ? (bVal > aVal ? 1 : bVal < aVal ? -1 : 0)
+          : (aVal > bVal ? 1 : aVal < bVal ? -1 : 0)
       })
       
-      // Paginate
-      const page = filters.page || 1
-      const limit = filters.limit || 20
-      const start = (page - 1) * limit
-      bookmarks = bookmarks.slice(start, start + limit)
+      // Find cursor position
+      let startIndex = 0
+      if (cursor) {
+        const cursorIndex = bookmarks.findIndex(b => b.id === cursor)
+        if (cursorIndex !== -1) {
+          startIndex = cursorIndex + 1
+        }
+      }
       
-      console.log('[OfflineBookmarks] Returning', bookmarks.length, 'bookmarks from IndexedDB')
+      // Get page of results
+      const pageBookmarks = bookmarks.slice(startIndex, startIndex + limit)
+      const hasMore = startIndex + limit < bookmarks.length
+      const nextCursor = hasMore && pageBookmarks.length > 0 
+        ? pageBookmarks[pageBookmarks.length - 1].id 
+        : null
       
-      // THEN fetch from server in background to update cache
+      console.log('[OfflineBookmarks] Returning', pageBookmarks.length, 'bookmarks, hasMore:', hasMore)
+      
+      // Refresh from server in background
       if (isOnline.value) {
         refreshFromServer()
       }
       
-      return bookmarks
+      return {
+        bookmarks: pageBookmarks,
+        nextCursor,
+        hasMore,
+      }
     } catch (e: any) {
       console.error('[OfflineBookmarks] IndexedDB fetch failed:', e)
       offlineError.value = 'Failed to load bookmarks'
-      return []
+      return { bookmarks: [], nextCursor: null, hasMore: false }
     }
+  }
+
+  // Legacy fetchBookmarks for backwards compatibility
+  async function fetchBookmarks(filters: BookmarkFilters = {}): Promise<Bookmark[]> {
+    const result = await fetchBookmarksPaginated(null, filters, filters.limit || 20)
+    return result.bookmarks
   }
 
   // Refresh cache from server (background, non-blocking)
@@ -140,6 +179,30 @@ export function useOfflineBookmarks() {
     }
   }
 
+  // Create bookmark via API
+  async function createBookmark(url: string): Promise<Bookmark | null> {
+    console.log('[OfflineBookmarks] createBookmark called for url:', url)
+    
+    try {
+      // Create via API
+      const response = await $fetch<Bookmark>('/api/scrape', {
+        method: 'POST',
+        body: { url },
+      })
+      
+      // Save to local cache immediately
+      await fetchBookmark(response.id)
+      
+      // Trigger background refresh from server to ensure cache is up to date
+      refreshFromServer()
+      
+      return response
+    } catch (e: any) {
+      console.error('[OfflineBookmarks] Error creating bookmark:', e)
+      throw e
+    }
+  }
+
   // Delete bookmark - always local first
   async function deleteBookmark(id: string): Promise<boolean> {
     // Always delete from local cache immediately
@@ -187,7 +250,9 @@ export function useOfflineBookmarks() {
     isOnline,
     offlineError,
     fetchBookmarks,
+    fetchBookmarksPaginated,
     fetchBookmark,
+    createBookmark,
     deleteBookmark,
     updateBookmark,
     refreshFromServer,

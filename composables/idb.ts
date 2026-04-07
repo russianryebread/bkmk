@@ -52,6 +52,20 @@ export interface Tag {
   bookmarkCount?: number
 }
 
+export interface TagNode extends Tag {
+  children: TagNode[]
+  depth: number
+  expanded: boolean
+}
+
+export interface TagFilterOptions {
+  type?: TagType
+  includeHierarchy?: boolean
+  searchQuery?: string
+}
+
+export type TagType = 'bookmark' | 'note' | 'both'
+
 interface SyncQueueItem {
   id: string
   action: 'create' | 'update' | 'delete'

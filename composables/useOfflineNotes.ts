@@ -21,6 +21,14 @@ function toPlainObject(obj: any): any {
   return obj
 }
 
+export interface CursorNoteFilters {
+  tag?: string
+  search?: string
+  sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
+  order?: 'asc' | 'desc'
+  favorite?: boolean
+}
+
 export function useOfflineNotes() {
   // Get IDB instance without destructuring to avoid cloning refs
   const idb = useIdb()
@@ -44,26 +52,36 @@ export function useOfflineNotes() {
     })
   })
 
-  // Get notes - ALWAYS read from IndexedDB first (local-first)
-  async function getNotes(options: { 
-    tag?: string 
-    sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
-    order?: 'asc' | 'desc'
-    page?: number
-    limit?: number
-  } = {}): Promise<Note[]> {
+  // Get notes with cursor-based pagination for infinite scroll
+  async function getNotesPaginated(
+    cursor: string | null,
+    options: CursorNoteFilters = {},
+    limit: number = 20
+  ): Promise<{ notes: Note[]; nextCursor: string | null; hasMore: boolean }> {
     offlineError.value = null
     
-    const { tag, sort = 'updatedAt', order = 'desc', page = 1, limit = 20 } = options
+    const { tag, search, sort = 'updatedAt', order = 'desc', favorite } = options
 
-    // First, read from IndexedDB (instant, local-first)
-    console.log('[OfflineNotes] Fetching notes from IndexedDB (local-first)')
     try {
       let notes = await idb.getAllNotes()
+      
+      // Filter by favorite
+      if (favorite !== undefined) {
+        notes = notes.filter(n => n.isFavorite === favorite)
+      }
       
       // Filter by tag
       if (tag) {
         notes = notes.filter(n => n.tags.includes(tag))
+      }
+      
+      // Filter by search
+      if (search) {
+        const query = search.toLowerCase()
+        notes = notes.filter(n => 
+          n.content.toLowerCase().includes(query) ||
+          n.tags.some(t => t.toLowerCase().includes(query))
+        )
       }
       
       // Sort
@@ -75,28 +93,60 @@ export function useOfflineNotes() {
         if (typeof bVal === 'boolean') bVal = bVal ? 1 : 0
         
         if (order === 'desc') {
-          return aVal < bVal ? 1 : -1
+          return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
         }
-        return aVal > bVal ? 1 : -1
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0
       })
       
-      // Paginate
-      const start = (page - 1) * limit
-      notes = notes.slice(start, start + limit)
+      // Find cursor position
+      let startIndex = 0
+      if (cursor) {
+        const cursorIndex = notes.findIndex(n => n.id === cursor)
+        if (cursorIndex !== -1) {
+          startIndex = cursorIndex + 1
+        }
+      }
       
-      console.log('[OfflineNotes] Returning', notes.length, 'notes from IndexedDB')
+      // Get page of results
+      const pageNotes = notes.slice(startIndex, startIndex + limit)
+      const hasMore = startIndex + limit < notes.length
+      const nextCursor = hasMore && pageNotes.length > 0 
+        ? pageNotes[pageNotes.length - 1].id 
+        : null
+      
+      console.log('[OfflineNotes] Returning', pageNotes.length, 'notes, hasMore:', hasMore)
       
       // Then refresh from server in background
       if (isOnline.value) {
         refreshFromServer()
       }
       
-      return notes
+      return {
+        notes: pageNotes,
+        nextCursor,
+        hasMore,
+      }
     } catch (e: any) {
       console.error('[OfflineNotes] IndexedDB fetch failed:', e)
       offlineError.value = 'Failed to load notes'
-      return []
+      return { notes: [], nextCursor: null, hasMore: false }
     }
+  }
+
+  // Legacy getNotes for backwards compatibility
+  async function getNotes(options: { 
+    tag?: string 
+    sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
+    order?: 'asc' | 'desc'
+    page?: number
+    limit?: number
+  } = {}): Promise<Note[]> {
+    const result = await getNotesPaginated(null, {
+      tag: options.tag,
+      sort: options.sort,
+      order: options.order,
+    }, options.limit || 20)
+    return result.notes
   }
 
   // Refresh cache from server (background, non-blocking)
@@ -390,6 +440,7 @@ export function useOfflineNotes() {
     isOnline,
     offlineError,
     getNotes,
+    getNotesPaginated,
     getNoteById,
     createNote,
     updateNote,

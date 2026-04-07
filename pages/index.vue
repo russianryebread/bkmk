@@ -235,7 +235,7 @@ import { formatDate } from '~/utils/date'
 import { deriveTitle } from '~/composables/idb'
 
 const router = useRouter()
-const { loadAllTags, getTagColor } = useTagColors()
+const { getTagColor, fetchTags } = useTagSystem()
 const { getAllBookmarks } = useIdb()
 const { getAllNotes } = useIdb()
 const { getAllSecrets } = useIdb()
@@ -538,7 +538,7 @@ function openResult(result: SearchResult) {
 // Global keyboard shortcut to focus search
 onMounted(() => {
   fetchStats()
-  loadAllTags()
+  fetchTags()
   
   // Auto-focus search on page load
   nextTick(() => {
