@@ -1,4 +1,5 @@
 import type { Bookmark } from './useBookmarks'
+import { stripMarkdown } from '../utils/markdown'
 
 const DB_NAME = 'bkmk-offline-db'
 const DB_VERSION = 2
@@ -9,10 +10,18 @@ const TAGS_STORE = 'tags'
 const SYNC_QUEUE_STORE = 'sync-queue'
 const SETTINGS_STORE = 'settings'
 
+// Helper to derive title from content (first line, trimmed, max 100 chars)
+export function deriveTitle(content: string): string {
+  if (!content) return 'Untitled'
+  let firstLine = content.split('\n')[0].trim()
+  firstLine = stripMarkdown(firstLine)
+  if (!firstLine) return 'Untitled'
+  return firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine
+}
+
 // Note types matching server schema
 export interface Note {
   id: string
-  title: string
   content: string
   tags: string[]
   isFavorite: boolean
@@ -63,7 +72,7 @@ export function useIdb() {
 
     return new Promise((resolve, reject) => {
       console.log('[IDB] Opening database...')
-      
+
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = () => {
@@ -83,7 +92,7 @@ export function useIdb() {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
         console.log('[IDB] Upgrading database...')
-        
+
         if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
           const bookmarksStore = db.createObjectStore(BOOKMARKS_STORE, { keyPath: 'id' })
           bookmarksStore.createIndex('saved_at', 'saved_at', { unique: false })
@@ -143,7 +152,7 @@ export function useIdb() {
       const tx = db.transaction(NOTES_STORE, 'readwrite')
       const store = tx.objectStore(NOTES_STORE)
       const request = store.put(note)
-      
+
       request.onsuccess = () => {
         console.log('[IDB] Saved note:', note.id)
         resolve()
@@ -157,9 +166,9 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(NOTES_STORE, 'readwrite')
       const store = tx.objectStore(NOTES_STORE)
-      
+
       notes.forEach(note => store.put(note))
-      
+
       tx.oncomplete = () => {
         console.log('[IDB] Saved', notes.length, 'notes')
         resolve()
@@ -174,7 +183,7 @@ export function useIdb() {
       const tx = db.transaction(NOTES_STORE, 'readonly')
       const store = tx.objectStore(NOTES_STORE)
       const request = store.get(id)
-      
+
       request.onsuccess = () => resolve(request.result || null)
       request.onerror = () => reject(request.error)
     })
@@ -186,7 +195,7 @@ export function useIdb() {
       const tx = db.transaction(NOTES_STORE, 'readonly')
       const store = tx.objectStore(NOTES_STORE)
       const request = store.getAll()
-      
+
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
@@ -198,7 +207,7 @@ export function useIdb() {
       const tx = db.transaction(NOTES_STORE, 'readwrite')
       const store = tx.objectStore(NOTES_STORE)
       const request = store.delete(id)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -207,9 +216,9 @@ export function useIdb() {
   async function searchNotes(query: string): Promise<Note[]> {
     const notes = await getAllNotes()
     const lowerQuery = query.toLowerCase()
-    
-    return notes.filter(note => 
-      note.title.toLowerCase().includes(lowerQuery) ||
+
+    return notes.filter(note =>
+      deriveTitle(note.content).toLowerCase().includes(lowerQuery) ||
       note.content.toLowerCase().includes(lowerQuery) ||
       note.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
     )
@@ -222,7 +231,7 @@ export function useIdb() {
       const tx = db.transaction(SECRETS_STORE, 'readwrite')
       const store = tx.objectStore(SECRETS_STORE)
       const request = store.put(secret)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -233,9 +242,9 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(SECRETS_STORE, 'readwrite')
       const store = tx.objectStore(SECRETS_STORE)
-      
+
       secrets.forEach(secret => store.put(secret))
-      
+
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -247,7 +256,7 @@ export function useIdb() {
       const tx = db.transaction(SECRETS_STORE, 'readonly')
       const store = tx.objectStore(SECRETS_STORE)
       const request = store.get(id)
-      
+
       request.onsuccess = () => resolve(request.result || null)
       request.onerror = () => reject(request.error)
     })
@@ -259,7 +268,7 @@ export function useIdb() {
       const tx = db.transaction(SECRETS_STORE, 'readonly')
       const store = tx.objectStore(SECRETS_STORE)
       const request = store.getAll()
-      
+
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
@@ -271,7 +280,7 @@ export function useIdb() {
       const tx = db.transaction(SECRETS_STORE, 'readwrite')
       const store = tx.objectStore(SECRETS_STORE)
       const request = store.delete(id)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -284,7 +293,7 @@ export function useIdb() {
       const tx = db.transaction(TAGS_STORE, 'readwrite')
       const store = tx.objectStore(TAGS_STORE)
       const request = store.put(tag)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -295,9 +304,9 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(TAGS_STORE, 'readwrite')
       const store = tx.objectStore(TAGS_STORE)
-      
+
       tags.forEach(tag => store.put(tag))
-      
+
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -309,7 +318,7 @@ export function useIdb() {
       const tx = db.transaction(TAGS_STORE, 'readonly')
       const store = tx.objectStore(TAGS_STORE)
       const request = store.get(id)
-      
+
       request.onsuccess = () => resolve(request.result || null)
       request.onerror = () => reject(request.error)
     })
@@ -321,7 +330,7 @@ export function useIdb() {
       const tx = db.transaction(TAGS_STORE, 'readonly')
       const store = tx.objectStore(TAGS_STORE)
       const request = store.getAll()
-      
+
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
@@ -333,7 +342,7 @@ export function useIdb() {
       const tx = db.transaction(TAGS_STORE, 'readwrite')
       const store = tx.objectStore(TAGS_STORE)
       const request = store.delete(id)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -346,7 +355,7 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.put(bookmark)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -357,9 +366,9 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
       const store = tx.objectStore(BOOKMARKS_STORE)
-      
+
       bookmarks.forEach(bookmark => store.put(bookmark))
-      
+
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
@@ -371,7 +380,7 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readonly')
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.get(id)
-      
+
       request.onsuccess = () => resolve(request.result || null)
       request.onerror = () => reject(request.error)
     })
@@ -383,7 +392,7 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readonly')
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.getAll()
-      
+
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
@@ -395,7 +404,7 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.delete(id)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -407,7 +416,7 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
       const store = tx.objectStore(BOOKMARKS_STORE)
       const request = store.clear()
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -420,7 +429,7 @@ export function useIdb() {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
       const request = store.put({ ...item, retries: 0 })
-      
+
       request.onsuccess = () => {
         console.log('[IDB] Added to sync queue:', item.action, item.entity, item.id)
         resolve()
@@ -435,7 +444,7 @@ export function useIdb() {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readonly')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
       const request = store.getAll()
-      
+
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })
@@ -447,7 +456,7 @@ export function useIdb() {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
       const request = store.delete(id)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -459,7 +468,7 @@ export function useIdb() {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
       const request = store.put(item)
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -472,7 +481,7 @@ export function useIdb() {
       const tx = db.transaction(SETTINGS_STORE, 'readwrite')
       const store = tx.objectStore(SETTINGS_STORE)
       const request = store.put({ key, value })
-      
+
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
@@ -484,7 +493,7 @@ export function useIdb() {
       const tx = db.transaction(SETTINGS_STORE, 'readonly')
       const store = tx.objectStore(SETTINGS_STORE)
       const request = store.get(key)
-      
+
       request.onsuccess = () => resolve(request.result?.value ?? null)
       request.onerror = () => reject(request.error)
     })

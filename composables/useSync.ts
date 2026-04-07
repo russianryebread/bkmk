@@ -36,9 +36,10 @@ export function useSync() {
       console.log('[Sync] Online event received')
       isOnline.value = true
       syncStatus.value = 'idle'
-      // Don't auto-sync on online - let user trigger manually or rely on page load
+      // Sync when coming back online to fetch changes from other devices
+      triggerSync()
     })
-    
+
     // Mark as offline
     window.addEventListener('offline', () => {
       console.log('[Sync] Offline event received')
@@ -61,10 +62,10 @@ export function useSync() {
     syncError.value = null
 
     try {
-      // 1. Process pending sync queue
+      // 1. Process pending sync queue FIRST (before fetching - ensures local changes are pushed)
       const queue = await idb.getSyncQueue()
       console.log('[Sync] Processing', queue.length, 'queued operations')
-      
+
       for (const item of queue) {
         try {
           await processSyncItem(item)
@@ -82,9 +83,9 @@ export function useSync() {
         }
       }
 
-      // 2. Fetch latest data from server for all entities
+      // 2. Fetch latest data from server for all entities (after local changes pushed)
       console.log('[Sync] Fetching latest data from server')
-      
+
       // Fetch bookmarks
       try {
         const bookmarksResponse = await $fetch<{ bookmarks: any[] }>('/api/bookmarks?limit=1000')
@@ -102,7 +103,6 @@ export function useSync() {
         if (notesResponse.notes && notesResponse.notes.length > 0) {
           const notes: Note[] = notesResponse.notes.map(n => ({
             id: n.id,
-            title: n.title,
             content: n.content,
             tags: n.tags || [],
             isFavorite: n.isFavorite,

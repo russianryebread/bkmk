@@ -27,18 +27,11 @@
     <div v-else-if="note || isNew">
       <!-- Header -->
       <div class="mb-6">
-        <!-- Title -->
+        <!-- Title - derived from first line of content -->
         <div class="mb-4">
-          <!-- View mode title (existing note, not editing) -->
-          <div v-if="!isNew && !editing" @click="startEditing" class="group cursor-pointer">
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
-              {{ note?.title }}
-            </h1>
-          </div>
-          <!-- Editor mode title (new or editing) -->
-          <input v-else v-model="editorTitle" type="text" :placeholder="titlePlaceholder"
-            class="w-full text-2xl md:text-3xl font-bold bg-transparent border-b-2 border-transparent focus:border-primary-500 focus:outline-none text-gray-900 dark:text-white placeholder-gray-400"
-            @keydown.enter="saveNote" />
+          <h1 v-if="!isNew && !editing" class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+            {{ deriveTitle(note?.content) }}
+          </h1>
         </div>
 
         <!-- Metadata and tags (view mode - existing note) -->
@@ -80,41 +73,18 @@
 
       <!-- Editor mode (new or editing) -->
       <div v-else class="card">
-        <!-- Edit/Preview Toggle -->
-        <div class="flex border-b border-gray-200 dark:border-gray-700">
-          <button @click="showPreview = false" class="px-4 py-2 text-sm font-medium transition-colors" :class="!showPreview
-            ? 'text-primary-600 border-b-2 border-primary-600'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
-            Edit
-          </button>
-          <button @click="showPreview = true" class="px-4 py-2 text-sm font-medium transition-colors" :class="showPreview
-            ? 'text-primary-600 border-b-2 border-primary-600'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'">
-            Preview
-          </button>
-        </div>
-
         <!-- Content Area -->
         <div class="min-h-[300px]">
-          <!-- Editor -->
-          <div v-if="!showPreview" class="p-4">
-            <textarea v-model="editorContent" placeholder="Write your markdown here..."
-              class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"
-              autofocus></textarea>
-          </div>
-
-          <!-- Preview -->
-          <div v-else class="p-4">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">{{ displayTitle }}</h2>
-            <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedPreview"></div>
-          </div>
+          <textarea v-model="editorContent" placeholder="Write your markdown here..."
+            class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
+            autofocus></textarea>
         </div>
 
-        <!-- Tags Section - Only shown when editing (not preview) -->
-        <div v-if="!showPreview" class="border-t border-gray-200 dark:border-gray-700 p-4">
+        <!-- Tags Section -->
+        <div class="border-t border-gray-200 dark:border-gray-700 p-4">
           <div class="flex items-center gap-3 flex-wrap">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
-            
+
             <!-- Current tags -->
             <div class="flex flex-wrap gap-1 items-center">
               <span v-for="tag in editorTags" :key="tag"
@@ -161,7 +131,7 @@
           </div>
           <div class="flex gap-2">
             <button v-if="!isNew && editing" @click="cancelEditing" class="btn-secondary">Cancel</button>
-            <button @click="saveNote" class="btn-primary" :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorTitle.trim())">
+            <button @click="saveNote" class="btn-primary" :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
               {{ saving ? 'Saving...' : (isNew ? 'Save' : (hasChanges ? 'Save' : 'Saved')) }}
             </button>
           </div>
@@ -179,6 +149,7 @@
 
 <script setup lang="ts">
 import type { Note } from '~/composables/idb'
+import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
@@ -212,7 +183,6 @@ const note = ref<Note | null>(null)
 const loading = ref(true)
 const editing = ref(false)
 const showPreview = ref(false)
-const editorTitle = ref('')
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
 const newTag = ref('')
@@ -221,24 +191,8 @@ const saving = ref(false)
 // Determine mode - use isNew computed property
 const isNew = computed(() => route.params.id === 'new')
 
-// Title placeholder for new notes
-const titlePlaceholder = computed(() => {
-  const today = new Date()
-  const formatted = today.toISOString().split('T')[0]
-  return `Untitled ${formatted}`
-})
-
-// Display title (for preview)
-const displayTitle = computed(() => {
-  if (isNew.value) {
-    return editorTitle.value || titlePlaceholder.value
-  }
-  return editorTitle.value || 'Untitled'
-})
-
 // Computed properties
 const renderedMarkdown = computed(() => render(note.value?.content || ''))
-const renderedPreview = computed(() => render(editorContent.value))
 
 const wordCount = computed(() => {
   if (!note.value?.content) return 0
@@ -252,9 +206,8 @@ const editorWordCount = computed(() => {
 
 // Check if there are unsaved changes
 const hasChanges = computed(() => {
-  if (!note.value) return editorTitle.value.trim() || editorContent.value.trim()
-  return editorTitle.value !== note.value.title ||
-    editorContent.value !== note.value.content ||
+  if (!note.value) return editorContent.value.trim()
+  return editorContent.value !== note.value.content ||
     JSON.stringify(editorTags.value) !== JSON.stringify(note.value.tags || [])
 })
 
@@ -269,11 +222,9 @@ const suggestedTags = computed(() => {
 
 // Initialize editor state for new note
 function initNewNote() {
-  editorTitle.value = ''
   editorContent.value = ''
   editorTags.value = []
   newTag.value = ''
-  showPreview.value = false
   editing.value = true
   note.value = null
 }
@@ -281,12 +232,10 @@ function initNewNote() {
 // Initialize editor state from existing note
 function initFromNote() {
   if (note.value) {
-    editorTitle.value = note.value.title
     editorContent.value = note.value.content
     editorTags.value = [...(note.value.tags || [])]
   }
   newTag.value = ''
-  showPreview.value = false
 }
 
 // Load existing note
@@ -307,7 +256,6 @@ async function loadNote() {
 
 function startEditing() {
   editing.value = true
-  showPreview.value = false
   initFromNote()
 }
 
@@ -328,7 +276,7 @@ function handleBack() {
 
 // Unified save logic - handles both create and update
 async function saveNote() {
-  if (!editorTitle.value.trim()) return
+  if (!editorContent.value.trim()) return
 
   saving.value = true
 
@@ -342,7 +290,6 @@ async function saveNote() {
     if (isNew.value) {
       // Create new note
       const noteToSave = await createNote({
-        title: editorTitle.value,
         content: editorContent.value,
         tags: editorTags.value,
       })
@@ -353,7 +300,6 @@ async function saveNote() {
     } else if (note.value) {
       // Update existing note
       await updateNote(note.value.id, {
-        title: editorTitle.value,
         content: editorContent.value,
         tags: editorTags.value,
       })
@@ -361,7 +307,6 @@ async function saveNote() {
       // Update local note
       note.value = {
         ...note.value,
-        title: editorTitle.value,
         content: editorContent.value,
         tags: editorTags.value,
         updatedAt: new Date().toISOString(),
@@ -386,7 +331,7 @@ async function toggleFavorite() {
 async function deleteNoteConfirm() {
   if (!note.value) return
 
-  if (confirm(`Delete "${note.value.title}"?`)) {
+  if (confirm(`Delete "${deriveTitle(note.value.content)}"?`)) {
     await deleteNoteFn(note.value.id)
     router.push('/notes')
   }
@@ -435,6 +380,11 @@ const toolbarActions = computed(() => [
     handler: () => startEditing(),
   },
   {
+    icon: 'tag' as const,
+    title: 'Manage tags',
+    handler: () => { editing.value = true; initFromNote() },
+  },
+  {
     icon: 'trash' as const,
     title: 'Delete note',
     variant: 'danger' as const,
@@ -445,5 +395,11 @@ const toolbarActions = computed(() => [
 onMounted(async () => {
   await getAllTags(true)
   loadAllTags(true)
+})
+
+onBeforeRouteLeave((to, from) => {
+  if (editing.value && hasChanges.value) {
+    return confirm('You have unsaved changes. Are you sure you want to leave?')
+  }
 })
 </script>

@@ -15,11 +15,11 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash'), // Nullable for OAuth users
   role: text('role').notNull().default('user'), // 'user' or 'admin'
   avatarUrl: text('avatar_url'),
-  
+
   // Password reset fields
   passwordResetToken: text('password_reset_token'),
   passwordResetExpiry: timestamp('password_reset_expiry', { mode: 'string' }),
-  
+
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
@@ -36,7 +36,7 @@ export const userAccounts = pgTable('user_accounts', {
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at', { mode: 'string' }),
-  
+
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
@@ -51,31 +51,31 @@ export const bookmarks = pgTable('bookmarks', {
   title: text('title').notNull(),
   url: text('url').notNull(),
   description: text('description'),
-  
+
   // Content storage
   originalHtml: text('original_html'),
   cleanedMarkdown: text('cleaned_markdown'),
   readingTimeMinutes: integer('reading_time_minutes'),
-  
+
   // Metadata
   savedAt: timestamp('saved_at', { mode: 'string' }).defaultNow(),
   lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),
-  
+
   // Organization
   isFavorite: integer('is_favorite').default(0),
   sortOrder: integer('sort_order'),
-  
+
   // Image storage reference
   thumbnailImagePath: text('thumbnail_image_path'),
-  
+
   // Status
   isRead: integer('is_read').default(0),
   readAt: timestamp('read_at', { mode: 'string' }),
-  
+
   // Additional fields
   sourceDomain: text('source_domain'),
   wordCount: integer('word_count'),
-  
+
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
@@ -108,8 +108,8 @@ export const tags = pgTable('tags', {
 // Bookmark Tags Junction Table (existing table - no foreign keys to avoid data issues)
 export const bookmarkTags = pgTable('bookmark_tags', {
   id: text('id').primaryKey(),
-  bookmarkId: text('bookmark_id').notNull(),
-  tagId: text('tag_id').notNull(),
+  bookmarkId: text('bookmark_id').notNull().references(() => bookmarks.id, { onDelete: 'cascade' }),
+  tagId: text('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
 }, (table) => [
   index('idx_bookmark_tags_bookmark').on(table.bookmarkId),
   index('idx_bookmark_tags_tag').on(table.tagId),
@@ -120,12 +120,11 @@ export const bookmarkTags = pgTable('bookmark_tags', {
 export const notes = pgTable('notes', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
-  title: text('title').notNull(),
   content: text('content').notNull(),
-  
+
   isFavorite: integer('is_favorite').default(0),
   sortOrder: integer('sort_order'),
-  
+
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
@@ -151,9 +150,9 @@ export const secrets = pgTable('secrets', {
   userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   content: text('content').notNull(),
-  
+
   passwordHash: text('password_hash').notNull(),
-  
+
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
   lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),

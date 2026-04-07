@@ -18,9 +18,9 @@ export default defineEventHandler(async (event) => {
     const offset = (pageNum - 1) * limitNum
 
     // Validate sort column
-    const validSorts = ['createdAt', 'title', 'updatedAt', 'isFavorite']
-    const sortColumn = validSorts.includes(sort as string) 
-      ? (sort as 'createdAt' | 'title' | 'updatedAt' | 'isFavorite')
+    const validSorts = ['createdAt', 'updatedAt', 'isFavorite']
+    const sortColumn = validSorts.includes(sort as string)
+      ? (sort as 'createdAt' | 'updatedAt' | 'isFavorite')
       : 'updatedAt'
 
     let notes
@@ -135,12 +135,12 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'POST') {
     const body = await readBody(event)
-    const { title, content, isFavorite, tags } = body
+    const { content, isFavorite, tags } = body
 
-    if (!title || typeof title !== 'string') {
+    if (typeof content !== 'string') {
       throw createError({
         statusCode: 400,
-        message: 'Title is required',
+        message: 'Content is required',
       })
     }
 
@@ -157,7 +157,7 @@ export default defineEventHandler(async (event) => {
           .from(schema.tags)
           .where(and(eq(schema.tags.name, trimmedName), eq(schema.tags.userId, currentUser.id)))
           .limit(1)
-        
+
         if (existingTag.length === 0) {
           const [newTag] = await db
             .insert(schema.tags)
@@ -181,8 +181,7 @@ export default defineEventHandler(async (event) => {
       .values({
         id: crypto.randomUUID(),
         userId: currentUser.id,
-        title,
-        content: content || '',
+        content: content,
         isFavorite: isFavorite ? 1 : 0,
       })
       .returning()
@@ -205,7 +204,6 @@ export default defineEventHandler(async (event) => {
       tags: tagsArray,
     }
   }
-
 
   throw createError({
     statusCode: 405,

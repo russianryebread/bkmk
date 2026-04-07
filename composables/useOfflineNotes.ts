@@ -110,7 +110,6 @@ export function useOfflineNotes() {
       if (response.notes && response.notes.length > 0) {
         const notes: Note[] = response.notes.map(n => ({
           id: n.id,
-          title: n.title,
           content: n.content,
           tags: n.tags || [],
           isFavorite: n.isFavorite,
@@ -152,7 +151,6 @@ export function useOfflineNotes() {
         const response = await $fetch<any>(`/api/notes/markdown/${id}`)
         const note: Note = {
           id: response.id,
-          title: response.title,
           content: response.content,
           tags: response.tags || [],
           isFavorite: response.isFavorite,
@@ -177,7 +175,6 @@ export function useOfflineNotes() {
       const response = await $fetch<any>(`/api/notes/markdown/${id}`)
       const note: Note = {
         id: response.id,
-        title: response.title,
         content: response.content,
         tags: response.tags || [],
         isFavorite: response.isFavorite,
@@ -192,16 +189,15 @@ export function useOfflineNotes() {
   }
 
   // Create note - save locally and queue sync
-  async function createNote(data: { title: string; content: string; tags?: string[]; isFavorite?: boolean }): Promise<Note | null> {
+  async function createNote(data: { content: string; tags?: string[]; isFavorite?: boolean }): Promise<Note | null> {
     // Convert to plain object to handle reactive refs
     const plainData = toPlainObject(data)
-    
+
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
-    
+
     const note: Note = {
       id,
-      title: plainData.title,
       content: plainData.content,
       tags: plainData.tags || [],
       isFavorite: plainData.isFavorite || false,
@@ -210,19 +206,19 @@ export function useOfflineNotes() {
     }
 
     try {
-      console.log('note', note )
+      console.log('note', note)
       // Save to IndexedDB immediately
       await idb.saveNote(note)
       console.log('[OfflineNotes] Created note locally:', id)
-      
+
       // Queue for sync if online
       if (isOnline.value) {
         try {
           const response = await $fetch<any>('/api/notes/markdown', {
             method: 'POST',
-            body: { title: note.title, content: note.content, tags: note.tags, isFavorite: note.isFavorite }
+            body: { content: note.content, tags: note.tags, isFavorite: note.isFavorite }
           })
-          
+
           // Update with server ID if different
           if (response.id !== id) {
             // Delete local with temp ID and save with server ID
@@ -238,7 +234,7 @@ export function useOfflineNotes() {
             id,
             action: 'create',
             entity: 'note',
-            data: toPlainObject({ title: note.title, content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
+            data: toPlainObject({ content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
             timestamp: Date.now(),
           })
         }
@@ -248,11 +244,11 @@ export function useOfflineNotes() {
           id,
           action: 'create',
           entity: 'note',
-          data: toPlainObject({ title: note.title, content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
+          data: toPlainObject({ content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
           timestamp: Date.now(),
         })
       }
-      
+
       return note
     } catch (e: any) {
       console.error('[OfflineNotes] Failed to create note:', e)
@@ -261,10 +257,10 @@ export function useOfflineNotes() {
   }
 
   // Update note - save locally and queue sync
-  async function updateNote(id: string, data: { title?: string; content?: string; tags?: string[]; isFavorite?: boolean }): Promise<boolean> {
+  async function updateNote(id: string, data: { content?: string; tags?: string[]; isFavorite?: boolean }): Promise<boolean> {
     // Convert to plain object to handle reactive refs
     const plainData = toPlainObject(data)
-    
+
     try {
       // Get current note
       const current = await idb.getNote(id)
@@ -275,7 +271,6 @@ export function useOfflineNotes() {
 
       const updated: Note = {
         ...current,
-        title: plainData.title ?? current.title,
         content: plainData.content ?? current.content,
         tags: plainData.tags ?? current.tags,
         isFavorite: plainData.isFavorite ?? current.isFavorite,
@@ -292,7 +287,6 @@ export function useOfflineNotes() {
           await $fetch(`/api/notes/markdown/${id}`, {
             method: 'PUT',
             body: {
-              title: updated.title,
               content: updated.content,
               tags: updated.tags,
               isFavorite: updated.isFavorite,
@@ -306,7 +300,6 @@ export function useOfflineNotes() {
             action: 'update',
             entity: 'note',
             data: toPlainObject({
-              title: updated.title,
               content: updated.content,
               tags: updated.tags,
               isFavorite: updated.isFavorite,
@@ -321,7 +314,6 @@ export function useOfflineNotes() {
           action: 'update',
           entity: 'note',
           data: toPlainObject({
-            title: updated.title,
             content: updated.content,
             tags: updated.tags,
             isFavorite: updated.isFavorite,
@@ -329,7 +321,7 @@ export function useOfflineNotes() {
           timestamp: Date.now(),
         })
       }
-      
+
       return true
     } catch (e: any) {
       console.error('[OfflineNotes] Failed to update note:', e)

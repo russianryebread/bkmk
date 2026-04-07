@@ -61,7 +61,7 @@
         <div v-for="note in filteredNotes" :key="note.id"
           class="card p-4 hover:shadow-md transition-shadow cursor-pointer" @click="openNote(note)">
           <div class="flex justify-between items-start mb-2">
-            <h3 class="font-medium text-gray-900 dark:text-white">{{ note.title }}</h3>
+            <h3 class="font-medium text-gray-900 dark:text-white">{{ deriveTitle(note.content) }}</h3>
             <div>
               <button @click.stop="toggleFavorite(note)" class="p-1">
                 <svg class="w-5 h-5"
@@ -105,7 +105,7 @@
           @click="openNote(note)">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
-              <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ note.title }}</h3>
+              <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ deriveTitle(note.content) }}</h3>
               <button @click.stop="toggleFavorite(note)" class="p-1 flex-shrink-0">
                 <svg class="w-4 h-4" :class="note.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,12 +135,14 @@
 <script setup lang="ts">
 import { useOfflineNotes } from '~/composables/useOfflineNotes'
 import { useTagSystem, type TagType } from '~/composables/useTagSystem'
+import { deriveTitle } from '~/composables/idb'
 import type { Note } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 
 const router = useRouter()
 const offlineNotes = useOfflineNotes()
 const { viewMode } = useViewMode()
+const { triggerSync } = useSync()
 
 const {
   tags,
@@ -185,7 +187,7 @@ async function toggleFavorite(note: Note) {
 }
 
 async function deleteNoteConfirm(note: Note) {
-  if (confirm(`Delete "${note.title}"?`)) {
+  if (confirm(`Delete "${deriveTitle(note.content)}"?`)) {
     await offlineNotes.deleteNote(note.id)
     notes.value = notes.value.filter(n => n.id !== note.id)
   }
@@ -197,7 +199,7 @@ const filteredNotes = computed(() => {
 
   const query = searchQuery.value.toLowerCase()
   return notes.value.filter(note =>
-    note.title.toLowerCase().includes(query) ||
+    deriveTitle(note.content).toLowerCase().includes(query) ||
     note.content.toLowerCase().includes(query) ||
     note.tags?.some(tag => tag.toLowerCase().includes(query))
   )
@@ -227,9 +229,8 @@ onMounted(async () => {
 
   // Listen for online status to refresh data when coming back online
   window.addEventListener('online', () => {
-    console.log('[Notes] Back online, refreshing data...')
-    loadNotes()
-    getAllTags(true)
+    console.log('[Notes] Back online, triggering full sync...')
+    triggerSync()
   })
 
   // Listen for '/' key to focus search

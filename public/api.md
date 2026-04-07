@@ -15,9 +15,37 @@ Content-Type: application/json
 
 ## Authentication
 
+Bkmk supports multiple authentication methods:
+
+### OAuth (Recommended)
+
+Sign in with your existing accounts from popular providers:
+
+| Provider | Endpoint |
+|----------|----------|
+| Google | `GET /api/auth/google` |
+| GitHub | `GET /api/auth/github` |
+| Apple | `GET /api/auth/apple` |
+
+**Usage:**
+1. Redirect user to `/api/auth/{provider}` (e.g., `/api/auth/google`)
+2. User is redirected to provider's login page
+3. After authorization, user is redirected back to your app and logged in
+4. Session cookie is automatically set
+
+**Configuration:**
+```bash
+GOOGLE_CLIENT_ID=xxx
+GOOGLE_CLIENT_SECRET=xxx
+GITHUB_CLIENT_ID=xxx
+GITHUB_CLIENT_SECRET=xxx
+APPLE_CLIENT_ID=xxx
+APPLE_CLIENT_SECRET=xxx
+```
+
 ### Bearer Token Authentication
 
-The API supports Bearer token authentication for third-party apps, browser extensions, CLI tools, and mobile apps:
+For third-party apps, browser extensions, CLI tools, and mobile apps:
 
 **Usage:**
 ```bash
@@ -35,9 +63,13 @@ curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
 
 For the web application, authentication uses httpOnly cookies:
 
-1. Login via `POST /api/auth/login`
+1. Login via `POST /api/auth/login` or OAuth
 2. Server sets an `auth_token` httpOnly cookie
 3. All subsequent requests automatically include the cookie
+
+### Account Linking
+
+Users signed up via OAuth can later add a password, and password-based users can link OAuth accounts. If an OAuth email matches an existing account, they're automatically linked.
 
 ### CORS Support
 

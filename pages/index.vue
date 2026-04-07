@@ -232,6 +232,7 @@
 
 <script setup lang="ts">
 import { formatDate } from '~/utils/date'
+import { deriveTitle } from '~/composables/idb'
 
 const router = useRouter()
 const { loadAllTags, getTagColor } = useTagColors()
@@ -407,8 +408,8 @@ function handleSearch() {
 
       // Filter notes locally
       const noteResults: SearchResult[] = notes
-        .filter(n => 
-          n.title?.toLowerCase().includes(query) ||
+        .filter(n =>
+          deriveTitle(n.content).toLowerCase().includes(query) ||
           n.content?.toLowerCase().includes(query) ||
           n.tags?.some(t => t.toLowerCase().includes(query))
         )
@@ -416,7 +417,7 @@ function handleSearch() {
         .map(n => ({
           id: n.id,
           type: 'note' as const,
-          title: n.title,
+          title: deriveTitle(n.content),
           description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
           updated_at: n.updatedAt,
         }))
@@ -461,7 +462,7 @@ async function refreshSearchFromServer(query: string): Promise<void> {
     const noteResults: SearchResult[] = notesResponse.notes.map(n => ({
       id: n.id,
       type: 'note' as const,
-      title: n.title,
+      title: n.content ? n.content.split('\n')[0].trim().substring(0, 100) || 'Untitled' : 'Untitled',
       description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
       updated_at: n.updated_at,
     }))
