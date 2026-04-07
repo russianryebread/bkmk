@@ -57,6 +57,13 @@
       "when": 1775489171796,
       "tag": "0007_whole_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775584943507,
+      "tag": "0008_soft_abomination",
+      "breakpoints": true
     }
   ]
 }

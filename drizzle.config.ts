@@ -9,4 +9,5 @@ export default defineConfig({
   },
   verbose: true,
   strict: true,
+  tablesFilter: ['!pg_stat_*'],
 })

@@ -5,6 +5,7 @@ A personal bookmarking application with offline reading and sync capabilities.
 ## Features
 
 - **Bookmark Management**: Save, organize, and search bookmarks
+- **Authentication**: Email/password and OAuth (Google, GitHub, Apple)
 - **Offline Support**: PWA with IndexedDB for local storage and offline access
 - **Sync**: Automatic sync when connection is restored
 - **Reader Mode**: Clean reading experience with customizable font size, family, and line height
