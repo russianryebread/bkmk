@@ -218,6 +218,7 @@ interface Tag {
 
 const bookmark = ref<any>(null)
 const loading = ref(true)
+const tagsLoading = ref(true)
 const currentMode = ref('reader')
 const showEditModal = ref(false)
 const showTagsModal = ref(false)
@@ -380,11 +381,11 @@ const availableTags = computed(() => {
 async function loadBookmark() {
   loading.value = true
 
-  // Load tags first so colors are available
-  await loadAllTags(true)
-
   const id = route.params.id as string
-  bookmark.value = await fetchBookmark(id)
+  
+  // Load from local cache FIRST - this is instant from IndexedDB
+  const localBookmark = await fetchBookmark(id)
+  bookmark.value = localBookmark
   loading.value = false
 
   if (bookmark.value) {
@@ -392,11 +393,18 @@ async function loadBookmark() {
     bookmarkTags.value = bookmark.value.tags || []
   }
 
-  // Mark as read
+  // Mark as read (local first, then sync)
   if (bookmark.value && !bookmark.value.is_read) {
     await updateBookmark(id, { is_read: true })
     bookmark.value.is_read = true
   }
+
+  // Now load tags in background (non-blocking) - this is why we added tagsLoading
+  loadAllTags(false).then(() => {
+    tagsLoading.value = false
+  }).catch(() => {
+    tagsLoading.value = false
+  })
 }
 
 // Watch for tags modal open to ensure tags are loaded

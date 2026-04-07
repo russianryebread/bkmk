@@ -185,6 +185,7 @@ async function handleCreateTag(name: string) {
 // State
 const note = ref<Note | null>(null)
 const loading = ref(true)
+const tagsLoading = ref(true)
 const editing = ref(false)
 const showPreview = ref(false)
 const editorContent = ref('')
@@ -242,20 +243,27 @@ function initFromNote() {
   newTag.value = ''
 }
 
-// Load existing note
+// Load existing note - instant from local, then sync in background
 async function loadNote() {
   loading.value = true
 
-  // Load tags first so colors are available
-  await getAllTags(true)
-
   const id = route.params.id as string
-  note.value = await getNoteById(id)
+  
+  // Load from local cache FIRST - this is instant from IndexedDB
+  const localNote = await getNoteById(id)
+  note.value = localNote
   loading.value = false
 
   if (note.value) {
     initFromNote()
   }
+
+  // Now load tags in background (non-blocking)
+  getAllTags(false).then(() => {
+    tagsLoading.value = false
+  }).catch(() => {
+    tagsLoading.value = false
+  })
 }
 
 function startEditing() {
@@ -396,9 +404,8 @@ const toolbarActions = computed(() => [
   },
 ])
 
-onMounted(async () => {
-  await getAllTags(true)
-  loadAllTags(true)
+onMounted(() => {
+  // Tags are loaded in background by loadNote() - no need to block here
 })
 
 onBeforeRouteLeave((to, from) => {
