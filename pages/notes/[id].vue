@@ -4,13 +4,23 @@
       :actions="toolbarActions" />
 
     <!-- Simple back button for new/editing mode -->
-    <div v-else class="flex items-center mb-4">
-      <button @click="handleBack" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
-        :title="isNew ? 'Back to notes' : 'Cancel'">
-        <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
+    <div v-else class="flex mb-4">
+      <div class="flex-1">
+        <button @click="handleBack" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+          :title="isNew ? 'Back to notes' : 'Cancel'">
+          <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex gap-4">
+        <button v-if="!isNew && editing" @click="cancelEditing" class="btn-tertiary">Cancel</button>
+        <button @click="saveNote" class="btn-primary"
+          :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
+          {{ saving ? 'Saving...' : (isNew ? 'Save' : (hasChanges ? 'Save' : 'Saved')) }}
+        </button>
+      </div>
     </div>
 
     <!-- Loading -->
@@ -80,60 +90,54 @@
             autofocus></textarea>
         </div>
 
-        <!-- Tags Section -->
-        <div class="border-t border-gray-200 dark:border-gray-700 p-4">
-          <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
-
-            <!-- Current tags -->
-            <div class="flex flex-wrap gap-1 items-center">
-              <span v-for="tag in editorTags" :key="tag"
-                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
-                :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-                {{ tag }}
-                <button @click="removeTag(tag)" class="hover:opacity-75">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </span>
-              <span v-if="editorTags.length === 0" class="text-xs text-gray-400">No tags</span>
-            </div>
-
-            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-
-            <!-- Tag input -->
-            <div class="relative">
-              <input v-model="newTag" type="text" placeholder="Add tag..."
-                class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                @keydown.enter.prevent="addTag" @keydown.comma.prevent="addTag" />
-            </div>
-            <button @click="addTag" :disabled="!newTag.trim()"
-              class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              Add
-            </button>
-
-            <!-- Suggested tags -->
-            <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
-              <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
-              <button v-for="tag in suggestedTags" :key="tag" @click="addSuggestedTag(tag)"
-                class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
-                {{ tag }}
-              </button>
-            </div>
-          </div>
-        </div>
-
         <!-- Footer -->
         <div class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
           <div class="text-sm text-gray-500 dark:text-gray-400">
             {{ editorWordCount }} words
           </div>
-          <div class="flex gap-2">
-            <button v-if="!isNew && editing" @click="cancelEditing" class="btn-secondary">Cancel</button>
-            <button @click="saveNote" class="btn-primary" :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
-              {{ saving ? 'Saving...' : (isNew ? 'Save' : (hasChanges ? 'Save' : 'Saved')) }}
-            </button>
+
+          <!-- Tags Section -->
+          <div class="">
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
+
+              <!-- Current tags -->
+              <div class="flex flex-wrap gap-1 items-center">
+                <span v-for="tag in editorTags" :key="tag"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
+                  {{ tag }}
+                  <button @click="removeTag(tag)" class="hover:opacity-75">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+                <span v-if="editorTags.length === 0" class="text-xs text-gray-400">No tags</span>
+              </div>
+
+              <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
+
+              <!-- Tag input -->
+              <div class="relative">
+                <input v-model="newTag" type="text" placeholder="Add tag..."
+                  class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent"
+                  @keydown.enter.prevent="addTag" @keydown.comma.prevent="addTag" />
+              </div>
+              <button @click="addTag" :disabled="!newTag.trim()"
+                class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                Add
+              </button>
+
+              <!-- Suggested tags -->
+              <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
+                <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
+                <button v-for="tag in suggestedTags" :key="tag" @click="addSuggestedTag(tag)"
+                  class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

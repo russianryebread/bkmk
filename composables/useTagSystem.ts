@@ -5,27 +5,17 @@
 import { useIdb, type Tag, type TagNode, type TagType } from './idb'
 import { tagColorsMap, defaultColors } from '~/utils/tagColors'
 
-
-// Module-level state for shared access
-let _tags: Tag[] | null = null
-let _loading = false
-let _error: string | null = null
-let _isOnline = true
+// Use Nuxt's useState for SSR-safe state management
+const useServerState = <T>(initialValue: T) => useState<T>(`tag-system-${Math.random().toString(36).slice(2)}`, () => initialValue)
 
 export function useTagSystem() {
   const idb = useIdb()
 
-  // Create refs that sync with module-level state
-  const tags = ref<Tag[]>(_tags || [])
-  const loading = ref(_loading)
-  const error = ref<string | null>(_error)
-  const isOnline = ref(_isOnline)
-
-  // Sync refs to module-level cache
-  watch(() => tags.value, (val) => { _tags = val }, { deep: true, immediate: true })
-  watch(() => loading.value, (val) => { _loading = val }, { immediate: true })
-  watch(() => error.value, (val) => { _error = val }, { immediate: true })
-  watch(() => isOnline.value, (val) => { _isOnline = val }, { immediate: true })
+  // Use refs for component-level state (each component gets its own instance)
+  const tags = ref<Tag[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const isOnline = ref(true)
 
   // Initialize online status
   onMounted(() => {

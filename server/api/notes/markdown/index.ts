@@ -1,7 +1,40 @@
-import { db, schema } from '~/server/database'
-import { eq, desc, like, sql, and } from 'drizzle-orm'
+import { db } from '~/server/database'
+import { notes, notesTags, tags } from '~/server/database/schema'
+import { eq, desc, sql, and } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
+
+// Batch fetch tags for multiple notes to avoid N+1 queries
+async function fetchTagsForNotes(noteIds: string[]): Promise<Map<string, string[]>> {
+  if (noteIds.length === 0) return new Map()
+  
+  const tagRecords = await db
+    .select({
+      noteId: notesTags.noteId,
+      tagName: tags.name,
+    })
+    .from(notesTags)
+    .innerJoin(tags, eq(notesTags.tagId, tags.id))
+    .where(sql`${notesTags.noteId} IN (${noteIds.join(',')})`)
+
+  const tagMap = new Map<string, string[]>()
+  for (const record of tagRecords) {
+    if (!tagMap.has(record.noteId)) {
+      tagMap.set(record.noteId, [])
+    }
+    tagMap.get(record.noteId)!.push(record.tagName)
+  }
+  return tagMap
+}
+
+// Transform note with tags
+function transformNoteWithTags(note: any, noteTags: string[]): any {
+  return {
+    ...note,
+    isFavorite: Boolean(note.isFavorite),
+    tags: noteTags,
+  }
+}
 
 export default defineEventHandler(async (event) => {
   // Require authentication
@@ -23,104 +56,77 @@ export default defineEventHandler(async (event) => {
       ? (sort as 'createdAt' | 'updatedAt' | 'isFavorite')
       : 'updatedAt'
 
-    let notes
+    let fetchedNotes
     let total
 
     if (tag) {
       // Get notes with specific tag via junction table
-      const tagRecords = await db
-        .select()
-        .from(schema.tags)
-        .where(eq(schema.tags.name, tag as string))
+      const [tagRecord] = await db
+        .select({ id: tags.id })
+        .from(tags)
+        .where(and(eq(tags.name, tag as string), eq(tags.userId, currentUser.id)))
+        .limit(1)
       
-      if (tagRecords.length > 0) {
-        const noteTagRecords = await db
-          .select()
-          .from(schema.notesTags)
-          .where(eq(schema.notesTags.tagId, tagRecords[0].id))
-        
-        const noteIds = noteTagRecords.map(nt => nt.noteId)
-        
-        if (noteIds.length > 0) {
-          notes = await db
-            .select()
-            .from(schema.notes)
-            .where(and(
-              eq(schema.notes.userId, currentUser.id),
-              sql`${schema.notes.id} IN (${noteIds.join(',')})`
-            ))
-            .orderBy(desc(schema.notes[sortColumn]))
-            .limit(limitNum)
-            .offset(offset)
-        } else {
-          notes = []
+      if (!tagRecord) {
+        return {
+          notes: [],
+          pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 },
         }
+      }
+
+      const noteTagRecords = await db
+        .select({ noteId: notesTags.noteId })
+        .from(notesTags)
+        .where(eq(notesTags.tagId, tagRecord.id))
+      
+      const noteIds = noteTagRecords.map(nt => nt.noteId)
+      
+      if (noteIds.length > 0) {
+        fetchedNotes = await db
+          .select()
+          .from(notes)
+          .where(and(
+            eq(notes.userId, currentUser.id),
+            sql`${notes.id} IN (${noteIds.join(',')})`
+          ))
+          .orderBy(desc(notes[sortColumn]))
+          .limit(limitNum)
+          .offset(offset)
       } else {
-        notes = []
+        fetchedNotes = []
       }
 
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
-        .from(schema.notes)
-        .where(eq(schema.notes.userId, currentUser.id))
+        .from(notes)
+        .where(eq(notes.userId, currentUser.id))
 
       total = count
+    } else {
+      fetchedNotes = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.userId, currentUser.id))
+        .orderBy(desc(notes[sortColumn]))
+        .limit(limitNum)
+        .offset(offset)
 
-      // Get tags for each note
-      const notesWithTags = await Promise.all(notes.map(async (n) => {
-        const tagRecords = await db
-          .select({ tag: schema.tags })
-          .from(schema.notesTags)
-          .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
-          .where(eq(schema.notesTags.noteId, n.id))
-        
-        return {
-          ...n,
-          isFavorite: Boolean(n.isFavorite),
-          tags: tagRecords.map(t => t.tag.name),
-        }
-      }))
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(notes)
+        .where(eq(notes.userId, currentUser.id))
 
-      return {
-        notes: notesWithTags,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          totalPages: Math.ceil(total / limitNum),
-        },
-      }
+      total = count
     }
 
-    notes = await db
-      .select()
-      .from(schema.notes)
-      .where(eq(schema.notes.userId, currentUser.id))
-      .orderBy(desc(schema.notes[sortColumn]))
-      .limit(limitNum)
-      .offset(offset)
+    // Batch fetch tags for all notes at once (avoids N+1)
+    const noteIds = fetchedNotes.map(n => n.id)
+    const tagMap = await fetchTagsForNotes(noteIds)
 
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.notes)
-      .where(eq(schema.notes.userId, currentUser.id))
-
-    total = count
-
-    // Get tags for each note
-    const notesWithTags = await Promise.all(notes.map(async (n) => {
-      const tagRecords = await db
-        .select({ tag: schema.tags })
-        .from(schema.notesTags)
-        .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
-        .where(eq(schema.notesTags.noteId, n.id))
-      
-      return {
-        ...n,
-        isFavorite: Boolean(n.isFavorite),
-        tags: tagRecords.map(t => t.tag.name),
-      }
-    }))
+    // Transform notes with their tags
+    const notesWithTags = fetchedNotes.map(n => 
+      transformNoteWithTags(n, tagMap.get(n.id) || [])
+    )
 
     return {
       notes: notesWithTags,
@@ -152,15 +158,15 @@ export default defineEventHandler(async (event) => {
     for (const tagName of tagsArray) {
       const trimmedName = tagName.trim()
       if (trimmedName) {
-        let existingTag = await db
+        let [existingTag] = await db
           .select()
-          .from(schema.tags)
-          .where(and(eq(schema.tags.name, trimmedName), eq(schema.tags.userId, currentUser.id)))
+          .from(tags)
+          .where(and(eq(tags.name, trimmedName), eq(tags.userId, currentUser.id)))
           .limit(1)
 
-        if (existingTag.length === 0) {
+        if (!existingTag) {
           const [newTag] = await db
-            .insert(schema.tags)
+            .insert(tags)
             .values({
               id: crypto.randomUUID(),
               userId: currentUser.id,
@@ -171,13 +177,13 @@ export default defineEventHandler(async (event) => {
             .returning()
           tagIds.push(newTag.id)
         } else {
-          tagIds.push(existingTag[0].id)
+          tagIds.push(existingTag.id)
         }
       }
     }
 
     const [note] = await db
-      .insert(schema.notes)
+      .insert(notes)
       .values({
         id: crypto.randomUUID(),
         userId: currentUser.id,
@@ -189,7 +195,7 @@ export default defineEventHandler(async (event) => {
     // Create junction records for tags
     for (const tagId of tagIds) {
       await db
-        .insert(schema.notesTags)
+        .insert(notesTags)
         .values({
           id: crypto.randomUUID(),
           noteId: note.id,

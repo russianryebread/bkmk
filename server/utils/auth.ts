@@ -32,12 +32,15 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash)
 }
 
-// Generate a secure random token
+// Generate a secure random token (used for password reset)
 function generateToken(): string {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
 }
+
+// Alias for password reset (kept for clarity)
+const generatePasswordResetToken = generateToken
 
 // Create a simple JWT-like token (base64 encoded JSON)
 export function createToken(payload: Omit<TokenPayload, 'exp'>): string {
@@ -288,13 +291,6 @@ export async function login(email: string, password: string): Promise<{ user: Au
 // Logout user
 export function logout(event: H3Event): void {
   clearAuthCookie(event)
-}
-
-// Generate password reset token
-function generatePasswordResetToken(): string {
-  const array = new Uint8Array(32)
-  crypto.getRandomValues(array)
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 // Request password reset - sends email with reset token
