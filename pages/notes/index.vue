@@ -151,14 +151,6 @@ const {
   getTagsByType,
 } = useTagSystem()
 
-async function loadAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
-async function getAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
 // Get all tags filtered by type (note tags only)
 const allTags = computed(() => {
   return getTagsByType('note')
@@ -219,7 +211,7 @@ watch(filterTag, () => {
 })
 
 onMounted(async () => {
-  await getAllTags()
+  await fetchTags()
   loadNotes()
 
   // Focus search on mount

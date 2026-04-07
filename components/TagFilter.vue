@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTagColors } from '~/composables/useTagColors'
+import { useTagSystem } from '~/composables/useTagSystem'
 
 interface Tag {
   id: string
@@ -58,5 +58,5 @@ defineEmits<{
   'update:selectedTag': [value: string]
 }>()
 
-const { getTagColor } = useTagColors()
+const { getTagColor } = useTagSystem()
 </script>

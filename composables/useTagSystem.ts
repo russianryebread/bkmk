@@ -3,7 +3,9 @@
 // Supports filtering by type (bookmark/note/both), hierarchical tree structure, and unified offline sync
 
 import { useIdb, type Tag } from './idb'
+import { tagColorsMap, defaultColors, getTagColorByName } from '~/utils/tagColors'
 
+// Re-export Tag from idb for convenience
 export type { Tag }
 
 export type TagType = 'bookmark' | 'note' | 'both'
@@ -19,20 +21,6 @@ export interface TagFilterOptions {
   includeHierarchy?: boolean
   searchQuery?: string
 }
-
-// Tag color map
-const tagColorsMap: Record<string, { bg: string; text: string }> = {
-  red: { bg: '#fee2e2', text: '#991b1b' },
-  orange: { bg: '#ffedd5', text: '#9a3412' },
-  yellow: { bg: '#fef9c3', text: '#854d0e' },
-  green: { bg: '#dcfce7', text: '#166534' },
-  blue: { bg: '#dbeafe', text: '#1e40af' },
-  purple: { bg: '#f3e8ff', text: '#6b21a8' },
-  pink: { bg: '#fce7f3', text: '#9d174d' },
-  gray: { bg: '#f3f4f6', text: '#374151' },
-}
-
-const defaultColors = Object.values(tagColorsMap)
 
 // Module-level state for shared access
 let _tags: Tag[] | null = null

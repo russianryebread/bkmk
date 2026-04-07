@@ -196,10 +196,6 @@ const {
   getTagsByType,
 } = useTagSystem()
 
-async function loadAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const showAddModal = ref(false)
@@ -313,7 +309,7 @@ function goToPage(page: number) {
 
 onMounted(() => {
   loadBookmarks()
-  loadAllTags()
+  fetchTags()
 
   // Focus search on mount
   nextTick(() => {

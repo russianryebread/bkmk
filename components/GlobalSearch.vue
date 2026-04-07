@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTagColors } from '~/composables/useTagColors'
+import { useTagSystem } from '~/composables/useTagSystem'
 
 interface SearchResult {
   id: string
@@ -165,7 +165,7 @@ interface SearchResult {
 }
 
 const router = useRouter()
-const { getTagColor } = useTagColors()
+const { getTagColor } = useTagSystem()
 
 const isOpen = ref(false)
 const searchQuery = ref('')
