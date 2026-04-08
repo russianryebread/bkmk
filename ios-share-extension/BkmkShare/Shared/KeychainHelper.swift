@@ -2,9 +2,11 @@ import Foundation
 import Security
 
 /// Helper class for secure storage in Keychain
-/// Used to store API tokens securely
+/// Uses shared access group for app + extension
 class KeychainHelper {
     static let shared = KeychainHelper()
+    
+    private let accessGroup = "$(AppIdentifierPrefix)com.bkmk.share"
     
     private init() {}
     
@@ -15,23 +17,33 @@ class KeychainHelper {
         // Delete existing token first
         deleteToken()
         
+        // Create access group for sharing between app and extension
+        let accessGroup = "group.com.bkmk.share"
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
             kSecAttrAccount as String: "api_token",
+            kSecAttrAccessGroup as String: accessGroup,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
         
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("Keychain save error: \(status)")
+        }
     }
     
     /// Get token from Keychain
     func getToken() -> String? {
+        let accessGroup = "group.com.bkmk.share"
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
             kSecAttrAccount as String: "api_token",
+            kSecAttrAccessGroup as String: accessGroup,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -50,10 +62,13 @@ class KeychainHelper {
     
     /// Delete token from Keychain
     func deleteToken() {
+        let accessGroup = "group.com.bkmk.share"
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
-            kSecAttrAccount as String: "api_token"
+            kSecAttrAccount as String: "api_token",
+            kSecAttrAccessGroup as String: accessGroup
         ]
         
         SecItemDelete(query as CFDictionary)

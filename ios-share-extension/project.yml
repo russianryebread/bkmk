@@ -32,6 +32,12 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.bkmk.share
+    dependencies:
+      - target: BkmkShareExtension
+        embed: true
+        codeSign: true
+        copy:
+          destination: plugins
 
   BkmkShareExtension:
     type: app-extension
@@ -51,7 +57,3 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.com.bkmk.share
-    dependencies:
-      - target: BkmkShare
-        embed: false
-        link: false

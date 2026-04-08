@@ -6,5 +6,9 @@
 	<array>
 		<string>group.com.bkmk.share</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.bkmk.share</string>
+	</array>
 </dict>
 </plist>

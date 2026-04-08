@@ -7,39 +7,55 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0AF5414FDB3956BCE75FAFEC /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */; };
 		1ABDFE0AA6D008CF87AE7863 /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = FAF1B897BC9C57270AA2031C /* Contents.json */; };
+		1CFA621999ED67CFC69D068A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */; };
 		1F74D78EA60C881B7C19C1A1 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */; };
 		5927164A421F0FFBE4B8B9C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */; };
-		77846CA9EC9A2DD896D8BA00 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07D9E2D991DD01548000DDC1 /* AppConfig.swift */; };
 		8AC943ABDCB9381316F9098B /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = FAF1B897BC9C57270AA2031C /* Contents.json */; };
 		9613AF750238BE56D32A182B /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 57A9FE3A37F7EECCCF99B61D /* MainInterface.storyboard */; };
 		9929D7FB775BB437EB78B443 /* BkmkShareApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D468C811721539E90F483A14 /* BkmkShareApp.swift */; };
 		9A76AEF16716597364BE85CA /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */; };
 		AB5C1AE1D628E2B3381D75A4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D33E71C98CAFFFC08CFD54 /* ContentView.swift */; };
 		D3D640DFE31F3E67E7148302 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */; };
+		E182F55CC4211F22D8B54D34 /* BkmkShareExtension.appex in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 95A71685B71E3A01503D784D /* BkmkShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		FCB887B5B706C8C56A227CC8 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685C3054FB10EF0A5691AE9A /* ShareViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		07C3B5F6C820ACAB2C40E7FE /* PBXContainerItemProxy */ = {
+		583FD9C942844EA08E08F52B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 783BCFB50E9DD613EBDAD77D /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 2DE41D4FBE27D4289FEBECC1;
-			remoteInfo = BkmkShare;
+			remoteGlobalIDString = 9ED5005D17EED23CDFEA8FEF;
+			remoteInfo = BkmkShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		02D246D573A50E33B3BBAE1E /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				E182F55CC4211F22D8B54D34 /* BkmkShareExtension.appex in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		07D9E2D991DD01548000DDC1 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1F0AD2B342363ADF6E4425F2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4A1B2D12A5AE4F5810BF8ADF /* BkmkShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BkmkShareExtension.entitlements; sourceTree = "<group>"; };
 		57A9FE3A37F7EECCCF99B61D /* MainInterface.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = MainInterface.storyboard; sourceTree = "<group>"; };
 		57D33E71C98CAFFFC08CFD54 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		685C3054FB10EF0A5691AE9A /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		8071944122BF83DF2BE86653 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		95A71685B71E3A01503D784D /* BkmkShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BkmkShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		95A71685B71E3A01503D784D /* BkmkShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BkmkShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BkmkShare.entitlements; sourceTree = "<group>"; };
 		CA691E656672AC837EF7D708 /* BkmkShare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BkmkShare.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D468C811721539E90F483A14 /* BkmkShareApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BkmkShareApp.swift; sourceTree = "<group>"; };
@@ -70,7 +86,6 @@
 		57174B2F11075B1477C30C2A /* App */ = {
 			isa = PBXGroup;
 			children = (
-				07D9E2D991DD01548000DDC1 /* AppConfig.swift */,
 				B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */,
 				D468C811721539E90F483A14 /* BkmkShareApp.swift */,
 				57D33E71C98CAFFFC08CFD54 /* ContentView.swift */,
@@ -108,6 +123,7 @@
 		DB608F6D4F859793AD2208C1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */,
 				DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */,
 			);
 			path = Shared;
@@ -133,10 +149,12 @@
 			buildPhases = (
 				4F7D0CBAEC9587A218E37B2F /* Sources */,
 				E067BE4609F8F234B8F6A147 /* Resources */,
+				02D246D573A50E33B3BBAE1E /* Embed Dependencies */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				77F8D13BF2E4E8B5E9E38AB5 /* PBXTargetDependency */,
 			);
 			name = BkmkShare;
 			packageProductDependencies = (
@@ -155,7 +173,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				87808CD3BA55DEBFA79CD94A /* PBXTargetDependency */,
 			);
 			name = BkmkShareExtension;
 			packageProductDependencies = (
@@ -172,11 +189,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
-				TargetAttributes = {
-					9ED5005D17EED23CDFEA8FEF = {
-						DevelopmentTeam = "";
-					};
-				};
 			};
 			buildConfigurationList = 129E92AA9DE809BE37A3341F /* Build configuration list for PBXProject "BkmkShare" */;
 			developmentRegion = en;
@@ -225,7 +237,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				77846CA9EC9A2DD896D8BA00 /* AppConfig.swift in Sources */,
+				1CFA621999ED67CFC69D068A /* AppConfig.swift in Sources */,
 				9929D7FB775BB437EB78B443 /* BkmkShareApp.swift in Sources */,
 				AB5C1AE1D628E2B3381D75A4 /* ContentView.swift in Sources */,
 				9A76AEF16716597364BE85CA /* KeychainHelper.swift in Sources */,
@@ -236,6 +248,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0AF5414FDB3956BCE75FAFEC /* AppConfig.swift in Sources */,
 				1F74D78EA60C881B7C19C1A1 /* KeychainHelper.swift in Sources */,
 				FCB887B5B706C8C56A227CC8 /* ShareViewController.swift in Sources */,
 			);
@@ -244,10 +257,10 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		87808CD3BA55DEBFA79CD94A /* PBXTargetDependency */ = {
+		77F8D13BF2E4E8B5E9E38AB5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 2DE41D4FBE27D4289FEBECC1 /* BkmkShare */;
-			targetProxy = 07C3B5F6C820ACAB2C40E7FE /* PBXContainerItemProxy */;
+			target = 9ED5005D17EED23CDFEA8FEF /* BkmkShareExtension */;
+			targetProxy = 583FD9C942844EA08E08F52B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -260,12 +273,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/App/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "bkmk-share";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = me.hoshor.bkmk.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bkmk.share;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -279,12 +291,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/App/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "bkmk-share";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = me.hoshor.bkmk.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bkmk.share;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -294,7 +305,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BkmkShare/ShareExtension/BkmkShareExtension.entitlements;
+				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = bkmk;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -377,7 +390,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BkmkShare/ShareExtension/BkmkShareExtension.entitlements;
+				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = bkmk;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
