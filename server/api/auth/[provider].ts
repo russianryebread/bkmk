@@ -98,9 +98,13 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const code = query.code as string
 
+  // Check for custom redirect_uri (for mobile apps)
+  const customRedirectUri = query.redirect_uri as string
+  
   if (!code) {
     // Redirect to OAuth - first time flow
-    const redirectUri = `${getRequestURL(event).origin}/api/auth/${providerName}`
+    // Use custom redirect_uri if provided, otherwise use web callback
+    const redirectUri = customRedirectUri || `${getRequestURL(event).origin}/api/auth/${providerName}`
     const authUrl = new URL(provider.authUrl)
     authUrl.searchParams.set('client_id', provider.clientId)
     authUrl.searchParams.set('redirect_uri', redirectUri)
@@ -116,7 +120,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Callback flow - exchange code for tokens
-  const redirectUri = `${getRequestURL(event).origin}/api/auth/${providerName}`
+  // Use custom redirect_uri if it was provided
+  const callbackUri = customRedirectUri || `${getRequestURL(event).origin}/api/auth/${providerName}`
   
   const tokenResponse = await $fetch(provider.tokenUrl, {
     method: 'POST',
@@ -128,7 +133,7 @@ export default defineEventHandler(async (event) => {
       client_secret: provider.clientSecret,
       code,
       grant_type: 'authorization_code',
-      redirect_uri: redirectUri
+      redirect_uri: callbackUri
     }
   }) as any
 
@@ -226,7 +231,15 @@ export default defineEventHandler(async (event) => {
     email: user.email,
     role: user.role
   })
+  
+  // For mobile apps with custom redirect_uri, return token as query param
+  if (customRedirectUri) {
+    const redirectUrl = new URL(customRedirectUri)
+    redirectUrl.searchParams.set('token', token)
+    return sendRedirect(event, redirectUrl.toString())
+  }
+  
+  // For web, set cookie and redirect to home
   setAuthCookie(event, token)
-
   return sendRedirect(event, '/')
 })
