@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs'
 import { H3Event, getCookie, setCookie, deleteCookie, getHeader } from 'h3'
 import { db } from '~/server/database'
-import { users } from '~/server/database/schema'
-import { eq } from 'drizzle-orm'
+import { users, apiTokens } from '~/server/database/schema'
+import { eq, and } from 'drizzle-orm'
 
 const SALT_ROUNDS = 12
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000 // 7 days in ms
@@ -145,9 +145,47 @@ export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
 }
 
 // Require authentication - throws error if not authenticated
+// Supports both session tokens (cookies) and API tokens (Bearer)
 export async function requireAuth(event: H3Event): Promise<AuthUser> {
-  const user = await getCurrentUser(event)
+  // First, try API token authentication (Bearer token)
+  const bearerToken = getBearerToken(event)
+  if (bearerToken) {
+    // Check if it's an API token (starts with "bkmk_") or session token
+    if (bearerToken.startsWith('bkmk_')) {
+      const apiAuth = await validateApiToken(bearerToken)
+      if (apiAuth) {
+        // Look up user by ID from API token
+        const [user] = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+            passwordHash: users.passwordHash
+          })
+          .from(users)
+          .where(eq(users.id, apiAuth.userId))
+          .limit(1)
+        
+        if (user) {
+          return {
+            id: user.id,
+            email: user.email,
+            role: user.role as 'user' | 'admin',
+            hasPassword: !!user.passwordHash
+          }
+        }
+      }
+    } else {
+      // Try session token
+      const user = await getCurrentUser(event)
+      if (user) {
+        return user
+      }
+    }
+  }
   
+  // Fall back to cookie-based auth
+  const user = await getCurrentUser(event)
   if (!user) {
     throw createError({
       statusCode: 401,
@@ -448,4 +486,175 @@ export async function changePassword(userId: string, currentPassword: string, ne
     success: true,
     message: 'Password changed successfully'
   }
+}
+
+// ==================== API TOKEN FUNCTIONS ====================
+
+// Hash a token using SHA-256 (returns hex string)
+export async function hashToken(token: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(token)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Generate a new API token with prefix "bkmk_"
+export function generateApiToken(): string {
+  const array = new Uint8Array(24)
+  crypto.getRandomValues(array)
+  const tokenPart = Array.from(array, byte => byte.toString(36)).join('')
+  return `bkmk_${tokenPart}`
+}
+
+// Get token prefix (first 8 chars after "bkmk_")
+export function getTokenPrefix(token: string): string {
+  return token.substring(0, 8)
+}
+
+// Create a new API token
+export async function createApiToken(
+  userId: string,
+  name: string,
+  expiresAt?: string
+): Promise<{ token: string; tokenRecord: any }> {
+  const token = generateApiToken()
+  const tokenHash = await hashToken(token)
+  const tokenPrefix = getTokenPrefix(token)
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  
+  await db.insert(apiTokens).values({
+    id,
+    userId,
+    name,
+    tokenHash,
+    tokenPrefix,
+    expiresAt: expiresAt || null,
+    isActive: 1,
+    createdAt: now,
+    updatedAt: now
+  })
+  
+  return {
+    token,
+    tokenRecord: {
+      id,
+      userId,
+      name,
+      tokenPrefix,
+      expiresAt,
+      isActive: true,
+      createdAt: now,
+      lastUsedAt: null
+    }
+  }
+}
+
+// Validate an API token and return the user it belongs to
+export async function validateApiToken(token: string): Promise<{ userId: string; tokenId: string } | null> {
+  // First, check all active tokens (brute force through user's tokens)
+  // This is acceptable since we hash tokens and need to find which one matches
+  const hashedToken = await hashToken(token)
+  const prefix = getTokenPrefix(token)
+  
+  // Find tokens with matching prefix
+  const potentialTokens = await db
+    .select()
+    .from(apiTokens)
+    .where(and(
+      eq(apiTokens.tokenPrefix, prefix),
+      eq(apiTokens.isActive, 1)
+    ))
+  
+  for (const tokenRecord of potentialTokens) {
+    if (tokenRecord.tokenHash === hashedToken) {
+      // Check expiration
+      if (tokenRecord.expiresAt && new Date(tokenRecord.expiresAt) < new Date()) {
+        return null
+      }
+      
+      // Update last used
+      await db
+        .update(apiTokens)
+        .set({ lastUsedAt: new Date().toISOString() })
+        .where(eq(apiTokens.id, tokenRecord.id))
+      
+      return {
+        userId: tokenRecord.userId,
+        tokenId: tokenRecord.id
+      }
+    }
+  }
+  
+  return null
+}
+
+// List all API tokens for a user (without exposing hashes)
+export async function listApiTokens(userId: string): Promise<any[]> {
+  const tokens = await db
+    .select({
+      id: apiTokens.id,
+      name: apiTokens.name,
+      tokenPrefix: apiTokens.tokenPrefix,
+      lastUsedAt: apiTokens.lastUsedAt,
+      expiresAt: apiTokens.expiresAt,
+      isActive: apiTokens.isActive,
+      createdAt: apiTokens.createdAt
+    })
+    .from(apiTokens)
+    .where(eq(apiTokens.userId, userId))
+    .orderBy(apiTokens.createdAt)
+  
+  return tokens.map(t => ({
+    ...t,
+    isActive: t.isActive === 1
+  }))
+}
+
+// Revoke an API token
+export async function revokeApiToken(userId: string, tokenId: string): Promise<boolean> {
+  const result = await db
+    .update(apiTokens)
+    .set({
+      isActive: 0,
+      updatedAt: new Date().toISOString()
+    })
+    .where(and(
+      eq(apiTokens.id, tokenId),
+      eq(apiTokens.userId, userId)
+    ))
+  
+  return result.rowCount > 0
+}
+
+// Reissue a token (revoke old and create new)
+export async function reissueApiToken(
+  userId: string,
+  tokenId: string,
+  name?: string
+): Promise<{ token: string; tokenRecord: any } | null> {
+  // Get the existing token to preserve name
+  const [existingToken] = await db
+    .select()
+    .from(apiTokens)
+    .where(and(
+      eq(apiTokens.id, tokenId),
+      eq(apiTokens.userId, userId)
+    ))
+    .limit(1)
+  
+  if (!existingToken) {
+    return null
+  }
+  
+  // Revoke the old token
+  await revokeApiToken(userId, tokenId)
+  
+  // Create new token with same or provided name
+  return createApiToken(
+    userId,
+    name || existingToken.name,
+    existingToken.expiresAt || undefined
+  )
 }

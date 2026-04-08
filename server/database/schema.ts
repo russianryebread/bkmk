@@ -188,6 +188,28 @@ export const images = pgTable('images', {
   index('idx_images_original_url').on(table.originalUrl),
 ])
 
+// API Tokens Table (for iOS extension and other API access)
+export const apiTokens = pgTable('api_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull(), // SHA-256 hash of the actual token
+  tokenPrefix: text('token_prefix').notNull(), // First 8 chars for identification (e.g., "bkmk_abc12345")
+  
+  // Token metadata
+  lastUsedAt: timestamp('last_used_at', { mode: 'string' }),
+  expiresAt: timestamp('expires_at', { mode: 'string' }),
+  
+  // Status
+  isActive: integer('is_active').default(1), // 1 = active, 0 = revoked
+  
+  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
+}, (table) => [
+  index('idx_api_tokens_user').on(table.userId),
+  index('idx_api_tokens_active').on(table.isActive),
+])
+
 // Sync Metadata Table
 export const syncMetadata = pgTable('sync_metadata', {
   id: text('id').primaryKey(),
@@ -266,6 +288,13 @@ export const secretsTagsRelations = relations(secretsTags, ({ one }) => ({
   }),
 }))
 
+export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [apiTokens.userId],
+    references: [users.id],
+  }),
+}))
+
 // Type exports
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -287,3 +316,5 @@ export type Image = typeof images.$inferSelect
 export type NewImage = typeof images.$inferInsert
 export type SyncMetadata = typeof syncMetadata.$inferSelect
 export type NewSyncMetadata = typeof syncMetadata.$inferInsert
+export type ApiToken = typeof apiTokens.$inferSelect
+export type NewApiToken = typeof apiTokens.$inferInsert
