@@ -1,74 +1,50 @@
-# Bkmk Share Extension
+# BkmkShare iOS App
 
-An iOS Share Extension to quickly save Safari bookmarks to your Bkmk instance.
+## Setup Instructions
+
+### 1. Install XcodeGen (Required for project generation)
+
+```bash
+brew install xcodegen
+```
+
+Then generate the project:
+```bash
+cd ios-share-extension
+xcodegen generate
+```
+
+### 2. Adding Textual Package
+
+If XcodeGen is not available, manually add the package in Xcode:
+
+1. Open `BkmkShare.xcodeproj`
+2. Select the **BkmkShare** project in the navigator
+3. Go to **File → Add Package Dependencies**
+4. Search for: `Textual` by **SimonBS**
+5. Set the package product to: `Textual`
+6. Add to target: **BkmkShare**
+
+### 3. Build & Run
+
+1. Open `BkmkShare.xcodeproj` in Xcode
+2. Wait for Swift Package Manager to fetch dependencies
+3. Select a simulator or device
+4. Build and run (Cmd+R)
 
 ## Features
 
-- One-tap saving from Safari's share sheet
-- Supports any app that shares URLs
-- Configurable API endpoint
-- Secure token storage in Keychain
-- Success/failure feedback
-
-## Setup
-
-### Prerequisites
-
-- Xcode 15+
-- Apple Developer Account (for running on device)
-- A running Bkmk instance
-
-### Configuration
-
-1. Open `BkmkShare.xcodeproj` in Xcode
-2. Update `BkmkShare/AppConfig.swift`:
-   ```swift
-   static let apiBaseURL = "https://your-bkmk-instance.com/api"
-   ```
-3. Get your API token from Bkmk web app (Settings or Profile)
-4. Update `BkmkShare/ShareViewController.swift` with your token:
-   ```swift
-   private let apiToken = "your-api-token-here"
-   ```
-
-### Building & Running
-
-1. Select your development team in Xcode (Signing & Capabilities)
-2. Select a simulator or device
-3. Build and run (⌘R)
-
-### Using the Extension
-
-1. Open Safari on iOS
-2. Navigate to any webpage
-3. Tap the Share button
-4. Select "Save to Bkmk" from the share sheet
-5. See confirmation of save
+- OAuth login (GitHub, Google, Apple)
+- Email/password login
+- View saved bookmarks
+- Read bookmark content with markdown rendering
+- Swipe to delete/favorite bookmarks
+- Pull to refresh
+- Share bookmarks
 
 ## Architecture
 
-- **Main App**: Simple container for settings and token configuration
-- **Share Extension**: Receives URLs and posts to Bkmk API
-- **Shared**: Keychain helper for secure token storage
-
-## Requirements
-
-- iOS 15.0+
-- Swift 5.9+
-
-## Files
-
-```
-BkmkShare/
-├── App/
-│   ├── BkmkShareApp.swift          # SwiftUI app entry
-│   ├── ContentView.swift           # Main app view
-│   └── AppConfig.swift             # API configuration
-├── ShareExtension/
-│   ├── ShareViewController.swift   # Share extension entry
-│   └── Info.plist                  # Extension configuration
-├── Shared/
-│   └── KeychainHelper.swift        # Keychain access
-├── Assets.xcassets/
-└── project.yml                     # XcodeGen config
-```
+- **SwiftUI** - UI framework
+- **Textual** - Markdown rendering
+- **Keychain** - Secure token storage
+- **App Groups** - Data sharing with Share Extension

@@ -11,15 +11,19 @@
 		1ABDFE0AA6D008CF87AE7863 /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = FAF1B897BC9C57270AA2031C /* Contents.json */; };
 		1CFA621999ED67CFC69D068A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */; };
 		1F74D78EA60C881B7C19C1A1 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */; };
+		5567AD36FC405219FFD50DBC /* BkmkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69CF035C2F86A94469D818CC /* BkmkApp.swift */; };
 		5927164A421F0FFBE4B8B9C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */; };
+		64CF555787B5A7136AAD6A5F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B835252A2710E3B0C7435CE /* Models.swift */; };
+		831DD0EE2F8650C400F9EC46 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 831DD0ED2F8650C400F9EC46 /* Textual */; };
 		8AC943ABDCB9381316F9098B /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = FAF1B897BC9C57270AA2031C /* Contents.json */; };
 		9613AF750238BE56D32A182B /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 57A9FE3A37F7EECCCF99B61D /* MainInterface.storyboard */; };
-		9929D7FB775BB437EB78B443 /* BkmkShareApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D468C811721539E90F483A14 /* BkmkShareApp.swift */; };
 		9A76AEF16716597364BE85CA /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */; };
 		AB5C1AE1D628E2B3381D75A4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D33E71C98CAFFFC08CFD54 /* ContentView.swift */; };
+		B0765527C388AD396E15F111 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 997E133B6ABBC528078BEB9B /* AuthManager.swift */; };
 		D3D640DFE31F3E67E7148302 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */; };
 		E182F55CC4211F22D8B54D34 /* BkmkShareExtension.appex in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 95A71685B71E3A01503D784D /* BkmkShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		FCB887B5B706C8C56A227CC8 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685C3054FB10EF0A5691AE9A /* ShareViewController.swift */; };
+		FDF2F37C922373AAFFB62749 /* APIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A29EC6083279FBA01D436CF /* APIManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,19 +53,33 @@
 /* Begin PBXFileReference section */
 		0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1F0AD2B342363ADF6E4425F2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3A29EC6083279FBA01D436CF /* APIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIManager.swift; sourceTree = "<group>"; };
+		3B835252A2710E3B0C7435CE /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		4A1B2D12A5AE4F5810BF8ADF /* BkmkShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BkmkShareExtension.entitlements; sourceTree = "<group>"; };
 		57A9FE3A37F7EECCCF99B61D /* MainInterface.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = MainInterface.storyboard; sourceTree = "<group>"; };
 		57D33E71C98CAFFFC08CFD54 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5CBA8FAD3AB7B2102517C0AA /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		685C3054FB10EF0A5691AE9A /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		69CF035C2F86A94469D818CC /* BkmkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BkmkApp.swift; sourceTree = "<group>"; };
 		8071944122BF83DF2BE86653 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		95A71685B71E3A01503D784D /* BkmkShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BkmkShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		997E133B6ABBC528078BEB9B /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BkmkShare.entitlements; sourceTree = "<group>"; };
 		CA691E656672AC837EF7D708 /* BkmkShare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BkmkShare.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D468C811721539E90F483A14 /* BkmkShareApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BkmkShareApp.swift; sourceTree = "<group>"; };
 		DBA5670956E15FBB8E9011B5 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		FAF1B897BC9C57270AA2031C /* Contents.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Contents.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0BA6EE363C4542D12BA6BEB9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				831DD0EE2F8650C400F9EC46 /* Textual in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		06B164712EAAFB01A87BB6DC /* LaunchScreenBackground.colorset */ = {
@@ -86,10 +104,13 @@
 		57174B2F11075B1477C30C2A /* App */ = {
 			isa = PBXGroup;
 			children = (
+				3A29EC6083279FBA01D436CF /* APIManager.swift */,
+				997E133B6ABBC528078BEB9B /* AuthManager.swift */,
+				69CF035C2F86A94469D818CC /* BkmkApp.swift */,
 				B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */,
-				D468C811721539E90F483A14 /* BkmkShareApp.swift */,
 				57D33E71C98CAFFFC08CFD54 /* ContentView.swift */,
 				1F0AD2B342363ADF6E4425F2 /* Info.plist */,
+				3B835252A2710E3B0C7435CE /* Models.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -149,6 +170,7 @@
 			buildPhases = (
 				4F7D0CBAEC9587A218E37B2F /* Sources */,
 				E067BE4609F8F234B8F6A147 /* Resources */,
+				0BA6EE363C4542D12BA6BEB9 /* Frameworks */,
 				02D246D573A50E33B3BBAE1E /* Embed Dependencies */,
 			);
 			buildRules = (
@@ -158,6 +180,7 @@
 			);
 			name = BkmkShare;
 			packageProductDependencies = (
+				831DD0ED2F8650C400F9EC46 /* Textual */,
 			);
 			productName = BkmkShare;
 			productReference = CA691E656672AC837EF7D708 /* BkmkShare.app */;
@@ -199,6 +222,9 @@
 			);
 			mainGroup = CA653994608D2FDB605AE326;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				831DD0EC2F8650C400F9EC46 /* XCRemoteSwiftPackageReference "textual" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 87F12D383975C54E795B6FF2 /* Products */;
 			projectDirPath = "";
@@ -237,10 +263,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FDF2F37C922373AAFFB62749 /* APIManager.swift in Sources */,
 				1CFA621999ED67CFC69D068A /* AppConfig.swift in Sources */,
-				9929D7FB775BB437EB78B443 /* BkmkShareApp.swift in Sources */,
+				B0765527C388AD396E15F111 /* AuthManager.swift in Sources */,
+				5567AD36FC405219FFD50DBC /* BkmkApp.swift in Sources */,
 				AB5C1AE1D628E2B3381D75A4 /* ContentView.swift in Sources */,
 				9A76AEF16716597364BE85CA /* KeychainHelper.swift in Sources */,
+				64CF555787B5A7136AAD6A5F /* Models.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +302,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -291,6 +321,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -307,7 +338,7 @@
 				CODE_SIGN_ENTITLEMENTS = BkmkShare/ShareExtension/BkmkShareExtension.entitlements;
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = bkmk;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -392,7 +423,7 @@
 				CODE_SIGN_ENTITLEMENTS = BkmkShare/ShareExtension/BkmkShareExtension.entitlements;
 				DEVELOPMENT_TEAM = 5EBY7RCNLL;
 				INFOPLIST_FILE = BkmkShare/ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = bkmk;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -495,6 +526,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		831DD0EC2F8650C400F9EC46 /* XCRemoteSwiftPackageReference "textual" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/textual";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		831DD0ED2F8650C400F9EC46 /* Textual */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 831DD0EC2F8650C400F9EC46 /* XCRemoteSwiftPackageReference "textual" */;
+			productName = Textual;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 783BCFB50E9DD613EBDAD77D /* Project object */;
 }

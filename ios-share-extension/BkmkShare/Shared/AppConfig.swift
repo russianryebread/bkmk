@@ -10,10 +10,10 @@ struct AppConfig {
     static let oauthRedirectURI = "bkmkshare://oauth/callback"
     
     /// App Group identifier for sharing data between app and extension
-    static let appGroupIdentifier = "group.com.bkmk.share"
+    static let appGroupIdentifier = "group.me.hoshor.bkmk.share"
     
     /// Keychain service name
-    static let keychainService = "com.bkmk.share"
+    static let keychainService = "me.hoshor.bkmk.share"
     
     /// UserDefaults key for stored token
     static let tokenKey = "bkmk_api_token"

@@ -24,6 +24,8 @@
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
+		<key>UISceneConfigurations</key>
+		<dict/>
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict>
@@ -46,6 +48,17 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.bkmk.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>bkmkshare</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
