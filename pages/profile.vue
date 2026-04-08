@@ -32,7 +32,7 @@
             </div>
           </div>
           <NuxtLink to="/tags" class="btn-secondary">
-            Open
+            Manage
           </NuxtLink>
         </div>
       </div>
@@ -92,7 +92,7 @@
             </div>
           </div>
           <NuxtLink to="/admin/users" class="btn-secondary">
-            Open
+            Manage
           </NuxtLink>
         </div>
       </div>
@@ -112,7 +112,7 @@
             </div>
           </div>
           <NuxtLink to="/docs" class="btn-secondary">
-            View
+            Open Docs
           </NuxtLink>
         </div>
       </div>
@@ -120,7 +120,7 @@
 
     <!-- Sign Out -->
     <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-      <button @click="handleLogout" class="w-full btn-danger">
+      <button @click="handleLogout" class="w-full btn-primary text-red-600 bg-transparent hover:bg-red-100 dark:bg-red-900 dark:text-red-400 dark:hover:bg-red-800">
         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
         </svg>
@@ -131,7 +131,7 @@
     <!-- Version Footer -->
     <div class="mt-8 text-center">
       <p class="text-xs text-gray-400 dark:text-gray-500">
-        v{{ version }}
+        {{ version }} - <a href="https://hoshor.me" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Built in Colorado 🏔️</a>
       </p>
     </div>
   </div>
