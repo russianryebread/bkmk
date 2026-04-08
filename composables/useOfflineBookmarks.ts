@@ -7,9 +7,10 @@ export interface CursorBookmarkFilters extends BookmarkFilters {
 
 export function useOfflineBookmarks() {
   const { saveBookmark, saveBookmarks, getBookmark, getAllBookmarks, deleteBookmark: idbDeleteBookmark, searchBookmarks } = useIdb()
-  
+
   const isOnline = ref(true)
   const offlineError = ref<string | null>(null)
+  const cacheVersion = ref(0)
 
   // Initialize online status
   onMounted(() => {
@@ -114,16 +115,17 @@ export function useOfflineBookmarks() {
     return result.bookmarks
   }
 
-  // Refresh cache from server (background, non-blocking)
+// Refresh cache from server (background, non-blocking)
   async function refreshFromServer(): Promise<void> {
     if (!isOnline.value) return
-    
+
     try {
       console.log('[OfflineBookmarks] Refreshing cache from server (background)')
       const response = await $fetch<{ bookmarks: Bookmark[] }>('/api/bookmarks?limit=1000')
-      
+
       if (response.bookmarks && response.bookmarks.length > 0) {
         await saveBookmarks(response.bookmarks)
+        cacheVersion.value++ // Increment version to trigger UI updates
         console.log('[OfflineBookmarks] Cache refreshed with', response.bookmarks.length, 'bookmarks')
       }
     } catch (e: any) {

@@ -144,34 +144,6 @@ export const notesTags = pgTable('notes_tags', {
   uniqueIndex('idx_notes_tags_unique').on(table.noteId, table.tagId),
 ])
 
-// Secrets Table (renamed from secret_notes)
-export const secrets = pgTable('secrets', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id),
-  title: text('title').notNull(),
-  content: text('content').notNull(),
-
-  passwordHash: text('password_hash').notNull(),
-
-  createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
-  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
-  lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),
-}, (table) => [
-  index('idx_secrets_user').on(table.userId),
-  index('idx_secrets_created').on(table.createdAt),
-])
-
-// Secrets Tags Junction Table
-export const secretsTags = pgTable('secrets_tags', {
-  id: text('id').primaryKey(),
-  secretId: text('secret_id').notNull().references(() => secrets.id, { onDelete: 'cascade' }),
-  tagId: text('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
-}, (table) => [
-  index('idx_secrets_tags_secret').on(table.secretId),
-  index('idx_secrets_tags_tag').on(table.tagId),
-  uniqueIndex('idx_secrets_tags_unique').on(table.secretId, table.tagId),
-])
-
 // Images Table - stores processed images for bookmarks
 export const images = pgTable('images', {
   id: text('id').primaryKey(),
@@ -237,7 +209,6 @@ export const tagsRelations = relations(tags, ({ one, many }) => ({
   childTags: many(tags),
   bookmarkTags: many(bookmarkTags),
   notesTags: many(notesTags),
-  secretsTags: many(secretsTags),
 }))
 
 export const bookmarkTagsRelations = relations(bookmarkTags, ({ one }) => ({
@@ -273,21 +244,6 @@ export const notesTagsRelations = relations(notesTags, ({ one }) => ({
   }),
 }))
 
-export const secretsRelations = relations(secrets, ({ many }) => ({
-  secretsTags: many(secretsTags),
-}))
-
-export const secretsTagsRelations = relations(secretsTags, ({ one }) => ({
-  secret: one(secrets, {
-    fields: [secretsTags.secretId],
-    references: [secrets.id],
-  }),
-  tag: one(tags, {
-    fields: [secretsTags.tagId],
-    references: [tags.id],
-  }),
-}))
-
 export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
   user: one(users, {
     fields: [apiTokens.userId],
@@ -308,10 +264,6 @@ export type Note = typeof notes.$inferSelect
 export type NewNote = typeof notes.$inferInsert
 export type NotesTag = typeof notesTags.$inferSelect
 export type NewNotesTag = typeof notesTags.$inferInsert
-export type Secret = typeof secrets.$inferSelect
-export type NewSecret = typeof secrets.$inferInsert
-export type SecretsTag = typeof secretsTags.$inferSelect
-export type NewSecretsTag = typeof secretsTags.$inferInsert
 export type Image = typeof images.$inferSelect
 export type NewImage = typeof images.$inferInsert
 export type SyncMetadata = typeof syncMetadata.$inferSelect

@@ -5,7 +5,6 @@ const DB_NAME = 'bkmk-offline-db'
 const DB_VERSION = 2
 const BOOKMARKS_STORE = 'bookmarks'
 const NOTES_STORE = 'notes'
-const SECRETS_STORE = 'secrets'
 const TAGS_STORE = 'tags'
 const SYNC_QUEUE_STORE = 'sync-queue'
 const SETTINGS_STORE = 'settings'
@@ -27,16 +26,6 @@ export interface Note {
   isFavorite: boolean
   createdAt: string
   updatedAt: string
-}
-
-// Secret note types (without content for list view)
-export interface Secret {
-  id: string
-  title: string
-  passwordHash?: string
-  createdAt: string
-  updatedAt: string
-  lastAccessedAt?: string
 }
 
 // Tag types matching server schema
@@ -69,7 +58,7 @@ export type TagType = 'bookmark' | 'note' | 'both'
 interface SyncQueueItem {
   id: string
   action: 'create' | 'update' | 'delete'
-  entity: 'note' | 'secret' | 'tag'
+  entity: 'note' | 'tag'
   data: any
   timestamp: number
   retries: number
@@ -120,13 +109,6 @@ export function useIdb() {
           notesStore.createIndex('updatedAt', 'updatedAt', { unique: false })
           notesStore.createIndex('isFavorite', 'isFavorite', { unique: false })
           notesStore.createIndex('title', 'title', { unique: false })
-        }
-
-        if (!db.objectStoreNames.contains(SECRETS_STORE)) {
-          const secretsStore = db.createObjectStore(SECRETS_STORE, { keyPath: 'id' })
-          secretsStore.createIndex('createdAt', 'createdAt', { unique: false })
-          secretsStore.createIndex('updatedAt', 'updatedAt', { unique: false })
-          secretsStore.createIndex('title', 'title', { unique: false })
         }
 
         if (!db.objectStoreNames.contains(TAGS_STORE)) {
@@ -236,68 +218,6 @@ export function useIdb() {
       note.content.toLowerCase().includes(lowerQuery) ||
       note.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
     )
-  }
-
-  // ==================== SECRETS ====================
-  async function saveSecret(secret: Secret): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SECRETS_STORE, 'readwrite')
-      const store = tx.objectStore(SECRETS_STORE)
-      const request = store.put(secret)
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
-  }
-
-  async function saveSecrets(secrets: Secret[]): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SECRETS_STORE, 'readwrite')
-      const store = tx.objectStore(SECRETS_STORE)
-
-      secrets.forEach(secret => store.put(secret))
-
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    })
-  }
-
-  async function getSecret(id: string): Promise<Secret | null> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SECRETS_STORE, 'readonly')
-      const store = tx.objectStore(SECRETS_STORE)
-      const request = store.get(id)
-
-      request.onsuccess = () => resolve(request.result || null)
-      request.onerror = () => reject(request.error)
-    })
-  }
-
-  async function getAllSecrets(): Promise<Secret[]> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SECRETS_STORE, 'readonly')
-      const store = tx.objectStore(SECRETS_STORE)
-      const request = store.getAll()
-
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error)
-    })
-  }
-
-  async function deleteSecret(id: string): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SECRETS_STORE, 'readwrite')
-      const store = tx.objectStore(SECRETS_STORE)
-      const request = store.delete(id)
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
   }
 
   // ==================== TAGS ====================
@@ -522,12 +442,6 @@ export function useIdb() {
     getAllNotes,
     deleteNote,
     searchNotes,
-    // Secrets
-    saveSecret,
-    saveSecrets,
-    getSecret,
-    getAllSecrets,
-    deleteSecret,
     // Tags
     saveTag,
     saveTags,

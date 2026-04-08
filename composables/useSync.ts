@@ -1,4 +1,3 @@
-import { useIdb } from './idb'
 import type { Note, Secret, Tag } from './idb'
 
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error' | 'offline'
@@ -28,9 +27,9 @@ export function useSync() {
   // Initialize online status listeners
   function initOnlineStatus() {
     console.log('[Sync] Initializing online status listeners')
-    
+
     isOnline.value = navigator.onLine
-    
+
     // Sync when coming back online
     window.addEventListener('online', () => {
       console.log('[Sync] Online event received')
@@ -116,24 +115,6 @@ export function useSync() {
         console.warn('[Sync] Failed to fetch notes:', e)
       }
 
-      // Fetch secrets
-      try {
-        const secretsResponse = await $fetch<{ notes: any[] }>('/api/notes/secret')
-        if (secretsResponse.notes && secretsResponse.notes.length > 0) {
-          const secrets: Secret[] = secretsResponse.notes.map(s => ({
-            id: s.id,
-            title: s.title,
-            createdAt: s.createdAt,
-            updatedAt: s.updatedAt,
-            lastAccessedAt: s.lastAccessedAt,
-          }))
-          await idb.saveSecrets(secrets)
-          console.log('[Sync] Synced', secrets.length, 'secrets to IndexedDB')
-        }
-      } catch (e) {
-        console.warn('[Sync] Failed to fetch secrets:', e)
-      }
-
       // Fetch tags
       try {
         const tagsResponse = await $fetch<{ tags: any[] }>('/api/tags')
@@ -159,7 +140,7 @@ export function useSync() {
       pendingChanges.value = (await idb.getSyncQueue()).length
       syncStatus.value = 'success'
       console.log('[Sync] Sync completed successfully')
-      
+
       return true
     } catch (e: any) {
       console.error('[Sync] Sync failed:', e)
@@ -175,9 +156,6 @@ export function useSync() {
     switch (item.entity) {
       case 'note':
         await processNoteSync(item)
-        break
-      case 'secret':
-        await processSecretSync(item)
         break
       case 'tag':
         await processTagSync(item)
@@ -203,28 +181,6 @@ export function useSync() {
         break
       case 'delete':
         await $fetch(`/api/notes/markdown/${item.id}`, {
-          method: 'DELETE'
-        })
-        break
-    }
-  }
-
-  async function processSecretSync(item: SyncQueueItem): Promise<void> {
-    switch (item.action) {
-      case 'create':
-        await $fetch('/api/notes/secret', {
-          method: 'POST',
-          body: item.data
-        })
-        break
-      case 'update':
-        await $fetch(`/api/notes/secret/${item.id}`, {
-          method: 'PUT',
-          body: item.data
-        })
-        break
-      case 'delete':
-        await $fetch(`/api/notes/secret/${item.id}`, {
           method: 'DELETE'
         })
         break

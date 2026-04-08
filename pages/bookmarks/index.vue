@@ -146,6 +146,11 @@ const router = useRouter()
 const offlineBookmarks = useOfflineBookmarks()
 const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
 
+// Watch cache version to trigger refresh when cache is updated
+watch(() => offlineBookmarks.cacheVersion, () => {
+  reset()
+})
+
 // Infinite scroll state
 const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)
 const cursor = ref<string | null>(null)

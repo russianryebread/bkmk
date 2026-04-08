@@ -1,8 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     <!-- Header -->
-    <header
-      class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-150 shadow-sm">
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <!-- Logo -->
@@ -14,7 +13,7 @@
             <span class="text-xl font-bold text-gray-900 dark:text-white">bkmk</span>
           </NuxtLink>
 
-          <!-- Desktop Navigation - Right aligned -->
+          <!-- Desktop Navigation - Right aligned (simplified: just Bookmarks and Notes) -->
           <nav class="hidden md:flex items-center space-x-1">
             <NuxtLink to="/bookmarks"
               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -26,42 +25,58 @@
               active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300">
               Notes
             </NuxtLink>
-            <NuxtLink to="/secrets"
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300">
-              Secrets
-            </NuxtLink>
-            <NuxtLink to="/tags"
-              class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              active-class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300">
-              Tags
-            </NuxtLink>
           </nav>
 
           <!-- Actions - Right aligned -->
           <div class="flex items-center space-x-3">
-            <!-- Combined User/Settings Menu -->
-            <div class="relative">
+            <!-- Settings dropdown (desktop gear icon) -->
+            <div class="relative md:block">
               <button @click="menuOpen = !menuOpen"
-                class="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                title="Menu">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                class="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Settings">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path v-if="!menuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 6h16M4 12h16M4 18h16" />
+                  <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
 
-              <!-- Combined Dropdown -->
+              <!-- Dropdown -->
               <div v-if="menuOpen"
-                class="absolute right-0 mt-2 w-72 card p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+                class="absolute right-0 mt-2 w-72 card p-4 shadow-lg border border-gray-200 dark:border-gray-700 z-30">
                 <!-- User Info -->
-                <div class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-                  <p class="font-medium text-gray-900 dark:text-white">{{ user?.email }}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Role: <span class="capitalize">{{ user?.role }}</span>
-                  </p>
+                <NuxtLink to="/profile" @click="menuOpen = false"
+                  class="block font-medium text-gray-900 dark:text-white hover:text-primary-600">
+                  <div class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                    {{ user?.email }}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Role: <span class="capitalize">{{ user?.role }}</span>
+                    </p>
+                  </div>
+                </NuxtLink>
+
+                <div class="-mx-3 mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <NuxtLink to="/bookmarks"
+                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    @click="menuOpen = false">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                    </svg>
+                    Bookmarks
+                  </NuxtLink>
+
+                  <NuxtLink to="/notes"
+                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    @click="menuOpen = false">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Notes
+                  </NuxtLink>
+
                 </div>
 
                 <!-- Settings Section -->
@@ -115,30 +130,8 @@
                   </div>
                 </div>
 
-                  <!-- User Actions -->
+                <!-- User Actions -->
                 <div class="space-y-1 -mx-3">
-                  <!-- API Tokens -->
-                  <NuxtLink to="/tokens"
-                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    @click="menuOpen = false">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                    API Tokens
-                  </NuxtLink>
-
-                  <!-- Only show change password for users with password (not OAuth-only) -->
-                  <NuxtLink v-if="hasPassword" to="/change-password"
-                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    @click="menuOpen = false">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    Change Password
-                  </NuxtLink>
-
                   <NuxtLink v-if="isAdmin" to="/admin/users"
                     class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                     @click="menuOpen = false">
@@ -159,6 +152,15 @@
                     API Docs
                   </NuxtLink>
 
+                  <button @click="openGlobalSearch"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Search
+                  </button>
+
                   <button @click="handleLogout"
                     class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,43 +172,7 @@
                 </div>
               </div>
             </div>
-
-            <!-- Mobile menu button -->
-            <button @click="mobileMenuOpen = !mobileMenuOpen"
-              class="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path v-if="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 6h16M4 12h16M4 18h16" />
-                <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Mobile Navigation -->
-      <div v-if="mobileMenuOpen" class="md:hidden border-t border-gray-200 dark:border-gray-700">
-        <div class="px-4 py-3 space-y-2">
-          <NuxtLink to="/bookmarks"
-            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            @click="mobileMenuOpen = false">
-            Bookmarks
-          </NuxtLink>
-          <NuxtLink to="/notes"
-            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            @click="mobileMenuOpen = false">
-            Notes
-          </NuxtLink>
-          <NuxtLink to="/secrets"
-            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            @click="mobileMenuOpen = false">
-            Secrets
-          </NuxtLink>
-          <NuxtLink to="/tags"
-            class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            @click="mobileMenuOpen = false">
-            Tags
-          </NuxtLink>
         </div>
       </div>
     </header>
@@ -215,6 +181,37 @@
     <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
       <slot />
     </main>
+
+    <!-- Mobile Bottom Toolbar (Bookmarks and Notes quick access) -->
+    <!-- <div
+      class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-140">
+      <div class="flex items-center justify-around py-2">
+        <NuxtLink to="/bookmarks"
+          class="flex flex-col items-center px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+          <span class="text-xs mt-1">Bookmarks</span>
+        </NuxtLink>
+        <NuxtLink to="/notes"
+          class="flex flex-col items-center px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span class="text-xs mt-1">Notes</span>
+        </NuxtLink>
+        <button @click="openGlobalSearch"
+          class="flex flex-col items-center px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span class="text-xs mt-1">Search</span>
+        </button>
+      </div>
+    </div> -->
 
     <!-- Global Search Modal -->
     <GlobalSearch ref="globalSearchRef" />
@@ -226,9 +223,11 @@ const route = useRoute()
 const globalSearchRef = ref<any>(null)
 
 // Provide global search to child components
-provide('openGlobalSearch', () => {
+function openGlobalSearch() {
   globalSearchRef.value?.open()
-})
+}
+provide('openGlobalSearch', openGlobalSearch)
+
 const mobileMenuOpen = ref(false)
 const menuOpen = ref(false)
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
@@ -245,6 +244,7 @@ const isReaderPage = computed(() => {
 // Handle logout
 async function handleLogout() {
   menuOpen.value = false
+  mobileMenuOpen.value = false
   await logout()
 }
 

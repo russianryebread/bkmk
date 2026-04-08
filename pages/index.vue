@@ -2,7 +2,7 @@
   <div class="bg-gray-50 dark:bg-gray-900">
     <div class="max-w-6xl mx-auto">
       <!-- Stats Section -->
-      <div class="md:grid md:grid-cols-4 gap-4 mb-8 hidden">
+      <div class="md:grid md:grid-cols-3 gap-4 mb-8 hidden">
         <NuxtLink to="/bookmarks" class="card p-4 hover:shadow-lg transition-shadow">
           <div class="flex items-center gap-3">
             <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -27,20 +27,6 @@
             <div>
               <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.totalNotes }}</p>
               <p class="text-sm text-gray-500 dark:text-gray-400">Notes</p>
-            </div>
-          </div>
-        </NuxtLink>
-
-        <NuxtLink to="/secrets" class="card p-4 hover:shadow-lg transition-shadow">
-          <div class="flex items-center gap-3">
-            <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-              <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <div>
-              <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.totalSecretNotes }}</p>
-              <p class="text-sm text-gray-500 dark:text-gray-400">Secrets</p>
             </div>
           </div>
         </NuxtLink>
@@ -238,7 +224,6 @@ const router = useRouter()
 const { getTagColor, fetchTags } = useTagSystem()
 const { getAllBookmarks } = useIdb()
 const { getAllNotes } = useIdb()
-const { getAllSecrets } = useIdb()
 const { getAllTags } = useIdb()
 
 // Stats
@@ -246,7 +231,6 @@ const stats = ref({
   totalBookmarks: 0,
   unreadBookmarks: 0,
   totalNotes: 0,
-  totalSecretNotes: 0,
   totalTags: 0,
 })
 
@@ -283,10 +267,9 @@ function isUrl(query: string): boolean {
 // Fetch stats from IndexedDB (local-first)
 async function fetchStats() {
   try {
-    const [bookmarks, notes, secrets, tags] = await Promise.all([
+    const [bookmarks, notes, tags] = await Promise.all([
       getAllBookmarks(),
       getAllNotes(),
-      getAllSecrets(),
       getAllTags(),
     ])
     
@@ -294,7 +277,6 @@ async function fetchStats() {
       totalBookmarks: bookmarks.length,
       unreadBookmarks: bookmarks.filter(b => !b.is_read).length,
       totalNotes: notes.length,
-      totalSecretNotes: secrets.length,
       totalTags: tags.length,
     }
     
