@@ -208,6 +208,11 @@ const {
   getTagColor,
 } = useTagSystem()
 
+// Watch cache version to trigger refresh when cache is updated
+watch(() => tags, () => {
+  tagTree.value = buildTree(tags.value, filterType.value)
+})
+
 const showModal = ref(false)
 const editingTag = ref<Tag | null>(null)
 const formError = ref('')

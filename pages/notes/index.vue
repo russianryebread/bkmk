@@ -128,6 +128,11 @@ const offlineNotes = useOfflineNotes()
 const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
 const { triggerSync } = useSync()
 
+// Watch cache version to trigger refresh when cache is updated
+watch(() => offlineNotes.cacheVersion, () => {
+  reset()
+})
+
 // Get all tags filtered by type (note tags only)
 const allTags = computed(() => getTagsByType('note'))
 

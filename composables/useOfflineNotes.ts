@@ -32,6 +32,7 @@ export interface CursorNoteFilters {
 export function useOfflineNotes() {
   // Get IDB instance without destructuring to avoid cloning refs
   const idb = useIdb()
+  const cacheVersion = ref(0)
   
   const isOnline = ref(true)
   const offlineError = ref<string | null>(null)
@@ -39,6 +40,11 @@ export function useOfflineNotes() {
   // Initialize online status
   onMounted(() => {
     isOnline.value = navigator.onLine
+
+    // Watch cache version to trigger refresh when cache is updated
+    watch(() => cacheVersion, () => {
+      console.log('[OfflineNotes] Cache version changed, triggering refresh')
+    })
     
     window.addEventListener('online', () => {
       console.log('[OfflineNotes] Back online')
@@ -152,11 +158,11 @@ export function useOfflineNotes() {
   // Refresh cache from server (background, non-blocking)
   async function refreshFromServer(): Promise<void> {
     if (!isOnline.value) return
-    
+
     try {
       console.log('[OfflineNotes] Refreshing cache from server (background)')
       const response = await $fetch<{ notes: any[] }>('/api/notes/markdown?limit=1000')
-      
+
       if (response.notes && response.notes.length > 0) {
         const notes: Note[] = response.notes.map(n => ({
           id: n.id,
@@ -167,6 +173,7 @@ export function useOfflineNotes() {
           updatedAt: n.updatedAt,
         }))
         await idb.saveNotes(notes)
+        cacheVersion.value++ // Increment version to trigger UI updates
         console.log('[OfflineNotes] Cache refreshed with', notes.length, 'notes')
       }
     } catch (e: any) {
