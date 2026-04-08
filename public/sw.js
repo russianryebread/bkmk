@@ -6,7 +6,6 @@ const CACHE_NAME = 'bkmk-offline-v1';
 // Assets to cache immediately on install
 const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json'
 ];
 
