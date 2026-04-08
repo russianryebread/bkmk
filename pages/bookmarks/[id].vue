@@ -33,7 +33,7 @@
       </div>
 
       <!-- Reading Mode Tabs -->
-      <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div v-if="!linkOnlyMode" class="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav class="flex gap-4">
           <button v-for="mode in modes" :key="mode.id" @click="currentMode = mode.id" :class="[
             'pb-3 px-1 text-sm font-medium border-b-2 transition-colors',
@@ -65,19 +65,10 @@
         </div>
 
         <!-- URL Only Mode (no scraped content) -->
-        <div v-else-if="!bookmark.cleaned_markdown && !bookmark.original_html" class="card p-6 text-center">
-          <div class="mb-4">
-            <p class="text-gray-500 dark:text-gray-400 mb-4">
-              The content was not scraped or was removed.
-            </p>
-            <a :href="bookmark.url" target="_blank" class="btn-primary inline-flex items-center gap-2 truncate">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              <span class="truncate">{{ bookmark.url }}</span>
+        <div v-else-if="linkOnlyMode" class="p-4 card">
+            <a :href="bookmark.url" target="_blank" class="inline-flex items-center gap-2 text-primary-600 hover:underline">
+              <span class="">{{ bookmark.url }}</span>
             </a>
-          </div>
         </div>
 
         <!-- Reader Mode -->
@@ -104,7 +95,7 @@
         </div>
 
         <!-- Switch to URL Only button (when content exists) -->
-        <div v-if="bookmark.cleaned_markdown || bookmark.original_html" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div v-if="!linkOnlyMode" class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <button @click="switchToUrlOnly" class="btn-secondary text-sm">
             <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -234,6 +225,10 @@ const modes = [
   { id: 'snapshot', label: 'Snapshot' },
   { id: 'markdown', label: 'Markdown' },
 ]
+
+const linkOnlyMode = computed(() => {
+  return !bookmark.value?.cleaned_markdown && !bookmark.value?.original_html
+})
 
 const { render } = useMarkdown()
 
@@ -461,13 +456,6 @@ async function handleCreateTag(name: string) {
   } catch (e) {
     console.error('Failed to create tag:', e)
   }
-}
-
-// Add tag by name (internal function) - uses centralized system
-async function addTagByName(tagName: string) {
-  // Import the function from the composable at the top level
-  const tagSystem = useTagSystem()
-  await tagSystem.addTagByName(tagName, bookmark.value.id, 'bookmark')
 }
 
 async function toggleFavorite() {

@@ -1,5 +1,36 @@
 <template>
-  <div class="infinite-item-list">
+  <div 
+    class="infinite-item-list" 
+    ref="containerRef"
+    @touchstart="handleTouchStart"
+    @touchmove="handleTouchMove"
+    @touchend="handleTouchEnd"
+  >
+    <!-- Pull to Refresh Indicator -->
+    <div 
+      class="pull-to-refresh-indicator"
+      :class="{ 
+        'pulling': isPulling,
+        'ready': pullDistance >= pullThreshold && !isRefreshing,
+        'refreshing': isRefreshing 
+      }"
+      :style="{ height: `${pullDistance}px` }"
+    >
+      <div class="pull-indicator-content">
+        <svg v-if="!isRefreshing" class="pull-arrow" :class="{ 'rotated': pullDistance >= pullThreshold }" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12l7-7 7 7" />
+        </svg>
+        <svg v-else class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span v-if="!isRefreshing" class="text-sm text-gray-500 dark:text-gray-400">
+          {{ pullDistance >= pullThreshold ? 'Release to refresh' : 'Pull to refresh' }}
+        </span>
+        <span v-else class="text-sm text-gray-500 dark:text-gray-400">Refreshing...</span>
+      </div>
+    </div>
+
     <!-- Header with Search and Actions -->
     <div class="flex flex-col sm:flex-row gap-4 mb-6">
       <!-- Search -->
@@ -132,6 +163,8 @@ const props = withDefaults(defineProps<{
   emptyDescription?: string
   // Initial selected tag
   selectedTag?: string
+  // Enable pull to refresh
+  pullToRefresh?: boolean
 }>(), {
   items: () => [],
   loading: false,
@@ -145,6 +178,7 @@ const props = withDefaults(defineProps<{
   emptyTitle: 'No items found',
   emptyDescription: 'Try adjusting your search or filters',
   selectedTag: '',
+  pullToRefresh: true,
 })
 
 const emit = defineEmits<{
@@ -152,12 +186,22 @@ const emit = defineEmits<{
   tagChange: [tag: string | null]
   loadMore: []
   retry: []
+  refresh: []
 }>()
 
 const { viewMode } = useViewMode()
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const sentinelRef = ref<HTMLElement | null>(null)
 const localSearchQuery = ref('')
+
+// Pull to refresh state
+const containerRef = ref<HTMLElement | null>(null)
+const pullDistance = ref(0)
+const isPulling = ref(false)
+const isRefreshing = ref(false)
+const pullThreshold = 80
+const startY = ref(0)
+const currentY = ref(0)
 
 // Handle search input with debounce
 function handleSearchInput() {
@@ -168,6 +212,76 @@ function handleSearchInput() {
 function handleTagChange(tag: string) {
   emit('tagChange', tag || null)
 }
+
+// Pull to refresh handlers
+function handleTouchStart(e: TouchEvent) {
+  if (!props.pullToRefresh) return
+  if (isRefreshing.value) return
+  
+  // Only activate when scrolled near top
+  if (containerRef.value && containerRef.value.scrollTop > 10) return
+  
+  isPulling.value = true
+  startY.value = e.touches[0].clientY
+  currentY.value = startY.value
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (!props.pullToRefresh || !isPulling.value) return
+  
+  currentY.value = e.touches[0].clientY
+  const diff = currentY.value - startY.value
+  
+  // Only allow pulling down (positive diff)
+  if (diff > 0) {
+    // Apply resistance to make it feel natural
+    pullDistance.value = Math.min(diff * 0.5, pullThreshold * 1.5)
+    e.preventDefault()
+  }
+}
+
+function handleTouchEnd() {
+  if (!props.pullToRefresh || !isPulling.value) return
+  
+  isPulling.value = false
+  
+  if (pullDistance.value >= pullThreshold && !isRefreshing.value) {
+    // Trigger refresh
+    triggerRefresh()
+  } else {
+    // Reset
+    pullDistance.value = 0
+  }
+}
+
+function triggerRefresh() {
+  isRefreshing.value = true
+  emit('refresh')
+  
+  // Reset after a delay (parent should call resetRefreshing when done)
+  setTimeout(() => {
+    if (isRefreshing.value) {
+      isRefreshing.value = false
+      pullDistance.value = 0
+    }
+  }, 2000)
+}
+
+// Called by parent to signal refresh is complete
+function resetRefreshing() {
+  isRefreshing.value = false
+  pullDistance.value = 0
+}
+
+// Expose for parent components
+defineExpose({
+  focusSearch: () => searchInputRef.value?.focus(),
+  clearSearch: () => {
+    localSearchQuery.value = ''
+    emit('search', '')
+  },
+  resetRefreshing,
+})
 
 // Focus search on mount if requested
 onMounted(() => {
@@ -212,19 +326,55 @@ onUnmounted(() => {
     observer.disconnect()
   }
 })
-
-// Expose methods for parent components
-defineExpose({
-  focusSearch: () => searchInputRef.value?.focus(),
-  clearSearch: () => {
-    localSearchQuery.value = ''
-    emit('search', '')
-  },
-})
 </script>
 
 <style scoped>
 .infinite-item-list {
   @apply w-full;
+  touch-action: pan-y;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pull to Refresh Indicator */
+.pull-to-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: 0;
+  transition: height 0.2s ease-out;
+}
+
+.pull-to-refresh-indicator.pulling {
+  transition: none;
+}
+
+.pull-to-refresh-indicator.ready {
+  height: 80px;
+}
+
+.pull-to-refresh-indicator.refreshing {
+  height: 60px;
+}
+
+.pull-indicator-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pull-arrow {
+  transition: transform 0.2s ease;
+  color: #6b7280;
+}
+
+.pull-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.dark .pull-arrow {
+  color: #9ca3af;
 }
 </style>

@@ -1,6 +1,7 @@
 <template>
   <div>
     <InfiniteItemList
+      ref="infiniteListRef"
       :items="items"
       :loading="loading"
       :loading-more="loadingMore"
@@ -15,6 +16,7 @@
       @tag-change="handleTagChange"
       @load-more="loadMore"
       @retry="reset"
+      @refresh="handleRefresh"
     >
       <!-- Add button -->
       <template #actions>
@@ -145,6 +147,7 @@ const offlineBookmarks = useOfflineBookmarks()
 const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
 
 // Infinite scroll state
+const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)
 const cursor = ref<string | null>(null)
 const items = ref<Bookmark[]>([])
 const loading = ref(false)
@@ -231,6 +234,12 @@ function handleSearch(query: string) {
 function handleTagChange(tag: string | null) {
   filters.value.tag = tag || ''
   reset()
+}
+
+// Handle pull to refresh
+async function handleRefresh() {
+  await reset()
+  infiniteListRef.value?.resetRefreshing()
 }
 
 // Toggle favorite
