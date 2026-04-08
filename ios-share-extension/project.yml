@@ -1,0 +1,57 @@
+name: BkmkShare
+options:
+  bundleIdPrefix: com.bkmk
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  BkmkShare:
+    type: application
+    platform: iOS
+    sources:
+      - path: BkmkShare/App
+      - path: BkmkShare/Shared
+      - path: BkmkShare/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bkmk.share
+        INFOPLIST_FILE: BkmkShare/App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: BkmkShare/App/BkmkShare.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: BkmkShare/App/BkmkShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.bkmk.share
+
+  BkmkShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BkmkShare/ShareExtension
+      - path: BkmkShare/Shared
+      - path: BkmkShare/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bkmk.share.extension
+        INFOPLIST_FILE: BkmkShare/ShareExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: BkmkShare/ShareExtension/BkmkShareExtension.entitlements
+        SKIP_INSTALL: YES
+    entitlements:
+      path: BkmkShare/ShareExtension/BkmkShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.bkmk.share
+    dependencies:
+      - target: BkmkShare
+        embed: false
+        link: false
