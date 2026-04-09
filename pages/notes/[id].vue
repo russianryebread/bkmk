@@ -4,7 +4,7 @@
       :actions="toolbarActions" />
 
     <!-- Simple back button for new/editing mode -->
-    <div v-else class="flex">
+    <div v-else class="flex mb-4">
       <div class="flex-1">
         <button @click="cancelEditing" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
           :title="isNew ? 'Back to notes' : 'Cancel'">
@@ -38,7 +38,7 @@
     <!-- Note View/Edit -->
     <div v-else-if="note || isNew" class="flex-1 flex flex-col min-h-0">
       <!-- Header -->
-      <div class="mb-6">
+      <div class="">
         <!-- Title - derived from first line of content -->
         <div class="mb-4">
           <h1 v-if="!isNew && !editing" class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
@@ -65,7 +65,7 @@
 
       <!-- View mode content (existing note, not editing) -->
       <template v-if="!isNew && !editing">
-        <hr>
+        <hr class="mb-4 border-gray-200 dark:border-gray-700" />
         <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedMarkdown"></div>
       </template>
 
@@ -261,18 +261,13 @@ function startEditing() {
 }
 
 function cancelEditing() {
+  if(hasChanges.value) {
+    if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+      return
+    }
+  }
   editing.value = false
   initFromNote()
-}
-
-function handleBack() {
-  if (isNew.value || editing.value) {
-    // If creating or editing, go back to notes list
-    router.push('/notes')
-  } else {
-    // Otherwise just stop editing
-    cancelEditing()
-  }
 }
 
 // Unified save logic - handles both create and update

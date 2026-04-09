@@ -1,5 +1,5 @@
 <template>
-  <div class="sticky top-2 mb-6" :class="[isScrolled ? 'z-20' : '']">
+  <div class="sticky top-2 mb-4" :class="[isScrolled ? 'z-20' : '']">
     <!-- Glass effect toolbar -->
     <div
       class="flex items-center justify-between gap-2 py-2 mx-auto transition-all duration-200"
