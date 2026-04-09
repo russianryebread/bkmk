@@ -1,17 +1,15 @@
 <template>
   <div>
-    <div v-if="bookmark" class="max-w-6xl mx-auto">
+    <div v-if="bookmark" class="max-w-4xl mx-auto">
       <StickyToolbar show-back back-label="Back to bookmarks" back-to="/bookmarks" :actions="toolbarActions" />
 
       <!-- Header -->
       <div class="mb-6">
-
         <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2" :class="fontFamily === 'serif' ? 'font-serif' : 'font-sans'">
           {{ bookmark.title }}
         </h1>
 
         <!-- Metadata -->
-
         <a :href="bookmark.url" target="_blank" rel="noopener"
           class="hover:text-primary-600 mb-2 inline-block text-sm text-gray-500 dark:text-gray-400">
           {{ bookmark.source_domain }}
@@ -77,9 +75,15 @@
           :style="{ fontSize: fontSize + 'px' }" v-html="renderedMarkdown"></div>
 
         <!-- Snapshot Mode -->
-        <div v-else-if="currentMode === 'snapshot'" class="card p-6">
-          <!-- Sanitize HTML by removing script tags and inline event handlers -->
-          <div class="max-w-none" v-html="sanitizeSnapshotHtml(bookmark.original_html)"></div>
+        <div v-else-if="currentMode === 'snapshot'" class="card p-0 overflow-hidden">
+          <!-- Render snapshot in isolated iframe to prevent parent site interference -->
+          <iframe
+            :srcdoc="sanitizeSnapshotHtml(bookmark.original_html)"
+            sandbox="allow-same-origin"
+            class="w-full min-h-[800px] border-0"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+          ></iframe>
         </div>
 
         <!-- Markdown Mode -->
