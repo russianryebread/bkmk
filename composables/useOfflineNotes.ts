@@ -230,6 +230,17 @@ export function useOfflineNotes() {
     
     try {
       const response = await $fetch<any>(`/api/notes/markdown/${id}`)
+      
+      // Get current local note to check timestamp
+      const localNote = await idb.getNote(id)
+      
+      // Only overwrite if server version is NEWER than local version
+      // NEVER overwrite if local has more recent changes
+      if (localNote && new Date(localNote.updatedAt) > new Date(response.updatedAt)) {
+        console.log('[OfflineNotes] Local note is newer, skipping server refresh:', id)
+        return
+      }
+      
       const note: Note = {
         id: response.id,
         content: response.content,

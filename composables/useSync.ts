@@ -73,12 +73,10 @@ export function useSync() {
         } catch (e) {
           console.error('[Sync] Failed to process item:', item.id, e)
           item.retries++
-          if (item.retries >= 3) {
-            console.error('[Sync] Max retries reached, removing item:', item.id)
-            await idb.removeFromSyncQueue(item.id)
-          } else {
-            await idb.updateSyncQueueItem(item)
-          }
+          // Never remove items from sync queue automatically - keep them forever until success
+          // User will be notified of pending changes and can retry manually
+          console.warn('[Sync] Sync failed, keeping in queue for next attempt. Retries:', item.retries, 'Item:', item.id)
+          await idb.updateSyncQueueItem(item)
         }
       }
 

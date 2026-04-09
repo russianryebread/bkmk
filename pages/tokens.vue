@@ -113,13 +113,6 @@
           Create your first token
         </button>
       </div>
-
-      <!-- Version Footer -->
-      <div class="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
-        <p class="text-xs text-gray-400 dark:text-gray-500">
-          v{{ version.slice(0, 7) }}
-        </p>
-      </div>
     </div>
 
     <!-- Create Token Modal -->
@@ -311,9 +304,6 @@ const tokens = ref<ApiToken[]>([])
 const error = ref('')
 const success = ref('')
 
-// Version state
-const version = ref('unknown')
-
 // Create modal state
 const showCreateModal = ref(false)
 const newTokenName = ref('')
@@ -334,16 +324,6 @@ const copied = ref(false)
 
 // Revoke state
 const revokingId = ref<string | null>(null)
-
-// Fetch version
-async function fetchVersion() {
-  try {
-    const response = await $fetch<{ version: string }>('/api/version')
-    version.value = response.version
-  } catch {
-    version.value = 'unknown'
-  }
-}
 
 // Fetch tokens
 async function fetchTokens() {
@@ -483,9 +463,8 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// Fetch tokens and version on mount
+// Fetch tokens on mount
 onMounted(() => {
   fetchTokens()
-  fetchVersion()
 })
 </script>
