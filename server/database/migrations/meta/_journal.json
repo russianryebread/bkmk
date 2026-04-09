@@ -71,6 +71,13 @@
       "when": 1775607456900,
       "tag": "0009_brainy_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775761606452,
+      "tag": "0010_volatile_groot",
+      "breakpoints": true
     }
   ]
 }

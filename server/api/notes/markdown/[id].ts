@@ -45,6 +45,24 @@ export default defineEventHandler(async (event) => {
       .innerJoin(schema.tags, eq(schema.notesTags.tagId, schema.tags.id))
       .where(eq(schema.notesTags.noteId, id))
 
+    // Update sync metadata
+    await db
+      .insert(schema.syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'note',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [schema.syncMetadata.entityType, schema.syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          syncStatus: 'pending',
+        },
+      })
+
     return {
       ...note,
       isFavorite: Boolean(note.isFavorite),
@@ -183,14 +201,38 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Delete junction records first (handled by cascade, but being explicit)
+    // Delete junction records first (handled by cascade, but since we soft-delete, we need to do it manually)
     await db
       .delete(schema.notesTags)
       .where(eq(schema.notesTags.noteId, id))
 
-    await db
-      .delete(schema.notes)
+    // Soft delete note
+    await db.update(schema.notes)
+      .set({
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(schema.notes.id, id))
+
+    // Update sync metadata
+    await db
+      .insert(schema.syncMetadata)
+      .values({
+        id: crypto.randomUUID(),
+        entityType: 'note',
+        entityId: id,
+        lastModifiedAt: new Date().toISOString(),
+        isDeleted: 1,
+        syncStatus: 'pending',
+      })
+      .onConflictDoUpdate({
+        target: [schema.syncMetadata.entityType, schema.syncMetadata.entityId],
+        set: {
+          lastModifiedAt: new Date().toISOString(),
+          isDeleted: 1,
+          syncStatus: 'pending',
+        },
+      })
 
     return { success: true }
   }

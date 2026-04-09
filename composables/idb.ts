@@ -2,7 +2,7 @@ import type { Bookmark } from './useBookmarks'
 import { stripMarkdown } from '../utils/markdown'
 
 const DB_NAME = 'bkmk-offline-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const BOOKMARKS_STORE = 'bookmarks'
 const NOTES_STORE = 'notes'
 const TAGS_STORE = 'tags'
@@ -26,6 +26,7 @@ export interface Note {
   isFavorite: boolean
   createdAt: string
   updatedAt: string
+  deletedAt: string | null
 }
 
 // Tag types matching server schema
@@ -125,6 +126,37 @@ export function useIdb() {
 
         if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
           db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' })
+        }
+
+        // Version 3 migration: add deletedAt support
+        if (event.oldVersion < 3) {
+          console.log('[IDB] Migrating to version 3: Adding soft delete support')
+          
+          // Update bookmarks store with deleted_at field
+          const bookmarksStore = transaction.objectStore(BOOKMARKS_STORE)
+          const bookmarksCursor = bookmarksStore.openCursor()
+          bookmarksCursor.onsuccess = (e) => {
+            const cursor = e.target.result
+            if (cursor) {
+              const value = cursor.value
+              value.deletedAt = null
+              cursor.update(value)
+              cursor.continue()
+            }
+          }
+          
+          // Update notes store with deletedAt field
+          const notesStore = transaction.objectStore(NOTES_STORE)
+          const notesCursor = notesStore.openCursor()
+          notesCursor.onsuccess = (e) => {
+            const cursor = e.target.result
+            if (cursor) {
+              const value = cursor.value
+              value.deletedAt = null
+              cursor.update(value)
+              cursor.continue()
+            }
+          }
         }
       }
     })

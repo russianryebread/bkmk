@@ -150,18 +150,43 @@ export function useSync() {
     }
   }
 
-  async function processSyncItem(item: SyncQueueItem): Promise<void> {
-    switch (item.entity) {
-      case 'note':
-        await processNoteSync(item)
-        break
-      case 'tag':
-        await processTagSync(item)
-        break
-      default:
-        console.warn('[Sync] Unknown entity type:', item.entity)
-    }
-  }
+   async function processSyncItem(item: SyncQueueItem): Promise<void> {
+     switch (item.entity) {
+       case 'note':
+         await processNoteSync(item)
+         break
+       case 'tag':
+         await processTagSync(item)
+         break
+       case 'bookmark':
+         await processBookmarkSync(item)
+         break
+       default:
+         console.warn('[Sync] Unknown entity type:', item.entity)
+     }
+   }
+
+   async function processBookmarkSync(item: SyncQueueItem): Promise<void> {
+     switch (item.action) {
+       case 'create':
+         await $fetch('/api/bookmarks', {
+           method: 'POST',
+           body: item.data
+         })
+         break
+       case 'update':
+         await $fetch(`/api/bookmarks/${item.id}`, {
+           method: 'PUT',
+           body: item.data
+         })
+         break
+       case 'delete':
+         await $fetch(`/api/bookmarks/${item.id}`, {
+           method: 'DELETE'
+         })
+         break
+     }
+   }
 
   async function processNoteSync(item: SyncQueueItem): Promise<void> {
     switch (item.action) {
@@ -208,7 +233,7 @@ export function useSync() {
   }
 
   // Queue a change for sync
-  async function queueChange(entity: 'note' | 'secret' | 'tag', action: 'create' | 'update' | 'delete', id: string, data?: any): Promise<void> {
+  async function queueChange(entity: 'note' | 'secret' | 'tag' | 'bookmark', action: 'create' | 'update' | 'delete', id: string, data?: any): Promise<void> {
     console.log('[Sync] Queueing change:', action, entity, id)
     
     const item = {

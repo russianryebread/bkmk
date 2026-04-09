@@ -20,6 +20,7 @@ export interface Bookmark {
   word_count: number | null
   created_at: string
   updated_at: string
+  deleted_at: string | null
   tags: string[]
   tag_ids: string[]
 }

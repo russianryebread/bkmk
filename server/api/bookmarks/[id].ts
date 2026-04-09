@@ -201,8 +201,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Delete bookmark (cascade will handle bookmark_tags)
-    await db.delete(bookmarks).where(eq(bookmarks.id, id))
+    // Soft delete bookmark
+    await db.update(bookmarks)
+      .set({
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(bookmarks.id, id))
 
     // Update sync metadata
     await db

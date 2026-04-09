@@ -78,6 +78,7 @@ export const bookmarks = pgTable('bookmarks', {
 
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'string' }),
 }, (table) => [
   index('idx_bookmarks_user').on(table.userId),
   index('idx_bookmarks_created').on(table.createdAt),
@@ -127,6 +128,7 @@ export const notes = pgTable('notes', {
 
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow(),
+  deletedAt: timestamp('deleted_at', { mode: 'string' }),
 }, (table) => [
   index('idx_notes_user').on(table.userId),
   index('idx_notes_created').on(table.createdAt),
