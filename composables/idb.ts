@@ -95,6 +95,8 @@ export function useIdb() {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
+        const txn = (event.target as IDBOpenDBRequest).transaction
+
         console.log('[IDB] Upgrading database...')
 
         if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
@@ -133,7 +135,7 @@ export function useIdb() {
           console.log('[IDB] Migrating to version 3: Adding soft delete support')
           
           // Update bookmarks store with deleted_at field
-          const bookmarksStore = transaction.objectStore(BOOKMARKS_STORE)
+          const bookmarksStore = txn.objectStore(BOOKMARKS_STORE)
           const bookmarksCursor = bookmarksStore.openCursor()
           bookmarksCursor.onsuccess = (e) => {
             const cursor = e.target.result
@@ -146,7 +148,7 @@ export function useIdb() {
           }
           
           // Update notes store with deletedAt field
-          const notesStore = transaction.objectStore(NOTES_STORE)
+          const notesStore = txn.objectStore(NOTES_STORE)
           const notesCursor = notesStore.openCursor()
           notesCursor.onsuccess = (e) => {
             const cursor = e.target.result
