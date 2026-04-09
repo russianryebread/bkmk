@@ -131,7 +131,7 @@
     <!-- Version Footer -->
     <div class="mt-8 text-center">
       <p class="text-xs text-gray-400 dark:text-gray-500">
-        <a href="https://hoshor.me" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Built in Colorado 🏔️</a> &mdash; {{ version.slice(0, 7) }} 
+        <a href="https://hoshor.me" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">Built in Colorado</a> <span class="text-lg">🏔️</span> | {{ version.slice(0, 7) }} 
       </p>
     </div>
   </div>
