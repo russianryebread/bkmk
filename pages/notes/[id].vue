@@ -1,12 +1,12 @@
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div class="max-w-4xl mx-auto min-h-[calc(100dvh-100px)] md:min-h-[calc(100dvh-156px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
       :actions="toolbarActions" />
 
     <!-- Simple back button for new/editing mode -->
-    <div v-else class="flex mb-4">
+    <div v-else class="flex">
       <div class="flex-1">
-        <button @click="handleBack" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+        <button @click="cancelEditing" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
           :title="isNew ? 'Back to notes' : 'Cancel'">
           <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -15,10 +15,12 @@
       </div>
 
       <div class="flex gap-4">
-        <button v-if="!isNew && editing" @click="cancelEditing" class="btn-tertiary">Cancel</button>
-        <button @click="saveNote" class="btn-primary"
+        <button @click="saveNote" class="text-green-500 disabled:text-gray-500 p2 rounded-xl flex items-center justify-center action-button"
           :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
-          {{ saving ? 'Saving...' : (isNew ? 'Save' : (hasChanges ? 'Save' : 'Saved')) }}
+          <span v-if="saving" class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
+          <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
         </button>
       </div>
     </div>
@@ -34,7 +36,7 @@
     </div>
 
     <!-- Note View/Edit -->
-    <div v-else-if="note || isNew">
+    <div v-else-if="note || isNew" class="flex-1 flex flex-col min-h-0">
       <!-- Header -->
       <div class="mb-6">
         <!-- Title - derived from first line of content -->
@@ -59,20 +61,6 @@
             </span>
           </div>
         </template>
-
-        <!-- Editor tags display (new or editing) -->
-        <div v-else-if="editorTags.length > 0" class="flex flex-wrap gap-2 mb-4">
-          <span v-for="tag in editorTags" :key="tag"
-            class="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full"
-            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-            {{ tag }}
-            <button @click="removeTag(tag)" class="hover:opacity-75">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </span>
-        </div>
       </div>
 
       <!-- View mode content (existing note, not editing) -->
@@ -82,24 +70,25 @@
       </template>
 
       <!-- Editor mode (new or editing) -->
-      <div v-else class="card">
+      <div v-else class="card flex-1 flex flex-col min-h-0 -mt-6">
         <!-- Content Area -->
-        <div class="min-h-[300px]">
+        <div class="flex-1 min-h-0">
           <textarea v-model="editorContent" placeholder="Write your markdown here..."
-            class="w-full h-full min-h-[300px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
-            autofocus></textarea>
+            class="w-full h-full min-h-[200px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
+            autofocus enterkeyhint="default" inputmode="text"></textarea>
         </div>
 
         <!-- Footer -->
-        <div class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div class="text-sm text-gray-500 dark:text-gray-400">
+        <div
+          class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+          <div class="text-sm text-gray-500 dark:text-gray-400 hidden md:block">
             {{ editorWordCount }} words
           </div>
 
           <!-- Tags Section -->
           <div class="">
             <div class="flex items-center gap-3 flex-wrap">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Tags:</span>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0 hidden ">Tags:</span>
 
               <!-- Current tags -->
               <div class="flex flex-wrap gap-1 items-center">
@@ -248,7 +237,7 @@ async function loadNote() {
   loading.value = true
 
   const id = route.params.id as string
-  
+
   // Load from local cache FIRST - this is instant from IndexedDB
   const localNote = await getNoteById(id)
   note.value = localNote
