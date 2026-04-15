@@ -236,7 +236,6 @@ const linkOnlyMode = computed(() => {
 
 const { render } = useMarkdown()
 
-// Reader settings with real-time reactivity
 const { fontSize, fontFamily, lineHeight } = useReaderSettings()
 
 const renderedMarkdown = computed(() => {

@@ -93,8 +93,7 @@ docker run -p 3000:3000 -e POSTGRES_URL=postgresql://... bkmk
 - `GET /api/bookmarks` - List bookmarks
 - `POST /api/scrape` - Scrape and save a new bookmark
 - `GET /api/tags` - List tags
-- `POST /api/notes/markdown` - Create markdown notes
-- `POST /api/notes/secret` - Create encrypted secret notes
+- `POST /api/notes` - Create markdown notes
 
 ## PWA Features
 

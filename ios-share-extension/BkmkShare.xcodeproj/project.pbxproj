@@ -14,6 +14,8 @@
 		5567AD36FC405219FFD50DBC /* BkmkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69CF035C2F86A94469D818CC /* BkmkApp.swift */; };
 		5927164A421F0FFBE4B8B9C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A4B39F4C98EDE0AEA2FCCF1 /* Assets.xcassets */; };
 		64CF555787B5A7136AAD6A5F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B835252A2710E3B0C7435CE /* Models.swift */; };
+		8315A8DB2F900A3C00473AFA /* NoteViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8315A8DA2F900A3400473AFA /* NoteViews.swift */; };
+		8315A8DD2F900AAA00473AFA /* BookmarkViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8315A8DC2F900AAA00473AFA /* BookmarkViews.swift */; };
 		831DD0EE2F8650C400F9EC46 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 831DD0ED2F8650C400F9EC46 /* Textual */; };
 		8AC943ABDCB9381316F9098B /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = FAF1B897BC9C57270AA2031C /* Contents.json */; };
 		9613AF750238BE56D32A182B /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 57A9FE3A37F7EECCCF99B61D /* MainInterface.storyboard */; };
@@ -62,6 +64,8 @@
 		685C3054FB10EF0A5691AE9A /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		69CF035C2F86A94469D818CC /* BkmkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BkmkApp.swift; sourceTree = "<group>"; };
 		8071944122BF83DF2BE86653 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8315A8DA2F900A3400473AFA /* NoteViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteViews.swift; sourceTree = "<group>"; };
+		8315A8DC2F900AAA00473AFA /* BookmarkViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkViews.swift; sourceTree = "<group>"; };
 		95A71685B71E3A01503D784D /* BkmkShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BkmkShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		997E133B6ABBC528078BEB9B /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BkmkShare.entitlements; sourceTree = "<group>"; };
@@ -109,6 +113,8 @@
 				69CF035C2F86A94469D818CC /* BkmkApp.swift */,
 				B66AA3432B54D8C2C2783D6B /* BkmkShare.entitlements */,
 				57D33E71C98CAFFFC08CFD54 /* ContentView.swift */,
+				8315A8DC2F900AAA00473AFA /* BookmarkViews.swift */,
+				8315A8DA2F900A3400473AFA /* NoteViews.swift */,
 				1F0AD2B342363ADF6E4425F2 /* Info.plist */,
 				3B835252A2710E3B0C7435CE /* Models.swift */,
 			);
@@ -269,7 +275,9 @@
 				5567AD36FC405219FFD50DBC /* BkmkApp.swift in Sources */,
 				AB5C1AE1D628E2B3381D75A4 /* ContentView.swift in Sources */,
 				9A76AEF16716597364BE85CA /* KeychainHelper.swift in Sources */,
+				8315A8DB2F900A3C00473AFA /* NoteViews.swift in Sources */,
 				64CF555787B5A7136AAD6A5F /* Models.swift in Sources */,
+				8315A8DD2F900AAA00473AFA /* BookmarkViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

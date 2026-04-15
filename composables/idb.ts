@@ -177,18 +177,7 @@ export function useIdb() {
 
   // ==================== NOTES ====================
   async function saveNote(note: Note): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(NOTES_STORE, 'readwrite')
-      const store = tx.objectStore(NOTES_STORE)
-      const request = store.put(note)
-
-      request.onsuccess = () => {
-        console.log('[IDB] Saved note:', note.id)
-        resolve()
-      }
-      request.onerror = () => reject(request.error)
-    })
+    return saveNotes([note])
   }
 
   async function saveNotes(notes: Note[]): Promise<void> {
@@ -256,15 +245,7 @@ export function useIdb() {
 
   // ==================== TAGS ====================
   async function saveTag(tag: Tag): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(TAGS_STORE, 'readwrite')
-      const store = tx.objectStore(TAGS_STORE)
-      const request = store.put(tag)
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    return saveTags([tag])
   }
 
   async function saveTags(tags: Tag[]): Promise<void> {
@@ -318,15 +299,7 @@ export function useIdb() {
 
   // ==================== BOOKMARKS ====================
   async function saveBookmark(bookmark: Bookmark): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
-      const store = tx.objectStore(BOOKMARKS_STORE)
-      const request = store.put(bookmark)
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    return saveBookmarks([bookmark])
   }
 
   async function saveBookmarks(bookmarks: Bookmark[]): Promise<void> {
@@ -335,7 +308,10 @@ export function useIdb() {
       const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
       const store = tx.objectStore(BOOKMARKS_STORE)
 
-      bookmarks.forEach(bookmark => store.put(bookmark))
+      bookmarks.forEach(bookmark => {
+        bookmark.original_html = null // Don't store original HTML locally.
+        store.put(bookmark)
+      })
 
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)

@@ -322,7 +322,7 @@ DELETE /api/bookmarks/:id/tags
 #### List Notes
 
 ```
-GET /api/notes/markdown?page=1&limit=20&sort=updatedAt&tag=optional
+GET /api/notes?page=1&limit=20&sort=updatedAt&tag=optional
 ```
 
 **Query Parameters:**
@@ -361,7 +361,7 @@ GET /api/notes/markdown?page=1&limit=20&sort=updatedAt&tag=optional
 #### Create Note
 
 ```
-POST /api/notes/markdown
+POST /api/notes
 ```
 
 **Body:**
@@ -381,7 +381,7 @@ POST /api/notes/markdown
 #### Get Note
 
 ```
-GET /api/notes/markdown/:id
+GET /api/notes/:id
 ```
 
 **Response:** Single note object with full content.
@@ -391,7 +391,7 @@ GET /api/notes/markdown/:id
 #### Update Note
 
 ```
-PUT /api/notes/markdown/:id
+PUT /api/notes/:id
 ```
 
 **Body:**
@@ -411,7 +411,7 @@ PUT /api/notes/markdown/:id
 #### Delete Note
 
 ```
-DELETE /api/notes/markdown/:id
+DELETE /api/notes/:id
 ```
 
 **Response:**

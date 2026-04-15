@@ -31,7 +31,7 @@
       <!-- Pending Changes Badge -->
       <span
         v-if="pendingChanges > 0 && !isOnline"
-        class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-white/20"
+        class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-white/20 whitespace-nowrap"
       >
         {{ pendingChanges }} pending
       </span>

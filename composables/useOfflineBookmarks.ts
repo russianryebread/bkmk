@@ -32,7 +32,8 @@ export function useOfflineBookmarks() {
   async function fetchBookmarksPaginated(
     cursor: string | null,
     filters: CursorBookmarkFilters = {},
-    limit: number = 20
+    limit: number = 20,
+    refresh: boolean = true
   ): Promise<{ bookmarks: Bookmark[]; nextCursor: string | null; hasMore: boolean }> {
     offlineError.value = null
     
@@ -94,7 +95,9 @@ export function useOfflineBookmarks() {
       
       // Refresh from server in background
       if (isOnline.value) {
-        refreshFromServer()
+        refreshFromServer().then(() => {
+          fetchBookmarksPaginated(cursor, filters, limit, false); // Refetch to update with any new data
+        })
       }
       
       return {

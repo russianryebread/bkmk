@@ -1,469 +1,565 @@
 import { useIdb, type Note } from './idb'
 
-// Helper to convert refs to plain objects for IndexedDB storage
-function toPlainObject(obj: any): any {
-  if (obj === null || obj === undefined) return obj
-  if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') return obj
-  if (Array.isArray(obj)) return obj.map(toPlainObject)
-  if (typeof obj === 'object') {
-    const plain: any = {}
-    for (const key of Object.keys(obj)) {
-      const value = obj[key]
-      // Skip refs and reactive objects
-      if (value && typeof value === 'object' && 'value' in value) {
-        plain[key] = value.value
-      } else if (typeof value !== 'function') {
-        plain[key] = toPlainObject(value)
-      }
-    }
-    return plain
-  }
-  return obj
-}
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface CursorNoteFilters {
-  tag?: string
-  search?: string
-  sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
-  order?: 'asc' | 'desc'
-  favorite?: boolean
-}
-
-export function useOfflineNotes() {
-  // Get IDB instance without destructuring to avoid cloning refs
-  const idb = useIdb()
-  const cacheVersion = ref(0)
-  
-  const isOnline = ref(true)
-  const offlineError = ref<string | null>(null)
-
-  // Initialize online status
-  onMounted(() => {
-    isOnline.value = navigator.onLine
-
-    // Watch cache version to trigger refresh when cache is updated
-    watch(() => cacheVersion, () => {
-      console.log('[OfflineNotes] Cache version changed, triggering refresh')
-    })
-    
-    window.addEventListener('online', () => {
-      console.log('[OfflineNotes] Back online')
-      isOnline.value = true
-      offlineError.value = null
-    })
-    
-    window.addEventListener('offline', () => {
-      console.log('[OfflineNotes] Gone offline')
-      isOnline.value = false
-    })
-  })
-
-  // Get notes with cursor-based pagination for infinite scroll
-  async function getNotesPaginated(
-    cursor: string | null,
-    options: CursorNoteFilters = {},
-    limit: number = 20
-  ): Promise<{ notes: Note[]; nextCursor: string | null; hasMore: boolean }> {
-    offlineError.value = null
-    
-    const { tag, search, sort = 'updatedAt', order = 'desc', favorite } = options
-
-    try {
-      let notes = await idb.getAllNotes()
-      
-      // Filter by favorite
-      if (favorite !== undefined) {
-        notes = notes.filter(n => n.isFavorite === favorite)
-      }
-      
-      // Filter by tag
-      if (tag) {
-        notes = notes.filter(n => n.tags.includes(tag))
-      }
-      
-      // Filter by search
-      if (search) {
-        const query = search.toLowerCase()
-        notes = notes.filter(n => 
-          n.content.toLowerCase().includes(query) ||
-          n.tags.some(t => t.toLowerCase().includes(query))
-        )
-      }
-      
-      // Sort
-      notes.sort((a, b) => {
-        let aVal = a[sort] as string | number | boolean
-        let bVal = b[sort] as string | number | boolean
-        
-        if (typeof aVal === 'boolean') aVal = aVal ? 1 : 0
-        if (typeof bVal === 'boolean') bVal = bVal ? 1 : 0
-        
-        if (order === 'desc') {
-          return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
-        }
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0
-      })
-      
-      // Find cursor position
-      let startIndex = 0
-      if (cursor) {
-        const cursorIndex = notes.findIndex(n => n.id === cursor)
-        if (cursorIndex !== -1) {
-          startIndex = cursorIndex + 1
-        }
-      }
-      
-      // Get page of results
-      const pageNotes = notes.slice(startIndex, startIndex + limit)
-      const hasMore = startIndex + limit < notes.length
-      const nextCursor = hasMore && pageNotes.length > 0 
-        ? pageNotes[pageNotes.length - 1].id 
-        : null
-      
-      console.log('[OfflineNotes] Returning', pageNotes.length, 'notes, hasMore:', hasMore)
-      
-      // Then refresh from server in background
-      if (isOnline.value) {
-        refreshFromServer()
-      }
-      
-      return {
-        notes: pageNotes,
-        nextCursor,
-        hasMore,
-      }
-    } catch (e: any) {
-      console.error('[OfflineNotes] IndexedDB fetch failed:', e)
-      offlineError.value = 'Failed to load notes'
-      return { notes: [], nextCursor: null, hasMore: false }
-    }
-  }
-
-  // Legacy getNotes for backwards compatibility
-  async function getNotes(options: { 
-    tag?: string 
+    tag?: string
+    search?: string
     sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
     order?: 'asc' | 'desc'
-    page?: number
-    limit?: number
-  } = {}): Promise<Note[]> {
-    const result = await getNotesPaginated(null, {
-      tag: options.tag,
-      sort: options.sort,
-      order: options.order,
-    }, options.limit || 20)
-    return result.notes
-  }
+    favorite?: boolean
+}
 
-  // Refresh cache from server (background, non-blocking)
-  async function refreshFromServer(): Promise<void> {
-    if (!isOnline.value) return
+// ---------------------------------------------------------------------------
+// Composable
+// ---------------------------------------------------------------------------
 
-    try {
-      console.log('[OfflineNotes] Refreshing cache from server (background)')
-      const response = await $fetch<{ notes: any[] }>('/api/notes/markdown?limit=1000')
+export function useOfflineNotes() {
+    const idb = useIdb()
+    const isOnline = ref<Boolean>(false)
+    const offlineError = ref<string | null>(null)
 
-      if (response.notes && response.notes.length > 0) {
-        const notes: Note[] = response.notes.map(n => ({
-          id: n.id,
-          content: n.content,
-          tags: n.tags || [],
-          isFavorite: n.isFavorite,
-          createdAt: n.createdAt,
-          updatedAt: n.updatedAt,
-        }))
-        await idb.saveNotes(notes)
-        cacheVersion.value++ // Increment version to trigger UI updates
-        console.log('[OfflineNotes] Cache refreshed with', notes.length, 'notes')
-      }
-    } catch (e: any) {
-      console.warn('[OfflineNotes] Cache refresh failed:', e.message)
-    }
-  }
+    // Tracks whether a background refresh is already in flight so we never run
+    // two simultaneous full-refresh cycles (was a bug in the original).
+    let refreshInFlight = false
+    // Timestamp of the last completed refresh – used for simple debouncing.
+    let lastRefreshAt = 0
+    const REFRESH_DEBOUNCE_MS = 30_000 // at most once per 30 s
 
-  // Get single note - always from IndexedDB first
-  async function getNoteById(id: string): Promise<Note | null> {
-    offlineError.value = null
-    
-    // First, read from IndexedDB
-    try {
-      const cached = await idb.getNote(id)
-      if (cached) {
-        console.log('[OfflineNotes] Found note in IndexedDB:', id)
-        
-        // Then refresh from server in background
-        if (isOnline.value) {
-          refreshNoteFromServer(id)
-        }
-        
-        return cached
-      }
-    } catch (e: any) {
-      console.warn('[OfflineNotes] IndexedDB lookup failed:', e.message)
-    }
-    
-    // If not in cache and online, try server
-    if (isOnline.value) {
-      try {
-        const response = await $fetch<any>(`/api/notes/markdown/${id}`)
-        const note: Note = {
-          id: response.id,
-          content: response.content,
-          tags: response.tags || [],
-          isFavorite: response.isFavorite,
-          createdAt: response.createdAt,
-          updatedAt: response.updatedAt,
-        }
-        await idb.saveNote(note)
-        return note
-      } catch (e: any) {
-        console.warn('[OfflineNotes] Server fetch failed:', e.message)
-      }
-    }
-    
-    return null
-  }
+    onMounted(() => {
+        isOnline.value = navigator.onLine
 
-  // Refresh single note from server (background, non-blocking)
-  async function refreshNoteFromServer(id: string): Promise<void> {
-    if (!isOnline.value) return
-    
-    try {
-      const response = await $fetch<any>(`/api/notes/markdown/${id}`)
-      
-      // Get current local note to check timestamp
-      const localNote = await idb.getNote(id)
-      
-      // Only overwrite if server version is NEWER than local version
-      // NEVER overwrite if local has more recent changes
-      if (localNote && new Date(localNote.updatedAt) > new Date(response.updatedAt)) {
-        console.log('[OfflineNotes] Local note is newer, skipping server refresh:', id)
-        return
-      }
-      
-      const note: Note = {
-        id: response.id,
-        content: response.content,
-        tags: response.tags || [],
-        isFavorite: response.isFavorite,
-        createdAt: response.createdAt,
-        updatedAt: response.updatedAt,
-      }
-      await idb.saveNote(note)
-      console.log('[OfflineNotes] Refreshed note from server:', id)
-    } catch (e) {
-      // Silently fail - we have cached version
-    }
-  }
-
-  // Create note - save locally and queue sync
-  async function createNote(data: { content: string; tags?: string[]; isFavorite?: boolean }): Promise<Note | null> {
-    // Convert to plain object to handle reactive refs
-    const plainData = toPlainObject(data)
-
-    const id = crypto.randomUUID()
-    const now = new Date().toISOString()
-
-    const note: Note = {
-      id,
-      content: plainData.content,
-      tags: plainData.tags || [],
-      isFavorite: plainData.isFavorite || false,
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    try {
-      console.log('note', note)
-      // Save to IndexedDB immediately
-      await idb.saveNote(note)
-      console.log('[OfflineNotes] Created note locally:', id)
-
-      // Queue for sync if online
-      if (isOnline.value) {
-        try {
-          const response = await $fetch<any>('/api/notes/markdown', {
-            method: 'POST',
-            body: { content: note.content, tags: note.tags, isFavorite: note.isFavorite }
-          })
-
-          // Update with server ID if different
-          if (response.id !== id) {
-            // Delete local with temp ID and save with server ID
-            await idb.deleteNote(id)
-            note.id = response.id
-            await idb.saveNote(note)
-          }
-          console.log('[OfflineNotes] Synced note to server')
-        } catch (e) {
-          console.warn('[OfflineNotes] Failed to sync note, queuing for later:', e)
-          // Use plain object to avoid cloning issues
-          await idb.addToSyncQueue({
-            id,
-            action: 'create',
-            entity: 'note',
-            data: toPlainObject({ content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
-            timestamp: Date.now(),
-          })
-        }
-      } else {
-        // Queue for sync when back online
-        await idb.addToSyncQueue({
-          id,
-          action: 'create',
-          entity: 'note',
-          data: toPlainObject({ content: note.content, tags: note.tags, isFavorite: note.isFavorite }),
-          timestamp: Date.now(),
+        window.addEventListener('online', () => {
+            console.log('[OfflineNotes] Back online')
+            isOnline.value = true
+            offlineError.value = null
+            // Push any queued local changes now that we're back online.
+            syncQueuedChanges()
         })
-      }
 
-      return note
-    } catch (e: any) {
-      console.error('[OfflineNotes] Failed to create note:', e)
-      return null
-    }
-  }
+        window.addEventListener('offline', () => {
+            console.log('[OfflineNotes] Gone offline')
+            isOnline.value = false
+        })
+    })
 
-  // Update note - save locally and queue sync
-  async function updateNote(id: string, data: { content?: string; tags?: string[]; isFavorite?: boolean }): Promise<boolean> {
-    // Convert to plain object to handle reactive refs
-    const plainData = toPlainObject(data)
+    // -------------------------------------------------------------------------
+    // Public: paginated read
+    // -------------------------------------------------------------------------
 
-    try {
-      // Get current note
-      const current = await idb.getNote(id)
-      if (!current) {
-        console.error('[OfflineNotes] Note not found:', id)
-        return false
-      }
+    async function getNotesPaginated(
+        cursor: string | null,
+        options: CursorNoteFilters = {},
+        limit = 20,
+    ): Promise<{ notes: Note[]; nextCursor: string | null; hasMore: boolean }> {
+        offlineError.value = null
 
-      const updated: Note = {
-        ...current,
-        content: plainData.content ?? current.content,
-        tags: plainData.tags ?? current.tags,
-        isFavorite: plainData.isFavorite ?? current.isFavorite,
-        updatedAt: new Date().toISOString(),
-      }
+        const {
+            tag,
+            search,
+            sort = 'updatedAt',
+            order = 'desc',
+            favorite,
+        } = options
 
-      // Save to IndexedDB immediately
-      await idb.saveNote(updated)
-      console.log('[OfflineNotes] Updated note locally:', id)
-
-      // Queue for sync if online
-      if (isOnline.value) {
         try {
-          await $fetch(`/api/notes/markdown/${id}`, {
-            method: 'PUT',
-            body: {
-              content: updated.content,
-              tags: updated.tags,
-              isFavorite: updated.isFavorite,
+            let notes = await idb.getAllNotes()
+
+            if (favorite !== undefined)
+                notes = notes.filter((n) => n.isFavorite === favorite)
+            if (tag) notes = notes.filter((n) => n.tags.includes(tag))
+            if (search) {
+                const q = search.toLowerCase()
+                notes = notes.filter(
+                    (n) =>
+                        n.content.toLowerCase().includes(q) ||
+                        n.tags.some((t) => t.toLowerCase().includes(q)),
+                )
             }
-          })
-          console.log('[OfflineNotes] Synced note update to server')
-        } catch (e) {
-          console.warn('[OfflineNotes] Failed to sync note update, queuing for later:', e)
-          await idb.addToSyncQueue({
-            id,
-            action: 'update',
-            entity: 'note',
-            data: toPlainObject({
-              content: updated.content,
-              tags: updated.tags,
-              isFavorite: updated.isFavorite,
-            }),
-            timestamp: Date.now(),
-          })
+
+            notes.sort((a, b) => {
+                let av = a[sort] as string | number | boolean
+                let bv = b[sort] as string | number | boolean
+                if (typeof av === 'boolean') av = av ? 1 : 0
+                if (typeof bv === 'boolean') bv = bv ? 1 : 0
+                return order === 'desc'
+                    ? av < bv
+                        ? 1
+                        : av > bv
+                          ? -1
+                          : 0
+                    : av > bv
+                      ? 1
+                      : av < bv
+                        ? -1
+                        : 0
+            })
+
+            let startIndex = 0
+            if (cursor) {
+                const idx = notes.findIndex((n) => n.id === cursor)
+                if (idx !== -1) startIndex = idx + 1
+            }
+
+            const page = notes.slice(startIndex, startIndex + limit)
+            const hasMore = startIndex + limit < notes.length
+            const nextCursor =
+                hasMore && page.length > 0 ? page[page.length - 1].id : null
+
+            // Only trigger a background refresh on the *first* page of a fresh query
+            // (cursor === null) and only if enough time has passed since the last one.
+            if (isOnline.value && cursor === null) {
+                maybeRefreshFromServer()
+            }
+
+            return { notes: page, nextCursor, hasMore }
+        } catch (e: any) {
+            console.error('[OfflineNotes] IndexedDB fetch failed:', e)
+            offlineError.value = 'Failed to load notes'
+            return { notes: [], nextCursor: null, hasMore: false }
         }
-      } else {
-        // Queue for sync when back online
-        await idb.addToSyncQueue({
-          id,
-          action: 'update',
-          entity: 'note',
-          data: toPlainObject({
-            content: updated.content,
-            tags: updated.tags,
-            isFavorite: updated.isFavorite,
-          }),
-          timestamp: Date.now(),
-        })
-      }
-
-      return true
-    } catch (e: any) {
-      console.error('[OfflineNotes] Failed to update note:', e)
-      return false
     }
-  }
 
-  // Delete note - save locally and queue sync
-  async function deleteNoteFn(id: string): Promise<boolean> {
-    try {
-      // Remove from IndexedDB
-      await idb.deleteNote(id)
-      console.log('[OfflineNotes] Deleted note from IndexedDB:', id)
+    /** Backwards-compatible wrapper. */
+    async function getNotes(
+        options: {
+            tag?: string
+            sort?: 'createdAt' | 'title' | 'updatedAt' | 'isFavorite'
+            order?: 'asc' | 'desc'
+            limit?: number
+        } = {},
+    ): Promise<Note[]> {
+        const result = await getNotesPaginated(
+            null,
+            options,
+            options.limit ?? 20,
+        )
+        return result.notes
+    }
 
-      // Queue for sync if online
-      if (isOnline.value) {
+    // -------------------------------------------------------------------------
+    // Background server sync – pull then push
+    // -------------------------------------------------------------------------
+
+    /** Debounced gate: skips if another refresh is running or ran recently. */
+    function maybeRefreshFromServer() {
+        const now = Date.now()
+        if (refreshInFlight || now - lastRefreshAt < REFRESH_DEBOUNCE_MS) return
+        refreshFromServer()
+    }
+
+    async function refreshFromServer(): Promise<void> {
+        if (!isOnline.value || refreshInFlight) return
+        refreshInFlight = true
+
         try {
-          await $fetch(`/api/notes/markdown/${id}`, { method: 'DELETE' })
-          console.log('[OfflineNotes] Synced note deletion to server')
-        } catch (e) {
-          console.warn('[OfflineNotes] Failed to sync note deletion, queuing for later:', e)
-          await idb.addToSyncQueue({
-            id,
-            action: 'delete',
-            entity: 'note',
-            data: toPlainObject({ id }),
-            timestamp: Date.now(),
-          })
+            console.log('[OfflineNotes] Background sync started')
+
+            // --- Pull: fetch server notes ---
+            const response = await $fetch<{ notes: any[] }>(
+                '/api/notes?limit=1000',
+            )
+            const serverNotes: Note[] = (response.notes ?? []).map((n) => ({
+                id: n.id,
+                content: n.content,
+                tags: n.tags ?? [],
+                isFavorite: n.isFavorite,
+                createdAt: n.createdAt,
+                updatedAt: n.updatedAt,
+                deletedAt: n.deletedAt ?? null,
+            }))
+
+            const serverMap = new Map(serverNotes.map((n) => [String(n.id), n]))
+
+            // Get local snapshot *before* writing server data so we can diff fairly.
+            const localNotes: Note[] = await idb.getAllNotes()
+            const localMap = new Map(localNotes.map((n) => [String(n.id), n]))
+
+            // Merge strategy: server wins only when its updatedAt is strictly newer.
+            const toSaveLocally: Note[] = []
+            for (const server of serverNotes) {
+                const local = localMap.get(String(server.id))
+                if (
+                    !local ||
+                    new Date(server.updatedAt) > new Date(local.updatedAt)
+                ) {
+                    toSaveLocally.push(server)
+                }
+            }
+            if (toSaveLocally.length) await idb.saveNotes(toSaveLocally)
+
+            // --- Push: upload local notes that are newer than the server version ---
+            const toUpload: Note[] = []
+            for (const local of localNotes) {
+                if (!local.id) {
+                    // Orphan with no id – always needs to be created on the server.
+                    toUpload.push(local)
+                    continue
+                }
+                const server = serverMap.get(String(local.id))
+                if (!server) {
+                    // Not on server at all – needs creating.
+                    toUpload.push(local)
+                } else if (
+                    new Date(local.updatedAt) > new Date(server.updatedAt)
+                ) {
+                    // Local is genuinely newer – push the update.
+                    toUpload.push(local)
+                }
+            }
+
+            if (toUpload.length) {
+                console.log(
+                    '[OfflineNotes] Pushing',
+                    toUpload.length,
+                    'notes to server',
+                )
+                await Promise.allSettled(toUpload.map((note) => pushNote(note)))
+            } else {
+                console.log('[OfflineNotes] Nothing to push')
+            }
+
+            lastRefreshAt = Date.now()
+            console.log('[OfflineNotes] Background sync complete')
+        } catch (e: any) {
+            console.warn('[OfflineNotes] Background sync failed:', e.message)
+        } finally {
+            refreshInFlight = false
         }
-      } else {
-        // Queue for sync when back online
+    }
+
+    /**
+     * Push a single note to the server.
+     * - Uses POST when the note has no server-side id (new note).
+     * - Uses PUT when the note already has an id.
+     * Saves the canonical server response back to IDB so IDs stay consistent.
+     */
+    async function pushNote(note: Note): Promise<void> {
+        const body = {
+            content: note.content,
+            tags: note.tags,
+            isFavorite: note.isFavorite,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+        }
+
+        const isNew = !note.id
+        const url = isNew
+            ? '/api/notes'
+            : `/api/notes/${encodeURIComponent(note.id)}`
+        const method = isNew ? 'POST' : 'PUT'
+
+        try {
+            const saved = await $fetch<any>(url, { method, body })
+            if (!saved) return
+
+            const canonical: Note = {
+                id: saved.id ?? note.id,
+                content: saved.content ?? note.content,
+                tags: saved.tags ?? note.tags ?? [],
+                isFavorite: saved.isFavorite ?? note.isFavorite,
+                createdAt: saved.createdAt ?? note.createdAt,
+                updatedAt: saved.updatedAt ?? note.updatedAt,
+                deletedAt: saved.deletedAt ?? null,
+            }
+
+            // If the server issued a new id (new note), retire the temp local id.
+            if (isNew && note.id && canonical.id !== note.id) {
+                await idb.deleteNote(note.id)
+            }
+
+            await idb.saveNote(canonical)
+        } catch (err: any) {
+            console.warn(
+                '[OfflineNotes] Failed to push note',
+                note.id ?? '(new)',
+                err?.message ?? err,
+            )
+            // Re-throw so Promise.allSettled can report it; we don't want to swallow
+            // errors silently here because callers may queue for retry.
+            throw err
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sync queue drain (called when coming back online)
+    // -------------------------------------------------------------------------
+
+    async function syncQueuedChanges(): Promise<void> {
+        try {
+            const queue = await idb.getSyncQueue?.()
+            if (!queue || queue.length === 0) return
+
+            console.log(
+                '[OfflineNotes] Draining sync queue:',
+                queue.length,
+                'items',
+            )
+
+            for (const item of queue) {
+                try {
+                    if (item.action === 'create') {
+                        const note = await idb.getNote(item.id)
+                        if (note) await pushNote(note)
+                    } else if (item.action === 'update') {
+                        const note = await idb.getNote(item.id)
+                        if (note) await pushNote(note)
+                    } else if (item.action === 'delete') {
+                        await $fetch(
+                            `/api/notes/${encodeURIComponent(item.id)}`,
+                            { method: 'DELETE' },
+                        )
+                    }
+                    await idb.removeSyncQueueItem?.(item.id)
+                } catch (e: any) {
+                    console.warn(
+                        '[OfflineNotes] Queue item failed, will retry later:',
+                        item.id,
+                        e?.message,
+                    )
+                }
+            }
+        } catch (e: any) {
+            console.warn(
+                '[OfflineNotes] Failed to drain sync queue:',
+                e?.message,
+            )
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Public: single note
+    // -------------------------------------------------------------------------
+
+    async function getNoteById(id: string): Promise<Note | null> {
+        offlineError.value = null
+
+        try {
+            const cached = await idb.getNote(id)
+            if (cached) {
+                if (isOnline.value) refreshSingleNoteFromServer(id)
+                return cached
+            }
+        } catch (e: any) {
+            console.warn('[OfflineNotes] IDB lookup failed:', e.message)
+        }
+
+        if (!isOnline.value) return null
+
+        try {
+            const response = await $fetch<any>(`/api/notes/${id}`)
+            const note: Note = {
+                id: response.id,
+                content: response.content,
+                tags: response.tags ?? [],
+                isFavorite: response.isFavorite,
+                createdAt: response.createdAt,
+                updatedAt: response.updatedAt,
+                deletedAt: response.deletedAt ?? null,
+            }
+            await idb.saveNote(note)
+            return note
+        } catch (e: any) {
+            console.warn('[OfflineNotes] Server fetch failed:', e.message)
+            return null
+        }
+    }
+
+    async function refreshSingleNoteFromServer(id: string): Promise<void> {
+        if (!isOnline.value) return
+        try {
+            const [response, local] = await Promise.all([
+                $fetch<any>(`/api/notes/${id}`),
+                idb.getNote(id),
+            ])
+
+            // Never overwrite a locally-newer note.
+            if (
+                local &&
+                new Date(local.updatedAt) >= new Date(response.updatedAt)
+            )
+                return
+
+            await idb.saveNote({
+                id: response.id,
+                content: response.content,
+                tags: response.tags ?? [],
+                isFavorite: response.isFavorite,
+                createdAt: response.createdAt,
+                updatedAt: response.updatedAt,
+                deletedAt: null,
+            })
+        } catch {
+            // Silent – we already have the cached version.
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Public: mutations
+    // -------------------------------------------------------------------------
+
+    async function createNote(data: {
+        content: string
+        tags?: string[]
+        isFavorite?: boolean
+    }): Promise<Note | null> {
+        const id = crypto.randomUUID()
+        const now = new Date().toISOString()
+
+        const note: Note = {
+            id,
+            content: data.content,
+            tags: data.tags ?? [],
+            isFavorite: data.isFavorite ?? false,
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+        }
+
+        try {
+            await idb.saveNote(note)
+
+            if (isOnline.value) {
+                try {
+                    await pushNote(note)
+                } catch {
+                    await enqueueSync('create', id, {
+                        content: note.content,
+                        tags: note.tags,
+                        isFavorite: note.isFavorite,
+                    })
+                }
+            } else {
+                await enqueueSync('create', id, {
+                    content: note.content,
+                    tags: note.tags,
+                    isFavorite: note.isFavorite,
+                })
+            }
+
+            return note
+        } catch (e: any) {
+            console.error('[OfflineNotes] Failed to create note:', e)
+            return null
+        }
+    }
+
+    async function updateNote(
+        id: string,
+        data: { content?: string; tags?: string[]; isFavorite?: boolean },
+    ): Promise<boolean> {
+        try {
+            const current = await idb.getNote(id)
+            if (!current) {
+                console.error('[OfflineNotes] Note not found for update:', id)
+                return false
+            }
+
+            const updated: Note = {
+                ...current,
+                content: data.content ?? current.content,
+                tags: data.tags ?? current.tags,
+                isFavorite: data.isFavorite ?? current.isFavorite,
+                updatedAt: new Date().toISOString(),
+            }
+
+            await idb.saveNote(updated)
+
+            if (isOnline.value) {
+                try {
+                    await pushNote(updated)
+                } catch {
+                    await enqueueSync('update', id, {
+                        content: updated.content,
+                        tags: updated.tags,
+                        isFavorite: updated.isFavorite,
+                    })
+                }
+            } else {
+                await enqueueSync('update', id, {
+                    content: updated.content,
+                    tags: updated.tags,
+                    isFavorite: updated.isFavorite,
+                })
+            }
+
+            return true
+        } catch (e: any) {
+            console.error('[OfflineNotes] Failed to update note:', e)
+            return false
+        }
+    }
+
+    async function deleteNote(id: string): Promise<boolean> {
+        try {
+            await idb.deleteNote(id)
+
+            if (isOnline.value) {
+                try {
+                    await $fetch(`/api/notes/${id}`, { method: 'DELETE' })
+                } catch {
+                    await enqueueSync('delete', id, { id })
+                }
+            } else {
+                await enqueueSync('delete', id, { id })
+            }
+
+            return true
+        } catch (e: any) {
+            console.error('[OfflineNotes] Failed to delete note:', e)
+            return false
+        }
+    }
+
+    async function searchNotes(query: string): Promise<Note[]> {
+        try {
+            return await idb.searchNotes(query)
+        } catch (e: any) {
+            console.error('[OfflineNotes] Search failed:', e)
+            return []
+        }
+    }
+
+    async function toggleFavorite(id: string): Promise<boolean> {
+        const note = await idb.getNote(id)
+        if (!note) return false
+        return updateNote(id, { isFavorite: !note.isFavorite })
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal helpers
+    // -------------------------------------------------------------------------
+
+    async function enqueueSync(
+        action: 'create' | 'update' | 'delete',
+        id: string,
+        data: unknown,
+    ) {
         await idb.addToSyncQueue({
-          id,
-          action: 'delete',
-          entity: 'note',
-          data: toPlainObject({ id }),
-          timestamp: Date.now(),
+            id,
+            action,
+            entity: 'note',
+            data,
+            timestamp: Date.now(),
         })
-      }
-      
-      return true
-    } catch (e: any) {
-      console.error('[OfflineNotes] Failed to delete note:', e)
-      return false
     }
-  }
 
-  // Search notes locally
-  async function searchNotes(query: string): Promise<Note[]> {
-    try {
-      return await idb.searchNotes(query)
-    } catch (e: any) {
-      console.error('[OfflineNotes] Search failed:', e)
-      return []
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
+    return {
+        isOnline,
+        offlineError,
+        getNotes,
+        getNotesPaginated,
+        getNoteById,
+        createNote,
+        updateNote,
+        deleteNote,
+        searchNotes,
+        toggleFavorite,
     }
-  }
-
-  // Toggle favorite
-  async function toggleFavorite(id: string): Promise<boolean> {
-    const note = await idb.getNote(id)
-    if (!note) return false
-    return updateNote(id, { isFavorite: !note.isFavorite })
-  }
-
-  return {
-    isOnline,
-    offlineError,
-    getNotes,
-    getNotesPaginated,
-    getNoteById,
-    createNote,
-    updateNote,
-    deleteNote: deleteNoteFn,
-    searchNotes,
-    toggleFavorite,
-  }
 }

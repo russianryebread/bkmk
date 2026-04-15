@@ -531,7 +531,7 @@ export function useTagSystem() {
     try {
       const endpoint = itemType === 'bookmark'
         ? `/api/bookmarks/${itemId}/tags`
-        : `/api/notes/markdown/${itemId}/tags`
+        : `/api/notes/${itemId}/tags`
 
       await $fetch(endpoint, {
         method: 'POST',
@@ -551,7 +551,7 @@ export function useTagSystem() {
     try {
       const endpoint = itemType === 'bookmark'
         ? `/api/bookmarks/${itemId}/tags`
-        : `/api/notes/markdown/${itemId}/tags`
+        : `/api/notes/${itemId}/tags`
 
       await $fetch(endpoint, {
         method: 'DELETE',

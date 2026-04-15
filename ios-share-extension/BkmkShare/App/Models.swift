@@ -11,7 +11,7 @@ struct Bookmark: Codable, Identifiable, Hashable {
     let readingTimeMinutes: Int?
     let savedAt: String?
     let lastAccessedAt: String?
-    let isFavorite: Bool?
+    var isFavorite: Bool?
     let isRead: Bool?
     let readAt: String?
     let sourceDomain: String?
@@ -41,6 +41,38 @@ struct Bookmark: Codable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Note Model
+struct Note: Codable, Identifiable, Hashable {
+    let id: String
+    let content: String
+    var isFavorite: Bool?
+    var sortOrder: Int?
+    let tags: [String]?
+    let createdAt: String?
+    let updatedAt: String?
+    let deletedAt: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, content
+        case isFavorite = "is_favorite"
+        case sortOrder = "sort_order"
+        case tags
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case deletedAt = "deleted_at"
+    }
+}
+
+struct NotesResponse: Codable {
+    let notes: [Note]
+    let pagination: NotePagination?
+}
+
+struct NoteResponse: Codable {
+    let success: Bool?
+    let note: Note?
+}
+
 // MARK: - API Response Models
 struct BookmarksResponse: Codable {
     let bookmarks: [Bookmark]
@@ -50,6 +82,13 @@ struct BookmarksResponse: Codable {
 struct BookmarkResponse: Codable {
     let success: Bool?
     let bookmark: Bookmark?
+}
+
+struct NotePagination: Codable {
+    let page: Int
+    let limit: Int
+    let total: String // Should be Int, but there's a bug in API
+    let totalPages: Int
 }
 
 struct Pagination: Codable {

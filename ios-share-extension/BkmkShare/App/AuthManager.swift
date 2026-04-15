@@ -18,6 +18,8 @@ class AuthManager: NSObject, ObservableObject {
     
     func checkLoginStatus() {
         if let token = KeychainHelper.shared.getToken() {
+            // We set this to true tentatively, but fetchUserInfo will
+            // revert it if the token is actually expired/invalid.
             isLoggedIn = true
             Task {
                 await fetchUserInfo(token: token)
@@ -98,7 +100,6 @@ class AuthManager: NSObject, ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // Use URL scheme for mobile OAuth callback
         let callbackScheme = "bkmkshare"
         let authURLString = "\(baseURL)/auth/\(provider)?redirect_uri=\(callbackScheme)://oauth/callback"
         guard let authURL = URL(string: authURLString) else {
@@ -110,17 +111,15 @@ class AuthManager: NSObject, ObservableObject {
         await withCheckedContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: authURL,
-                callbackURLScheme: "bkmkshare"
+                callbackURLScheme: callbackScheme
             ) { [weak self] callbackURL, error in
                 Task { @MainActor in
                     self?.isLoading = false
                     
                     if let error = error {
-                        if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
-                            continuation.resume()
-                            return
+                        if (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
+                            self?.errorMessage = error.localizedDescription
                         }
-                        self?.errorMessage = error.localizedDescription
                         continuation.resume()
                         return
                     }
@@ -153,6 +152,7 @@ class AuthManager: NSObject, ObservableObject {
         }
     }
     
+    /// Updated to handle invalid tokens
     private func fetchUserInfo(token: String) async {
         guard let url = URL(string: "\(baseURL)/auth/me") else { return }
         
@@ -160,7 +160,25 @@ class AuthManager: NSObject, ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // Check if the response is an HTTP response
+            if let httpResponse = response as? HTTPURLResponse {
+                // 401 Unauthorized means the token is invalid or expired
+                if httpResponse.statusCode == 401 {
+                    print("Token invalid or expired. Logging out...")
+                    logout()
+                    return
+                }
+                
+                // Optional: Handle other non-success codes
+                guard httpResponse.statusCode == 200 else {
+                    print("Server returned status code: \(httpResponse.statusCode)")
+                    return
+                }
+            }
+            
+            // Proceed with decoding user info
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let user = json["user"] as? [String: Any],
                let email = user["email"] as? String {
@@ -168,7 +186,8 @@ class AuthManager: NSObject, ObservableObject {
                 UserDefaults(suiteName: AppConfig.appGroupIdentifier)?.set(email, forKey: "userEmail")
             }
         } catch {
-            print("Failed to fetch user info: \(error)")
+            print("Network error while fetching user info: \(error)")
+            // Note: We don't log out on network errors, only on 401s.
         }
     }
     

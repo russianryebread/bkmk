@@ -10,11 +10,11 @@ A full-featured personal bookmarking application with offline reading, content e
 ### Tech Stack
 - **Frontend**: Nuxt 4 (Vue 3)
 - **Styling**: Tailwind CSS
-- **Database**: SQLite (with multi-device sync capability)
+- **Database**: PostgreSQL (with multi-device sync capability)
 - **Backend**: Nuxt server routes / nitro
 - **Content Extraction**: Server-side (Cheerio, Turndown, node-readability)
 - **Image Handling**: Local file storage with database references
-- **Search**: Full-text search via SQLite FTS5 module
+- **Search**: Full-text search via PostgreSQL full-text search
 - **Mobile**: Tailwind responsive design (mobile-friendly)
 
 ### Key Decisions
@@ -22,180 +22,212 @@ A full-featured personal bookmarking application with offline reading, content e
 ✅ Both HTML snapshot and markdown storage options  
 ✅ Images stored as files with database references  
 ✅ Full-text search + filtering/tags  
-✅ Simple password check for secret notes (not encrypted at rest)  
 ✅ All three reading modes (user choice)  
 ✅ Plain markdown editor with live preview  
 ✅ Flat + hierarchical tags both supported  
 
 ---
 
-## 2. DATA MODEL (SQLite Schema)
+## 2. DATA MODEL (PostgreSQL Schema)
 
 ### Core Tables
+
+#### `users`
+```sql
+CREATE TABLE users (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT, -- Nullable for OAuth users
+  role TEXT NOT NULL DEFAULT 'user', -- 'user' or 'admin'
+  avatar_url TEXT,
+  password_reset_token TEXT,
+  password_reset_expiry TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created ON users(created_at);
+```
+
+#### `user_accounts` (OAuth providers)
+```sql
+CREATE TABLE user_accounts (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  provider_user_id TEXT NOT NULL,
+  access_token TEXT,
+  refresh_token TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(provider, provider_user_id)
+);
+
+CREATE INDEX idx_user_accounts_user ON user_accounts(user_id);
+```
 
 #### `bookmarks`
 ```sql
 CREATE TABLE bookmarks (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id),
   title TEXT NOT NULL,
   url TEXT NOT NULL,
   description TEXT,
   
   -- Content storage
-  original_html TEXT,              -- Full HTML snapshot
-  cleaned_markdown TEXT,           -- Cleaned markdown version
-  reading_time_minutes INTEGER,    -- Estimated reading time
+  original_html TEXT,
+  cleaned_markdown TEXT,
+  reading_time_minutes INTEGER,
   
   -- Metadata
-  saved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_accessed_at DATETIME,
+  saved_at TIMESTAMP DEFAULT NOW(),
+  last_accessed_at TIMESTAMP,
   
   -- Organization
-  is_favorite BOOLEAN DEFAULT FALSE,
-  sort_order INTEGER,              -- For custom ordering
+  is_favorite INTEGER DEFAULT 0,
+  sort_order INTEGER,
   
   -- Image storage reference
-  thumbnail_image_path TEXT,       -- Path to thumbnail
+  thumbnail_image_path TEXT,
   
   -- Status
-  is_read BOOLEAN DEFAULT FALSE,
-  read_at DATETIME,
+  is_read INTEGER DEFAULT 0,
+  read_at TIMESTAMP,
   
   -- Additional fields
-  source_domain TEXT,              -- Extracted from URL
+  source_domain TEXT,
   word_count INTEGER,
   
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_bookmarks_created ON bookmarks(created_at DESC);
+CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
+CREATE INDEX idx_bookmarks_created ON bookmarks(created_at);
 CREATE INDEX idx_bookmarks_is_favorite ON bookmarks(is_favorite);
 CREATE INDEX idx_bookmarks_source_domain ON bookmarks(source_domain);
-```
-
-#### `bookmark_tags` (Junction table)
-```sql
-CREATE TABLE bookmark_tags (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  bookmark_id TEXT NOT NULL,
-  tag_id TEXT NOT NULL,
-  FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE,
-  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
-  UNIQUE(bookmark_id, tag_id)
-);
-
-CREATE INDEX idx_bookmark_tags_bookmark ON bookmark_tags(bookmark_id);
-CREATE INDEX idx_bookmark_tags_tag ON bookmark_tags(tag_id);
+CREATE INDEX idx_bookmarks_is_read ON bookmarks(is_read);
 ```
 
 #### `tags`
 ```sql
 CREATE TABLE tags (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  name TEXT NOT NULL UNIQUE,
-  parent_tag_id TEXT,              -- For hierarchical tags
-  color TEXT,                      -- Optional: hex color for UI
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_tag_id) REFERENCES tags(id) ON DELETE SET NULL
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  parent_tag_id TEXT,
+  color TEXT,
+  type TEXT DEFAULT 'both', -- 'bookmark' | 'note' | 'both'
+  description TEXT,
+  icon TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE INDEX idx_tags_user ON tags(user_id);
 CREATE INDEX idx_tags_name ON tags(name);
 CREATE INDEX idx_tags_parent ON tags(parent_tag_id);
+CREATE INDEX idx_tags_type ON tags(type);
+CREATE UNIQUE INDEX idx_tags_user_name ON tags(user_id, name);
 ```
 
-#### `markdown_notes`
+#### `bookmark_tags` (Junction table)
 ```sql
-CREATE TABLE markdown_notes (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,           -- Plain markdown
+CREATE TABLE bookmark_tags (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  bookmark_id TEXT NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_bookmark_tags_bookmark ON bookmark_tags(bookmark_id);
+CREATE INDEX idx_bookmark_tags_tag ON bookmark_tags(tag_id);
+CREATE UNIQUE INDEX idx_bookmark_tags_unique ON bookmark_tags(bookmark_id, tag_id);
+```
+
+#### `notes`
+```sql
+CREATE TABLE notes (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  content TEXT NOT NULL,
   
-  is_favorite BOOLEAN DEFAULT FALSE,
+  is_favorite INTEGER DEFAULT 0,
   sort_order INTEGER,
   
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_markdown_notes_created ON markdown_notes(created_at DESC);
-CREATE INDEX idx_markdown_notes_is_favorite ON markdown_notes(is_favorite);
+CREATE INDEX idx_notes_user ON notes(user_id);
+CREATE INDEX idx_notes_created ON notes(created_at);
+CREATE INDEX idx_notes_is_favorite ON notes(is_favorite);
 ```
 
-#### `secret_notes`
+#### `notes_tags` (Junction table)
 ```sql
-CREATE TABLE secret_notes (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,           -- Encrypted or plain (see security notes)
-  
-  password_hash TEXT NOT NULL,     -- bcrypt hash of password
-  
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_accessed_at DATETIME
+CREATE TABLE notes_tags (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_secret_notes_created ON secret_notes(created_at DESC);
+CREATE INDEX idx_notes_tags_note ON notes_tags(note_id);
+CREATE INDEX idx_notes_tags_tag ON notes_tags(tag_id);
+CREATE UNIQUE INDEX idx_notes_tags_unique ON notes_tags(note_id, tag_id);
 ```
 
-#### `bookmark_images`
+#### `images` (for bookmarks)
 ```sql
-CREATE TABLE bookmark_images (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  bookmark_id TEXT NOT NULL,
-  file_path TEXT NOT NULL,         -- Relative path in storage
-  alt_text TEXT,
-  position_in_article INTEGER,     -- For ordering
-  
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (bookmark_id) REFERENCES bookmarks(id) ON DELETE CASCADE
+CREATE TABLE images (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  bookmark_id TEXT NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
+  original_url TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  width INTEGER,
+  height INTEGER,
+  size_bytes INTEGER NOT NULL,
+  data TEXT NOT NULL, -- Base64 encoded
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_bookmark_images_bookmark ON bookmark_images(bookmark_id);
+CREATE INDEX idx_images_bookmark ON images(bookmark_id);
+CREATE INDEX idx_images_original_url ON images(original_url);
 ```
 
-#### `sync_metadata` (For multi-device sync)
+#### `api_tokens`
+```sql
+CREATE TABLE api_tokens (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  token_prefix TEXT NOT NULL,
+  last_used_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  is_active INTEGER DEFAULT 1,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
+CREATE INDEX idx_api_tokens_active ON api_tokens(is_active);
+```
+
+#### `sync_metadata`
 ```sql
 CREATE TABLE sync_metadata (
-  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),
-  entity_type TEXT NOT NULL,       -- 'bookmark', 'note', 'markdown_note', 'tag'
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
-  last_modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  is_deleted BOOLEAN DEFAULT FALSE,
-  sync_status TEXT DEFAULT 'pending',  -- 'pending', 'synced', 'conflict'
-  
+  last_modified_at TIMESTAMP DEFAULT NOW(),
+  is_deleted INTEGER DEFAULT 0,
+  sync_status TEXT DEFAULT 'pending',
   UNIQUE(entity_type, entity_id)
 );
 
 CREATE INDEX idx_sync_metadata_status ON sync_metadata(sync_status);
-```
-
-#### `fts_bookmarks` (Full-text search index)
-```sql
-CREATE VIRTUAL TABLE fts_bookmarks USING fts5(
-  title,
-  description,
-  cleaned_markdown,
-  content=bookmarks,
-  content_rowid=id
-);
-
--- Triggers to keep FTS index in sync
-CREATE TRIGGER fts_ai AFTER INSERT ON bookmarks BEGIN
-  INSERT INTO fts_bookmarks(rowid, title, description, cleaned_markdown)
-  VALUES (new.id, new.title, new.description, new.cleaned_markdown);
-END;
-
-CREATE TRIGGER fts_ad AFTER DELETE ON bookmarks BEGIN
-  DELETE FROM fts_bookmarks WHERE rowid = old.id;
-END;
-
-CREATE TRIGGER fts_au AFTER UPDATE ON bookmarks BEGIN
-  DELETE FROM fts_bookmarks WHERE rowid = old.id;
-  INSERT INTO fts_bookmarks(rowid, title, description, cleaned_markdown)
-  VALUES (new.id, new.title, new.description, new.cleaned_markdown);
-END;
 ```
 
 ---
@@ -203,91 +235,114 @@ END;
 ## 3. PROJECT STRUCTURE
 
 ```
-bookmark-app/
+bkmk/
 ├── server/
 │   ├── api/
+│   │   ├── admin/
+│   │   │   └── users.get.ts
+│   │   ├── auth/
+│   │   │   ├── [provider].ts
+│   │   │   ├── change-password.post.ts
+│   │   │   ├── login.post.ts
+│   │   │   ├── logout.post.ts
+│   │   │   ├── me.get.ts
+│   │   │   ├── reset-password.post.ts
+│   │   │   └── reset-request.post.ts
 │   │   ├── bookmarks/
-│   │   │   ├── index.ts          # GET (list with filters), POST (create)
-│   │   │   ├── [id].ts           # GET (single), PUT (update), DELETE
-│   │   │   ├── search.ts         # Full-text search endpoint
-│   │   │   ├── [id]/tags.ts      # GET/POST tags for bookmark
-│   │   │   └── [id]/images.ts    # GET/POST images
-│   │   ├── scrape.ts             # POST - scrape URL, extract content
-│   │   ├── tags/
-│   │   │   ├── index.ts          # GET (all tags), POST (create)
-│   │   │   ├── [id].ts           # PUT (update), DELETE
-│   │   │   └── tree.ts           # GET hierarchical tag structure
+│   │   │   ├── index.ts
+│   │   │   ├── [id].ts
+│   │   │   └── search.ts
 │   │   ├── notes/
 │   │   │   ├── markdown/
-│   │   │   │   ├── index.ts      # GET, POST markdown notes
-│   │   │   │   └── [id].ts       # GET, PUT, DELETE
-│   │   │   └── secret/
-│   │   │       ├── index.ts      # GET, POST secret notes
-│   │   │       └── [id].ts       # GET, PUT, DELETE, verify-password
-│   │   └── sync/
-│   │       ├── pull.ts           # GET changes since last sync
-│   │       └── push.ts           # POST local changes
-│   ├── utils/
-│   │   ├── db.ts                 # SQLite connection & initialization
-│   │   ├── scraper.ts            # Web scraping logic (Cheerio, Turndown)
-│   │   ├── readability.ts        # Content extraction
-│   │   ├── image-processor.ts    # Download & save images
-│   │   ├── search.ts             # Full-text search queries
-│   │   └── crypto.ts             # Password hashing, encryption utils
+│   │   │   │   ├── index.ts
+│   │   │   │   └── [id].ts
+│   │   │   └── search.ts
+│   │   ├── tags/
+│   │   │   ├── index.ts
+│   │   │   ├── [id].ts
+│   │   │   └── tree.ts
+│   │   ├── tokens/
+│   │   │   ├── index.ts
+│   │   │   └── [id].ts
+│   │   ├── scrape.ts
+│   │   ├── stats.ts
+│   │   └── version.get.ts
 │   ├── database/
-│   │   └── schema.sql            # Full database schema (from section 2)
-│   └── middleware/
-│       └── auth.ts               # Request validation
-├── app/
-│   ├── components/
-│   │   ├── BookmarkCard.vue       # Bookmark preview card
-│   │   ├── BookmarkReader.vue     # Main reader component
-│   │   │   ├── ReaderMode.vue     # Cleaned reader view
-│   │   │   ├── SnapshotMode.vue   # Original HTML snapshot
-│   │   │   └── MarkdownMode.vue   # Markdown view with renderer
-│   │   ├── MarkdownRenderer.vue   # Markdown display component
-│   │   ├── MarkdownEditor.vue     # Editor with live preview
-│   │   ├── TagSelector.vue        # Multi-select tags (flat & hierarchical)
-│   │   ├── SearchBar.vue          # Search input with autocomplete
-│   │   ├── SortMenu.vue           # Sort options dropdown
-│   │   ├── FilterPanel.vue        # Advanced filters sidebar
-│   │   ├── SecretNotePassword.vue # Password input modal
-│   │   └── SyncStatus.vue         # Multi-device sync indicator
-│   ├── layouts/
-│   │   ├── default.vue            # Main app layout
-│   │   └── reader.vue             # Full-screen reading layout
-│   ├── pages/
-│   │   ├── index.vue              # Dashboard / bookmark list
-│   │   ├── bookmarks/
-│   │   │   └── [id].vue           # Single bookmark reader
-│   │   ├── add.vue                # Add new bookmark (paste URL)
-│   │   ├── notes.vue              # Markdown notes list
-│   │   ├── notes/[id].vue         # Edit markdown note
-│   │   ├── secrets.vue            # Secret notes list
-│   │   ├── tags.vue               # Tag management
-│   │   └── settings.vue           # App settings, sync config
-│   ├── composables/
-│   │   ├── useBookmarks.ts        # Bookmark CRUD & queries
-│   │   ├── useTags.ts             # Tag management
-│   │   ├── useSearch.ts           # Full-text search
-│   │   ├── useSync.ts             # Multi-device sync logic
-│   │   ├── useMarkdown.ts         # Markdown parsing & rendering
-│   │   └── usePassword.ts         # Password validation
-│   ├── stores/
-│   │   ├── bookmarks.ts           # Pinia store for bookmarks
-│   │   ├── ui.ts                  # UI state (modals, panels)
-│   │   ├── sync.ts                # Sync state & progress
-│   │   └── settings.ts            # User settings
+│   │   ├── index.ts
+│   │   └── schema.ts
+│   ├── middleware/
+│   │   └── cors.ts
+│   ├── plugins/
 │   ├── utils/
-│   │   ├── markdown-renderer.ts   # Enhanced markdown rendering
-│   │   ├── date-format.ts         # Date formatting utilities
-│   │   └── reading-time.ts        # Calculate reading time
-│   ├── app.vue
-│   └── app.config.ts
+│   │   ├── auth.ts
+│   │   ├── db.ts
+│   │   ├── images.ts
+│   │   ├── scraper.ts
+│   │   ├── transform.ts
+│   │   └── url-cleaner.ts
+│   └── middleware/
+├── pages/
+│   ├── index.vue
+│   ├── login.vue
+│   ├── signup.vue
+│   ├── forgot-password.vue
+│   ├── reset-password.vue
+│   ├── profile.vue
+│   ├── docs.vue
+│   ├── change-password.vue
+│   ├── tags.vue
+│   ├── tokens.vue
+│   ├── bookmarks/
+│   │   ├── index.vue
+│   │   └── [id].vue
+│   ├── notes/
+│   │   ├── index.vue
+│   │   └── [id].vue
+│   └── admin/
+│       └── users.vue
+├── components/
+│   ├── ActionButton.vue
+│   ├── GlobalSearch.vue
+│   ├── InfiniteItemList.vue
+│   ├── OfflineIndicator.vue
+│   ├── SearchInput.vue
+│   ├── StickyToolbar.vue
+│   ├── TagFilter.vue
+│   ├── TagInput.vue
+│   └── ViewToggle.vue
+├── composables/
+│   ├── idb.ts
+│   ├── useAuth.ts
+│   ├── useBookmarks.ts
+│   ├── useDarkMode.ts
+│   ├── useInfiniteScroll.ts
+│   ├── useMarkdown.ts
+│   ├── useOfflineBookmarks.ts
+│   ├── useOfflineNotes.ts
+│   ├── useReaderSettings.ts
+│   ├── useSearch.ts
+│   ├── useSync.ts
+│   ├── useTagSystem.ts
+│   └── useViewMode.ts
+├── layouts/
+│   ├── default.vue
+│   └── reader.vue
+├── middleware/
+│   └── auth.ts
+├── plugins/
+│   └── auth-401.ts
 ├── public/
-│   └── bookmarks/                 # Image storage directory
+│   ├── api.md
+│   ├── manifest.json
+│   └── sw.js
+├── assets/
+├── docs/
+├── ios-share-extension/
+├── utils/
+├── app.vue
 ├── nuxt.config.ts
 ├── tailwind.config.ts
+├── drizzle.config.ts
 ├── package.json
 └── README.md
 ```
@@ -309,10 +364,10 @@ bookmark-app/
    - Downloads + saves images locally
    - Calculates reading time
    - Extracts metadata (title, description, domain)
-6. Backend stores in SQLite:
+6. Backend stores in database:
    - Original HTML in `original_html`
    - Cleaned markdown in `cleaned_markdown`
-   - Image references in `bookmark_images`
+   - Image references in `images`
    - Metadata in `bookmarks`
 7. Frontend receives bookmark object, shows preview
 8. User can add tags (flat or hierarchical), favorite, custom sort order
@@ -340,7 +395,7 @@ Three switchable views for each bookmark:
    - Copy-to-clipboard support
 
 ### C. Search & Filtering
-- **Full-text search**: Query title, description, markdown content via FTS5
+- **Full-text search**: Query title, description, markdown content
 - **Tag filtering**: Single or multiple tags (AND/OR logic)
 - **Favorites only**: Toggle
 - **Date range**: Saved between X and Y
@@ -372,6 +427,15 @@ Three switchable views for each bookmark:
 - Favoriteable
 - Sortable by date or title
 
+### F. Profile & Settings
+- **Profile Page**: Central hub for user settings
+  - View account email and role
+  - Access API tokens management
+  - Change password
+  - Manage tags
+  - Admin controls (for admins)
+- **API Tokens**: Create, manage, revoke tokens for external integrations
+
 ### G. Multi-Device Sync
 **Sync Layer:**
 - Changes tracked in `sync_metadata` table
@@ -381,20 +445,6 @@ Three switchable views for each bookmark:
   - Last-write-wins strategy for conflicts
   - Sync status tracked (pending, synced, conflict)
 
-**Sync Backends (to choose):**
-- **Option 1**: Dropbox API (simple file sync)
-  - Sync database file periodically
-  - Pull database, merge changes, push back
-  
-- **Option 2**: Custom backend (requires server)
-  - POST local changes to server
-  - GET changes from server
-  - Server handles conflict resolution
-  
-- **Option 3**: iCloud CloudKit (Apple ecosystem)
-  - Native CloudKit integration
-  - Automatic sync across Apple devices
-
 ---
 
 ## 5. UI/UX LAYOUT
@@ -402,7 +452,7 @@ Three switchable views for each bookmark:
 ### Main Dashboard
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Logo  Search Bar...      [+ Add]  [Settings] [Sync ●]  │
+│  Logo  Search Bar...      [+ Add]  [Email] [⚙]          │
 ├─────────────────────────────────────────────────────────┤
 │                                                           │
 │  [Filters] [Sort ↓]  [Tags]  [Unread]                  │
@@ -414,61 +464,57 @@ Three switchable views for each bookmark:
 │  │ [Tags] ★ >         │  │ [Tags] ★ >         │      │
 │  └─────────────────────┘  └─────────────────────┘      │
 │                                                           │
-│  ┌─────────────────────┐  ┌─────────────────────┐      │
-│  │ Bookmark Title      │  │ Bookmark Title      │      │
-│  │ Domain • Date       │  │ Domain • Date       │      │
-│  │ Brief description   │  │ Brief description   │      │
-│  │ [Tags] ★ >         │  │ [Tags] ★ >         │      │
-│  └─────────────────────┘  └─────────────────────┘      │
-│                                                           │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Bookmark Reader (Full-screen)
-```
-┌─────────────────────────────────────────────────────────┐
-│ < Back  [Title]         [★] [Tag] [Read] [Share] [...]  │
-├─────────────────────────────────────────────────────────┤
-│ [Reader] [Snapshot] [Markdown] | Domain • Saved 2 days ago
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│         ╔═══════════════════════════════════╗            │
-│         ║  Article Title                    ║            │
-│         ║                                   ║            │
-│         ║  Main content rendered cleanly    ║            │
-│         ║  Easy to read, optimized          ║            │
-│         ║  typography for long-form reading ║            │
-│         ║                                   ║            │
-│         ║  [Image if present]               ║            │
-│         ║                                   ║            │
-│         ║  Continued content...             ║            │
-│         ║                                   ║            │
-│         ╚═══════════════════════════════════╝            │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
-```
+### Desktop Header
+- Logo + App name (links to home)
+- Search bar (global search)
+- Desktop nav: Bookmarks, Notes
+- User email (clickable to profile)
+- Settings dropdown (gear icon)
 
-### Markdown Notes
+### Mobile Header
+- Logo + App name
+- Mobile menu button (hamburger)
+
+### Mobile Menu (hamburger → gear menu)
+- Profile link
+- Bookmarks
+- Notes
+- Manage Tags
+- API Tokens
+- Change Password
+- Dark Mode toggle
+- Manage Users (admin only)
+- API Documentation
+- Sign Out
+
+### Mobile Bottom Toolbar
+- Bookmarks icon (link to /bookmarks)
+- Notes icon (link to /notes)
+- Search icon (opens global search)
+
+### Profile Page
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Logo  [Notes] [Secrets] [Bookmarks] Settings   Sync ●  │
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  [+ New Note]  [Sort ↓]  Search...                     │
-│                                                           │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │ Note Title                              [★] [Edit] │ │
-│  │ 3 lines of preview...                              │ │
-│  │ Created 5 days ago                                 │ │
-│  └─────────────────────────────────────────────────────┘ │
-│                                                           │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │ Note Title                              [★] [Edit] │ │
-│  │ 3 lines of preview...                              │ │
-│  │ Created 2 days ago                                 │ │
-│  └─────────────────────────────────────────────────────┘ │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│  [Avatar]  user@email.com              │
+│             Role: user                  │
+├─────────────────────────────────────────┤
+│  [📋] Manage Tags                      │
+│       Create and organize your tags     │
+├─────────────────────────────────────────┤
+│  [🔑] API Tokens                       │
+│       Manage tokens for integrations    │
+├─────────────────────────────────────────┤
+│  [🔒] Change Password                  │
+│       Update your account password      │
+├─────────────────────────────────────────┤
+│  [📚] API Documentation                 │
+│       View API reference                │
+├─────────────────────────────────────────┤
+│  [🚪] Sign Out                         │
+└─────────────────────────────────────────┘
 ```
 
 ### Mobile View (Responsive)
@@ -476,7 +522,7 @@ Three switchable views for each bookmark:
 - Floating action button for "Add Bookmark"
 - Collapsible filter/sort panels
 - Full-width reader mode
-- Bottom navigation for tabs
+- Bottom navigation toolbar
 
 ---
 
@@ -494,22 +540,22 @@ Three switchable views for each bookmark:
 ### Backend/Scraping
 ```json
 {
-  "better-sqlite3": "^9.2.0",       // SQLite driver
-  "cheerio": "^1.0.0",               // HTML parsing
-  "turndown": "^7.1.1",              // HTML to Markdown
-  "@mozilla/readability": "^0.4.2",  // Content extraction
-  "axios": "^1.6.0",                 // HTTP requests
-  "bcryptjs": "^2.4.3"               // Password hashing
+  "drizzle-orm": "^0.29.0",
+  "postgres": "^3.4.0",
+  "cheerio": "^1.0.0",
+  "turndown": "^7.1.1",
+  "@mozilla/readability": "^0.4.2",
+  "axios": "^1.6.0",
+  "bcryptjs": "^2.4.3"
 }
 ```
 
 ### Frontend
 ```json
 {
-  "pinia": "^2.1.0",                 // State management
-  "markdown-it": "^13.1.0",          // Markdown parsing
-  "@vueuse/core": "^10.7.0",         // Vue composables
-  "fuse.js": "^7.0.0"                // Client-side search (optional)
+  "@vueuse/core": "^10.7.0",
+  "marked": "^11.0.0",
+  "dompurify": "^3.0.0"
 }
 ```
 
@@ -517,14 +563,19 @@ Three switchable views for each bookmark:
 
 ## 7. SECURITY CONSIDERATIONS
 
-### Password Protection (Secret Notes)
-- Passwords hashed with bcryptjs (10+ rounds)
-- Password stored in DB, content stored plainly
-- For stronger security: encrypt content with password before storage
-- Session-based: require password per session
+### User Authentication
+- Password hashing with bcryptjs
+- OAuth provider support (GitHub, Google, etc.)
+- JWT-based session management
+- Password reset via email tokens
+
+### API Security
+- Token-based API authentication for external integrations
+- Tokens are hashed before storage
+- Token prefix for identification without exposing full token
 
 ### Image Storage
-- Store in isolated directory (`/public/bookmarks/`)
+- Store in isolated directory
 - Sanitize filenames to prevent directory traversal
 - Validate image types (JPEG, PNG, WebP, etc.)
 
@@ -539,14 +590,9 @@ Three switchable views for each bookmark:
 ## 8. PERFORMANCE CONSIDERATIONS
 
 ### Database
-- FTS5 indexes for fast full-text search
 - Indexes on frequently queried columns
-- Pragma optimizations:
-  ```sql
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = NORMAL;
-  PRAGMA cache_size = -64000;
-  ```
+- Pagination for large result sets
+- Efficient full-text search
 
 ### Images
 - Compress images on upload
@@ -566,24 +612,22 @@ Three switchable views for each bookmark:
 
 ---
 
-## 10. TECHNICAL DECISIONS & TRADEOFFS
+## 9. TECHNICAL DECISIONS & TRADEOFFS
 
 | Decision | Chosen | Alternative | Why |
 |----------|--------|-------------|-----|
 | Server-side scraping | ✅ | Client-side | More reliable, handles CORS, cleaner code |
-| SQLite | ✅ | PostgreSQL | Local-first, no server needed, good for personal use |
+| PostgreSQL | ✅ | SQLite | Better for production, easier deployment |
 | Image files | ✅ | Base64 in DB | Smaller DB, easier to manage, better performance |
-| Plain password check | ✅ | Full encryption | Simple for personal use, sufficient security |
 | All 3 reading modes | ✅ | Pick 1 | Flexibility, different use cases |
-| FTS5 | ✅ | Client-side search | Faster, handles large datasets, better UX |
 | Hierarchical + flat tags | ✅ | One or other | Flexibility, users choose what works |
-| Pinia stores | ✅ | Composables only | Better for shared global state |
-| Markdown-it | ✅ | showdown/marked | Better extensions, performance, active maintenance |
+| Composables | ✅ | Pinia stores | Simpler, Vue 3 native |
+| Marked + DOMPurify | ✅ | markdown-it | Lighter weight, good security |
 
 ---
 
+## 10. FUTURE ENHANCEMENTS
 
-### Future Enhancements
 - Browser extension for quick capture
 - AI-powered summaries
 - Automatic tagging suggestions
@@ -594,20 +638,6 @@ Three switchable views for each bookmark:
 
 ---
 
-## 12. GETTING STARTED CHECKLIST
-
-Before coding begins:
-- [ ] Create SQLite schema
-- [ ] Set up server routes structure
-- [ ] Test scraping libraries (Cheerio, Readability)
-- [ ] Design component hierarchy
-- [ ] Set up Pinia stores
-- [ ] Create markdown renderer component
-- [ ] Plan image storage directory structure
-- [ ] Set up development database
-
----
-
-**Document Version:** 1.0  
-**Last Updated:** 2026-03-25  
+**Document Version:** 2.0  
+**Last Updated:** 2026-04-08  
 **Status:** Ready for Development

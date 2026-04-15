@@ -298,29 +298,6 @@ async function refreshStatsFromServer(): Promise<void> {
   }
 }
 
-// Add bookmark from search
-async function addBookmark() {
-  const query = searchQuery.value.trim()
-  
-  if (isUrl(query)) {
-    // Direct URL - scrape it
-    try {
-      searching.value = true
-      const response = await $fetch<{ id: string }>('/api/scrape', {
-        method: 'POST',
-        body: { url: query },
-      })
-      router.push(`/bookmarks/${response.id}`)
-    } catch (e) {
-      console.error('Failed to scrape URL:', e)
-      searching.value = false
-    }
-  } else if (query) {
-    // Show bookmark creation dialog with URL
-    router.push(`/bookmarks?url=${encodeURIComponent(query)}`)
-  }
-}
-
 // Scrape URL from search
 async function scrapeUrl() {
   const query = searchQuery.value.trim()
@@ -425,7 +402,7 @@ async function refreshSearchFromServer(query: string): Promise<void> {
     
     const [bookmarkResponse, notesResponse] = await Promise.all([
       $fetch<{ bookmarks: any[] }>(`/api/bookmarks/search?q=${encodedQuery}&limit=10`),
-      $fetch<{ notes: any[] }>(`/api/notes/markdown/search?q=${encodedQuery}&limit=10`)
+      $fetch<{ notes: any[] }>(`/api/notes/search?q=${encodedQuery}&limit=10`)
     ])
     
     // Transform and combine results

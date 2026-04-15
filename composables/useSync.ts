@@ -96,7 +96,7 @@ export function useSync() {
 
       // Fetch notes
       try {
-        const notesResponse = await $fetch<{ notes: any[] }>('/api/notes/markdown?limit=1000')
+        const notesResponse = await $fetch<{ notes: any[] }>('/api/notes?limit=1000')
         if (notesResponse.notes && notesResponse.notes.length > 0) {
           const notes: Note[] = notesResponse.notes.map(n => ({
             id: n.id,
@@ -191,19 +191,19 @@ export function useSync() {
   async function processNoteSync(item: SyncQueueItem): Promise<void> {
     switch (item.action) {
       case 'create':
-        await $fetch('/api/notes/markdown', {
+        await $fetch('/api/notes', {
           method: 'POST',
           body: item.data
         })
         break
       case 'update':
-        await $fetch(`/api/notes/markdown/${item.id}`, {
+        await $fetch(`/api/notes/${item.id}`, {
           method: 'PUT',
           body: item.data
         })
         break
       case 'delete':
-        await $fetch(`/api/notes/markdown/${item.id}`, {
+        await $fetch(`/api/notes/${item.id}`, {
           method: 'DELETE'
         })
         break
