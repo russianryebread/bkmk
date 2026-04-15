@@ -94,7 +94,7 @@ export function useOfflineBookmarks() {
       console.log('[OfflineBookmarks] Returning', pageBookmarks.length, 'bookmarks, hasMore:', hasMore)
       
       // Refresh from server in background
-      if (isOnline.value) {
+      if (isOnline.value && refresh) {
         refreshFromServer().then(() => {
           fetchBookmarksPaginated(cursor, filters, limit, false); // Refetch to update with any new data
         })
