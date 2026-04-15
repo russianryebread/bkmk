@@ -2,7 +2,7 @@ import Foundation
 
 enum APIEndpoint: String {
     case bookmarks = "bookmarks"
-    case notes = "notes/markdown"
+    case notes = "notes"
 }
 
 @MainActor

@@ -65,7 +65,7 @@ struct Note: Codable, Identifiable, Hashable {
 
 struct NotesResponse: Codable {
     let notes: [Note]
-    let pagination: NotePagination?
+    let pagination: Pagination?
 }
 
 struct NoteResponse: Codable {
@@ -82,13 +82,6 @@ struct BookmarksResponse: Codable {
 struct BookmarkResponse: Codable {
     let success: Bool?
     let bookmark: Bookmark?
-}
-
-struct NotePagination: Codable {
-    let page: Int
-    let limit: Int
-    let total: String // Should be Int, but there's a bug in API
-    let totalPages: Int
 }
 
 struct Pagination: Codable {

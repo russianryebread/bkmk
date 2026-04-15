@@ -56,8 +56,8 @@ export default defineEventHandler(async (event) => {
       ? (sort as 'createdAt' | 'updatedAt' | 'isFavorite')
       : 'updatedAt'
 
-    let fetchedNotes
-    let total
+    let fetchedNotes: Note[]
+    let total: number
 
     if (tag) {
       // Get notes with specific tag via junction table
@@ -133,7 +133,7 @@ export default defineEventHandler(async (event) => {
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total,
+        total: Number(total),
         totalPages: Math.ceil(total / limitNum),
       },
     }
