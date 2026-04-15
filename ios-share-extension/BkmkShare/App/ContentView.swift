@@ -58,9 +58,13 @@ struct ContentView: View {
         
         if let error = apiManager.errorMessage {
             Text(error)
-                .font(.caption)
-                .foregroundColor(.red)
+                .font(.callout)
+                .foregroundColor(.white)
                 .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(Color.red)
+                //.frame(maxWidth: .infinity)
+                .cornerRadius(6)
         }
     }
     
