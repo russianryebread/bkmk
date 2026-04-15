@@ -1,6 +1,6 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
-import { eq, desc, asc, sql, and } from 'drizzle-orm'
+import { eq, desc, asc, sql, and, isNull } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     const offset = (pageNum - 1) * limitNum
 
     // Build conditions array - always filter by userId
-    const conditions: any[] = [eq(bookmarks.userId, currentUser.id)]
+    const conditions: any[] = [eq(bookmarks.userId, currentUser.id), isNull(bookmarks.deletedAt)]
 
     if (favorite === 'true') {
       conditions.push(eq(bookmarks.isFavorite, 1))

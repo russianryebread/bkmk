@@ -1,6 +1,6 @@
 import { db } from '~/server/database'
 import { notes, notesTags, tags } from '~/server/database/schema'
-import { eq, desc, sql, and } from 'drizzle-orm'
+import { eq, desc, sql, and, isNull } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
@@ -104,12 +104,14 @@ export default defineEventHandler(async (event) => {
       total = count
     } else {
       fetchedNotes = await db
-        .select()
-        .from(notes)
-        .where(eq(notes.userId, currentUser.id))
-        .orderBy(desc(notes[sortColumn]))
-        .limit(limitNum)
-        .offset(offset)
+          .select()
+          .from(notes)
+          .where(
+              and(eq(notes.userId, currentUser.id), isNull(notes.deletedAt)),
+          )
+          .orderBy(desc(notes[sortColumn]))
+          .limit(limitNum)
+          .offset(offset)
 
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })

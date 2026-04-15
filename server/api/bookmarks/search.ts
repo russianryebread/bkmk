@@ -1,6 +1,6 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
-import { sql, desc, eq, and } from 'drizzle-orm'
+import { sql, desc, eq, and, isNull } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
@@ -60,6 +60,7 @@ export default defineEventHandler(async (event) => {
       .where(
         and(
           eq(bookmarks.userId, currentUser.id),
+          isNull(bookmarks.deletedAt),
           sql`(
             setweight(to_tsvector('english', COALESCE(${bookmarks.title}, '')), 'A') ||
             setweight(to_tsvector('english', COALESCE(${bookmarks.description}, '')), 'B') ||

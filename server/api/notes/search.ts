@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { like, or, desc, and, eq } from 'drizzle-orm'
+import { like, or, desc, and, eq, is, isNull } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
     .where(
       and(
         eq(schema.notes.userId, currentUser.id),
+        isNull(schema.notes.deletedAt),
         or(
           like(schema.notes.title, `%${searchTerm}%`),
           like(schema.notes.content, `%${searchTerm}%`)
