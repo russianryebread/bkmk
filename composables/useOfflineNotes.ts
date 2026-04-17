@@ -319,6 +319,14 @@ export function useOfflineNotes() {
                         item.id,
                         e?.message,
                     )
+
+                    if(idb.getSyncQueueItem(item.id)?.retries >= 3) {
+                        console.error(
+                            '[OfflineNotes] Queue item has failed 3 times, giving up:',
+                            item.id,
+                        )
+                        await idb.removeSyncQueueItem?.(item.id)
+                    }
                 }
             }
         } catch (e: any) {
@@ -411,7 +419,7 @@ export function useOfflineNotes() {
         const note: Note = {
             id,
             content: data.content,
-            tags: data.tags ?? [],
+            tags: data.tags?.value ?? [],
             isFavorite: data.isFavorite ?? false,
             createdAt: now,
             updatedAt: now,

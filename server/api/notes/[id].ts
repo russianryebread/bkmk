@@ -293,7 +293,7 @@ export default defineEventHandler(async (event) => {
 
     if (method === 'DELETE') {
         // Ownership check fused into query
-        await requireOwnedNote(id, currentUser.id)
+        // Cannot use requireOwnedNote because it has the delete check in it.
 
         const ts = now()
 
@@ -303,7 +303,10 @@ export default defineEventHandler(async (event) => {
         await db
             .update(schema.notes)
             .set({ deletedAt: ts, updatedAt: ts })
-            .where(eq(schema.notes.id, id))
+            .where(and(
+                eq(schema.notes.id, id),
+                eq(schema.notes.userId, currentUser.id)
+            ))
 
         // Sync metadata (inside a single write for atomicity)
         await writeSyncMetadata(id, 1).catch((e) =>
