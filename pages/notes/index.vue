@@ -167,6 +167,7 @@ async function loadMore(isRefresh = false) {
     const result = dataStore.getNotesPaginated(
       isRefresh ? null : cursor.value,
       {
+        search: filters.value.search || undefined,
         favorite: filters.value.tag === 'favorite' ? true : undefined,
         sort: 'updatedAt',
         order: 'desc',

@@ -365,7 +365,10 @@ export const useDataStore = defineStore('data', () => {
     
     if (toSave.length > 0) {
       await idb.saveBookmarks(toSave)
-      bookmarks.value = toSave
+      // Properly merge: keep local bookmarks not in server response
+      const serverIds = new Set(serverBookmarks.map(b => b.id))
+      const localOnly = bookmarks.value.filter(b => !serverIds.has(b.id))
+      bookmarks.value = [...toSave, ...localOnly]
     }
   }
 
@@ -385,7 +388,10 @@ export const useDataStore = defineStore('data', () => {
     
     if (toSave.length > 0) {
       await idb.saveNotes(toSave)
-      notes.value = toSave
+      // Properly merge: keep local notes not in server response
+      const serverIds = new Set(serverNotes.map(n => n.id))
+      const localOnly = notes.value.filter(n => !serverIds.has(n.id))
+      notes.value = [...toSave, ...localOnly]
     }
   }
 
@@ -404,7 +410,10 @@ export const useDataStore = defineStore('data', () => {
     
     if (toSave.length > 0) {
       await idb.saveTags(toSave)
-      tags.value = toSave
+      // Properly merge: keep local tags not in server response
+      const serverIds = new Set(serverTags.map(t => t.id))
+      const localOnly = tags.value.filter(t => !serverIds.has(t.id))
+      tags.value = [...toSave, ...localOnly]
     }
   }
 
@@ -705,7 +714,7 @@ export const useDataStore = defineStore('data', () => {
     filters: { search?: string; tag?: string; favorite?: boolean; sort?: string; order?: string } = {},
     limit: number = 20
   ): { bookmarks: Bookmark[]; nextCursor: string | null; hasMore: boolean } {
-    let results = searchBookmarks('', filters)
+    let results = searchBookmarks(filters.search || '', filters)
 
     // Find cursor position
     let startIndex = 0
@@ -727,10 +736,11 @@ export const useDataStore = defineStore('data', () => {
   // Cursor-based pagination for notes (for infinite scroll)
   function getNotesPaginated(
     cursor: string | null,
-    filters: { sort?: string; order?: string; favorite?: boolean } = {},
+    filters: { sort?: string; order?: string; favorite?: boolean; search?: string } = {},
     limit: number = 20
   ): { notes: Note[]; nextCursor: string | null; hasMore: boolean } {
-    let results = [...notes.value]
+    let results = searchNotes(filters.search || '')
+    results = results.filter(n => n.deletedAt === null || n.deletedAt === undefined)
 
     if (filters.favorite !== undefined) {
       results = results.filter(n => n.isFavorite === filters.favorite)
