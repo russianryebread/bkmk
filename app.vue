@@ -6,28 +6,26 @@
     v-if="isAuthenticated"
     :is-online="isOnline"
     :sync-status="syncStatus"
-    :pending-changes="pendingChanges"
+    :pending-changes="pendingChangesCount"
     :last-sync-time="lastSyncTime"
     @retry="triggerSync"
   />
 </template>
 
 <script setup lang="ts">
-const { initialize: initializeIdb } = useIdb()
-const { isOnline, syncStatus, pendingChanges, lastSyncTime, triggerSync } = useSync()
-const { init: initAuth, isAuthenticated, isLoading: authLoading } = useAuth()
+const dataStore = useDataStore()
+const { init: initAuth, isAuthenticated } = useAuth()
 
-// Register service worker
+const { isOnline, syncStatus, lastSyncTime, pendingChangesCount, triggerSync } = storeToRefs(dataStore)
+
 onMounted(async () => {
   console.log('[App] Initializing services...')
-    
+  
   try {
     await initAuth()
-    await initializeIdb()
 
     if (isAuthenticated.value) {
-      console.log('[App] Triggering initial sync in background')
-      triggerSync() // Don't await - let it run in background
+      console.log('[App] DataStore will auto-sync on init')
     }
   } catch (e) {
     console.error('[App] Failed to initialize services:', e)

@@ -72,12 +72,12 @@
       <!-- Editor mode (new or editing) -->
       <div v-else class="card flex-1 flex flex-col min-h-0 -mt-6">
         <!-- Content Area -->
-        <div class="flex-1 min-h-0">
+        <div class="flex-1 min-h-0 h-full">
           <textarea v-model="editorContent" placeholder="Write your markdown here..."
-            class="w-full h-full min-h-[200px] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
+            class="w-full h-full  resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
             autofocus enterkeyhint="default" inputmode="text"></textarea>
         </div>
-
+<!-- h-[calc(100vh-210px)] -->
         <!-- Footer -->
         <div
           class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
@@ -148,7 +148,7 @@ import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
 const route = useRoute()
 const router = useRouter()
-const { getNoteById, createNote, updateNote, deleteNote: deleteNoteFn, toggleFavorite: toggleFavoriteFn } = useOfflineNotes()
+const dataStore = useDataStore()
 const { render } = useMarkdown()
 
 const {
@@ -238,9 +238,8 @@ async function loadNote() {
 
   const id = route.params.id as string
 
-  // Load from local cache FIRST - this is instant from IndexedDB
-  const localNote = await getNoteById(id)
-  note.value = localNote
+  // Load from data store - reads from IndexedDB first (instant)
+  note.value = dataStore.getNoteById(id) ?? null
   loading.value = false
 
   if (note.value) {
@@ -285,7 +284,7 @@ async function saveNote() {
 
     if (isNew.value) {
       // Create new note
-      const noteToSave = await createNote({
+      const noteToSave = await dataStore.createNote({
         content: editorContent.value,
         tags: editorTags.value,
       })
@@ -295,7 +294,7 @@ async function saveNote() {
       }
     } else if (note.value) {
       // Update existing note
-      await updateNote(note.value.id, {
+      await dataStore.updateNote(note.value.id, {
         content: editorContent.value,
         tags: editorTags.value,
       })
@@ -320,7 +319,7 @@ async function saveNote() {
 
 async function toggleFavorite() {
   if (!note.value) return
-  await toggleFavoriteFn(note.value.id)
+  await dataStore.toggleNoteFavorite(note.value.id)
   note.value.isFavorite = !note.value.isFavorite
 }
 
@@ -328,7 +327,7 @@ async function deleteNoteConfirm() {
   if (!note.value) return
 
   if (confirm(`Delete "${deriveTitle(note.value.content)}"?`)) {
-    await deleteNoteFn(note.value.id)
+    await dataStore.deleteNote(note.value.id)
     router.push('/notes')
   }
 }

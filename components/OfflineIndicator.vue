@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SyncStatus } from '~/composables/useSync'
+import type { SyncStatus } from '~/stores/useDataStore'
 
 interface Props {
   isOnline?: boolean

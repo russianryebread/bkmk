@@ -346,9 +346,8 @@ async function addAsBookmark() {
   
   close()
   
-  // Use the bookmarks composable to create the bookmark
-  const { createBookmark } = useBookmarks()
-  const bookmark = await createBookmark(url)
+  const dataStore = useDataStore()
+  const bookmark = await dataStore.createBookmark(url)
   
   if (bookmark) {
     router.push(`/bookmarks/${bookmark.id}`)
@@ -362,11 +361,9 @@ async function addAsNote() {
   
   close()
   
-  // Use the offline notes composable to create the note
-  const { createNote } = useOfflineNotes()
-  const note = await createNote({
-    title: title,
-    content: '',
+  const dataStore = useDataStore()
+  const note = await dataStore.createNote({
+    content: `# ${title}\n\n`,
     tags: [],
     isFavorite: false,
   })

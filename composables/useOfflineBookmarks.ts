@@ -254,6 +254,7 @@ export function useOfflineBookmarks() {
   return {
     isOnline,
     offlineError,
+    cacheVersion,
     fetchBookmarks,
     fetchBookmarksPaginated,
     fetchBookmark,

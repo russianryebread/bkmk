@@ -191,7 +191,7 @@ import { useTagSystem, type TagType } from '~/composables/useTagSystem'
 
 const route = useRoute()
 const router = useRouter()
-const { fetchBookmark, updateBookmark, deleteBookmark } = useBookmarks()
+const dataStore = useDataStore()
 
 const {
   tags,
@@ -245,7 +245,7 @@ const renderedMarkdown = computed(() => {
 
 async function deleteBookmarkConfirm(bm: any) {
   if (confirm(`Delete "${bm.title}"?`)) {
-    await deleteBookmark(bm.id)
+    await dataStore.deleteBookmark(bm.id)
     router.push('/bookmarks')
   }
 }
@@ -316,7 +316,7 @@ async function switchToUrlOnly() {
 
   if (confirm('This will remove the scraped content and keep only the URL and metadata. Continue?')) {
     try {
-      await updateBookmark(bookmark.value.id, {
+      await dataStore.updateBookmark(bookmark.value.id, {
         original_html: null,
         cleaned_markdown: null,
       })
@@ -381,9 +381,8 @@ async function loadBookmark() {
 
   const id = route.params.id as string
   
-  // Load from local cache FIRST - this is instant from IndexedDB
-  const localBookmark = await fetchBookmark(id)
-  bookmark.value = localBookmark
+  // Load from data store - reads from IndexedDB first (instant)
+  bookmark.value = dataStore.getBookmarkById(id)
   loading.value = false
 
   if (bookmark.value) {
@@ -391,9 +390,9 @@ async function loadBookmark() {
     bookmarkTags.value = bookmark.value.tags || []
   }
 
-  // Mark as read (local first, then sync)
+  // Mark as read (local first, then background sync)
   if (bookmark.value && !bookmark.value.is_read) {
-    await updateBookmark(id, { is_read: true })
+    await dataStore.updateBookmark(id, { is_read: true })
     bookmark.value.is_read = true
   }
 
@@ -463,7 +462,7 @@ async function handleCreateTag(name: string) {
 
 async function toggleFavorite() {
   if (!bookmark.value) return
-  await updateBookmark(bookmark.value.id, { is_favorite: !bookmark.value.is_favorite })
+  await dataStore.updateBookmark(bookmark.value.id, { is_favorite: !bookmark.value.is_favorite })
   bookmark.value.is_favorite = !bookmark.value.is_favorite
 }
 
@@ -477,7 +476,7 @@ async function saveEdit() {
 
   saving.value = true
   try {
-    await updateBookmark(bookmark.value.id, {
+    await dataStore.updateBookmark(bookmark.value.id, {
       cleaned_markdown: editContent.value
     })
     bookmark.value.cleaned_markdown = editContent.value

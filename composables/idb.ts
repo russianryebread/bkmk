@@ -59,7 +59,7 @@ export type TagType = 'bookmark' | 'note' | 'both'
 interface SyncQueueItem {
   id: string
   action: 'create' | 'update' | 'delete'
-  entity: 'note' | 'tag'
+  entity: 'bookmark' | 'note' | 'tag'
   data: any
   timestamp: number
   retries: number
@@ -310,6 +310,8 @@ export function useIdb() {
 
       bookmarks.forEach(bookmark => {
         bookmark.original_html = null // Don't store original HTML locally.
+        bookmark.tag_ids = [ ...bookmark.tag_ids ] // no reactive proxy objects in IndexedDB
+        bookmark.tags = [ ...bookmark.tags ]
         store.put(bookmark)
       })
 

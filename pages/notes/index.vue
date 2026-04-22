@@ -118,19 +118,17 @@
 
 <script setup lang="ts">
 import type { Note } from '~/composables/idb'
-import { useOfflineNotes } from '~/composables/useOfflineNotes'
 import { useTagSystem } from '~/composables/useTagSystem'
 import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 
 const router = useRouter()
-const offlineNotes = useOfflineNotes()
+const dataStore = useDataStore()
 const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
-const { triggerSync } = useSync()
 
-// Watch cache version to trigger refresh when cache is updated
-watch(() => offlineNotes.cacheVersion, () => {
-  reset()
+// Watch notes array to trigger refresh when data store updates
+watch(() => dataStore.notes.length, () => {
+  // Data store handles sync automatically
 })
 
 // Get all tags filtered by type (note tags only)
@@ -166,11 +164,9 @@ async function loadMore(isRefresh = false) {
   error.value = null
 
   try {
-    const result = await offlineNotes.getNotesPaginated(
+    const result = dataStore.getNotesPaginated(
       isRefresh ? null : cursor.value,
       {
-        search: filters.value.search || undefined,
-        tag: filters.value.tag || undefined,
         favorite: filters.value.tag === 'favorite' ? true : undefined,
         sort: 'updatedAt',
         order: 'desc',
@@ -215,24 +211,24 @@ function handleTagChange(tag: string | null) {
 
 // Handle pull to refresh
 async function handleRefresh() {
+  await dataStore.triggerSync() // Ensure we get the latest data from the server
   await reset()
   infiniteListRef.value?.resetRefreshing()
 }
-
 // Toggle favorite
 async function toggleFavorite(note: Note) {
-  await offlineNotes.toggleFavorite(note.id)
+  await dataStore.toggleNoteFavorite(note.id)
   // Update local state
   const index = items.value.findIndex(n => n.id === note.id)
-  if (index !== -1) {
-    items.value[index] = { ...items.value[index], isFavorite: !note.isFavorite }
+  if (index !== -1 && items.value[index]) {
+    items.value[index]!.isFavorite = !note.isFavorite
   }
 }
 
 // Delete note
 async function deleteNoteConfirm(note: Note) {
   if (confirm(`Delete "${deriveTitle(note.content)}"?`)) {
-    await offlineNotes.deleteNote(note.id)
+    await dataStore.deleteNote(note.id)
     items.value = items.value.filter(n => n.id !== note.id)
   }
 }
@@ -245,11 +241,5 @@ function openNote(note: Note) {
 onMounted(async () => {
   await fetchTags()
   loadMore(true)
-
-  // Listen for online status to refresh data when coming back online
-  window.addEventListener('online', () => {
-    console.log('[Notes] Back online, triggering full sync...')
-    triggerSync()
-  })
 })
 </script>

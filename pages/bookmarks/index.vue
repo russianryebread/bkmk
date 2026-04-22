@@ -139,16 +139,15 @@
 
 <script setup lang="ts">
 import type { Bookmark } from '~/composables/useBookmarks'
-import { useOfflineBookmarks } from '~/composables/useOfflineBookmarks'
 import { useTagSystem } from '~/composables/useTagSystem'
 
 const router = useRouter()
-const offlineBookmarks = useOfflineBookmarks()
+const dataStore = useDataStore()
 const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
 
-// Watch cache version to trigger refresh when cache is updated
-watch(() => offlineBookmarks.cacheVersion, () => {
-  reset()
+// Watch bookmarks array to trigger refresh when data store updates
+watch(() => dataStore.bookmarks.length, () => {
+  // Data store handles sync automatically
 })
 
 // Infinite scroll state
@@ -193,7 +192,7 @@ async function loadMore(isRefresh = false) {
   error.value = null
 
   try {
-    const result = await offlineBookmarks.fetchBookmarksPaginated(
+    const result = dataStore.getBookmarksPaginated(
       isRefresh ? null : cursor.value,
       {
         search: filters.value.search || undefined,
@@ -243,6 +242,7 @@ function handleTagChange(tag: string | null) {
 
 // Handle pull to refresh
 async function handleRefresh() {
+  await dataStore.triggerSync() // Ensure we get the latest data from the server
   await reset()
   infiniteListRef.value?.resetRefreshing()
 }
@@ -253,12 +253,12 @@ async function toggleFavorite(id: string) {
   if (!bookmark) return
   
   const newValue = !bookmark.is_favorite
-  await offlineBookmarks.updateBookmark(id, { is_favorite: newValue })
+  await dataStore.updateBookmark(id, { is_favorite: newValue })
   
   // Update local state
   const index = items.value.findIndex(b => b.id === id)
-  if (index !== -1) {
-    items.value[index] = { ...items.value[index], is_favorite: newValue }
+  if (index !== -1 && items.value[index]) {
+    items.value[index]!.is_favorite = newValue
   }
 }
 
@@ -275,7 +275,7 @@ async function addBookmark() {
   addError.value = ''
 
   try {
-    const bookmark = await offlineBookmarks.createBookmark(newUrl.value)
+    const bookmark = await dataStore.createBookmark(newUrl.value)
     if (bookmark) {
       showAddModal.value = false
       newUrl.value = ''
@@ -285,19 +285,6 @@ async function addBookmark() {
     addError.value = e.data?.message || 'Failed to add bookmark'
   } finally {
     adding.value = false
-  }
-}
-
-// Create bookmark helper (using $fetch directly for new bookmarks)
-async function createBookmark(url: string): Promise<Bookmark | null> {
-  try {
-    const response = await $fetch<Bookmark>('/api/scrape', {
-      method: 'POST',
-      body: { url },
-    })
-    return response
-  } catch (e: any) {
-    throw e
   }
 }
 
