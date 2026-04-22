@@ -6,7 +6,8 @@
     <!-- Simple back button for new/editing mode -->
     <div v-else class="flex mb-4">
       <div class="flex-1">
-        <button @click="cancelEditing" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
+        <button @click="cancelEditing"
+          class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
           :title="isNew ? 'Back to notes' : 'Cancel'">
           <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -15,9 +16,11 @@
       </div>
 
       <div class="flex gap-4">
-        <button @click="saveNote" class="text-green-500 disabled:text-gray-500 p2 rounded-xl flex items-center justify-center action-button"
+        <button @click="saveNote"
+          class="text-green-500 disabled:text-gray-500 p2 rounded-xl flex items-center justify-center action-button"
           :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
-          <span v-if="saving" class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
+          <span v-if="saving"
+            class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
           <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
@@ -36,32 +39,30 @@
     </div>
 
     <!-- Note View/Edit -->
-    <div v-else-if="note || isNew" class="flex-1 flex flex-col min-h-0">
-      <!-- Header -->
-      <div class="">
-        <!-- Title - derived from first line of content -->
-        <div class="mb-4">
-          <h1 v-if="!isNew && !editing" class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-            {{ deriveTitle(note?.content) }}
-          </h1>
+    <div v-else-if="note || isNew" class="flex-1 flex flex-col">
+
+      <!-- Title - derived from first line of content -->
+      <div class="mb-4">
+        <h1 v-if="!isNew && !editing" class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+          {{ deriveTitle(note?.content) }}
+        </h1>
+      </div>
+
+      <!-- Metadata and tags (view mode - existing note) -->
+      <template v-if="!isNew && !editing">
+        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
+          <span>Updated {{ formatDate(note?.updatedAt) }}</span>
+          <span class="mx-2">•</span>
+          <span>{{ wordCount }} words</span>
         </div>
 
-        <!-- Metadata and tags (view mode - existing note) -->
-        <template v-if="!isNew && !editing">
-          <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-            <span>Updated {{ formatDate(note?.updatedAt) }}</span>
-            <span class="mx-2">•</span>
-            <span>{{ wordCount }} words</span>
-          </div>
-
-          <div v-if="note?.tags && note.tags.length > 0" class="flex flex-wrap gap-2">
-            <span v-for="tag in note.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
-              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-              {{ tag }}
-            </span>
-          </div>
-        </template>
-      </div>
+        <div v-if="note?.tags && note.tags.length > 0" class="flex flex-wrap gap-2">
+          <span v-for="tag in note.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
+            :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
+            {{ tag }}
+          </span>
+        </div>
+      </template>
 
       <!-- View mode content (existing note, not editing) -->
       <template v-if="!isNew && !editing">
@@ -70,14 +71,15 @@
       </template>
 
       <!-- Editor mode (new or editing) -->
-      <div v-else class="card flex-1 flex flex-col min-h-0 -mt-6">
+      <div v-else class="md:card flex-1 flex flex-col min-h-0 -mt-6">
+        <hr class="mb-4 border-gray-200 dark:border-gray-700" />
         <!-- Content Area -->
         <div class="flex-1 min-h-0 h-full">
           <textarea v-model="editorContent" placeholder="Write your markdown here..."
-            class="w-full h-full  resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
+            class="w-full min-h-[calc(var(--dvh)-256px)] md:min-h-[calc(var(--dvh)-266px)] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
             autofocus enterkeyhint="default" inputmode="text"></textarea>
         </div>
-<!-- h-[calc(100vh-210px)] -->
+
         <!-- Footer -->
         <div
           class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
@@ -259,7 +261,7 @@ function startEditing() {
 }
 
 function cancelEditing() {
-  if(hasChanges.value) {
+  if (hasChanges.value) {
     if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
       return
     }
