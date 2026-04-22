@@ -110,9 +110,8 @@
       </NuxtLink>
 
       <!-- API Docs -->
-      <NuxtLink to="/tags"
+      <NuxtLink to="/docs"
         class="border-b border-1 border-gray-200 p-4 rounded-b-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
-
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
