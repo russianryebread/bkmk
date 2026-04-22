@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-2xl mx-auto">
     <!-- Profile Header -->
-    <div class="card p-6 mb-6">
+    <div class="mb-6 mt-2">
       <div class="flex items-center gap-4">
         <div class="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center">
           <span class="text-2xl font-bold text-primary-600 dark:text-primary-400">
@@ -16,7 +16,7 @@
     </div>
 
     <!-- Settings Sections -->
-    <div class="space-y-6">
+    <div class="space-y-4">
       <!-- Manage Tags -->
       <div class="card p-4">
         <div class="flex items-center justify-between">
@@ -112,7 +112,7 @@
             </div>
           </div>
           <NuxtLink to="/docs" class="btn-secondary">
-            Open Docs
+            Open
           </NuxtLink>
         </div>
       </div>
