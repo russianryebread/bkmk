@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto min-h-[calc(100dvh-100px)] md:min-h-[calc(100dvh-156px)] flex flex-col">
+  <div class="max-w-4xl mx-auto min-h-[calc(var(--dvh)-100px)] md:min-h-[calc(var(--dvh)-156px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
       :actions="toolbarActions" />
 
@@ -144,7 +144,7 @@
 import type { Note } from '~/composables/idb'
 import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
-import { useTagSystem, type TagType } from '~/composables/useTagSystem'
+import { useTagSystem } from '~/composables/useTagSystem'
 
 const route = useRoute()
 const router = useRouter()
@@ -176,7 +176,6 @@ const note = ref<Note | null>(null)
 const loading = ref(true)
 const tagsLoading = ref(true)
 const editing = ref(false)
-const showPreview = ref(false)
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
 const newTag = ref('')
@@ -387,8 +386,19 @@ const toolbarActions = computed(() => [
   },
 ])
 
+function setDvh() {
+  document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`)
+}
+
 onMounted(() => {
-  // Tags are loaded in background by loadNote() - no need to block here
+  setDvh()
+  window.addEventListener('resize', setDvh)
+  window.addEventListener('orientationchange', setDvh)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', setDvh)
+  window.removeEventListener('orientationchange', setDvh)
 })
 
 onBeforeRouteLeave((to, from) => {
