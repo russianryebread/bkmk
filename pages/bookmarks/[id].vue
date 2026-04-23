@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl min-h-[calc(var(--dvh)-110px)] md:min-h-[calc(var(--dvh)-136px)] flex flex-col">
+  <div class="min-h-[calc(var(--dvh)-110px)] md:min-h-[calc(var(--dvh)-136px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to bookmarks" back-to="/bookmarks"
       :actions="toolbarActions" />
 
@@ -67,7 +67,10 @@
 
         <hr class="my-4 border-gray-200 dark:border-gray-700" />
 
-        <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedMarkdown"></div>
+        <div class="prose dark:prose-invert max-w-none reader-content"
+          :class="[fontFamily === 'serif' ? 'font-serif' : 'font-sans']"
+          :style="{ fontSize: fontSize + 'px' }"
+          v-html="renderedMarkdown"></div>
       </template>
 
       <!-- Editor mode (new or editing) -->
@@ -162,6 +165,7 @@ const route = useRoute()
 const router = useRouter()
 const dataStore = useDataStore()
 const { render } = useMarkdown()
+const { fontSize, fontFamily } = useReaderSettings()
 
 const {
   tags,

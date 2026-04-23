@@ -229,10 +229,10 @@ provide('openGlobalSearch', openGlobalSearch)
 const mobileMenuOpen = ref(false)
 const menuOpen = ref(false)
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
-const { user, isAdmin, hasPassword, logout } = useAuth()
+const { user, isAdmin, logout } = useAuth()
 
 // Reader settings with real-time reactivity
-const { fontSize, fontFamily, lineHeight, setFontSize, setFontFamily, setLineHeight } = useReaderSettings()
+const { fontSize, fontFamily, setFontSize, setFontFamily } = useReaderSettings()
 
 // Check if we're on a reader page
 const isReaderPage = computed(() => {
