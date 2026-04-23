@@ -313,12 +313,9 @@ bkmk/
 ├── composables/
 │   ├── idb.ts
 │   ├── useAuth.ts
-│   ├── useBookmarks.ts
 │   ├── useDarkMode.ts
 │   ├── useInfiniteScroll.ts
 │   ├── useMarkdown.ts
-│   ├── useOfflineBookmarks.ts
-│   ├── useOfflineNotes.ts
 │   ├── useReaderSettings.ts
 │   ├── useSearch.ts
 │   ├── useSync.ts

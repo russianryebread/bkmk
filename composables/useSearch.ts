@@ -1,4 +1,4 @@
-import type { Bookmark } from './useBookmarks'
+import type { Bookmark } from './idb'
 
 export function useSearch() {
   const results = ref<Bookmark[]>([])
@@ -31,7 +31,7 @@ export function useSearch() {
 
   function debouncedSearch(query: string, delay = 300) {
     searchQuery.value = query
-    
+
     if (debounceTimeout) {
       clearTimeout(debounceTimeout)
     }

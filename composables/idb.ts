@@ -1,4 +1,3 @@
-import type { Bookmark } from './useBookmarks'
 import { stripMarkdown } from '../utils/markdown'
 
 const DB_NAME = 'bkmk-offline-db'
@@ -16,6 +15,41 @@ export function deriveTitle(content: string): string {
   firstLine = stripMarkdown(firstLine)
   if (!firstLine) return 'Untitled'
   return firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine
+}
+
+export interface Bookmark {
+  id: string
+  title: string
+  url: string
+  description: string | null
+  original_html: string | null
+  cleaned_markdown: string | null
+  reading_time_minutes: number | null
+  saved_at: string
+  last_accessed_at: string | null
+  is_favorite: boolean
+  sort_order: number | null
+  thumbnail_image_path: string | null
+  is_read: boolean
+  read_at: string | null
+  source_domain: string | null
+  word_count: number | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  tags: string[]
+  tag_ids: string[]
+}
+
+export interface BookmarkFilters {
+  page?: number
+  limit?: number
+  sort?: string
+  order?: string
+  favorite?: boolean
+  tag?: string
+  domain?: string
+  unread?: boolean
 }
 
 // Note types matching server schema
@@ -133,7 +167,7 @@ export function useIdb() {
         // Version 3 migration: add deletedAt support
         if (event.oldVersion < 3) {
           console.log('[IDB] Migrating to version 3: Adding soft delete support')
-          
+
           // Update bookmarks store with deleted_at field
           const bookmarksStore = txn.objectStore(BOOKMARKS_STORE)
           const bookmarksCursor = bookmarksStore.openCursor()
@@ -146,7 +180,7 @@ export function useIdb() {
               cursor.continue()
             }
           }
-          
+
           // Update notes store with deletedAt field
           const notesStore = txn.objectStore(NOTES_STORE)
           const notesCursor = notesStore.openCursor()

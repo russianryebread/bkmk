@@ -138,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Bookmark } from '~/composables/useBookmarks'
+import type { Bookmark } from '~/composables/idb'
 import { useTagSystem } from '~/composables/useTagSystem'
 
 const router = useRouter()
@@ -251,10 +251,10 @@ async function handleRefresh() {
 async function toggleFavorite(id: string) {
   const bookmark = items.value.find(b => b.id === id)
   if (!bookmark) return
-  
+
   const newValue = !bookmark.is_favorite
   await dataStore.updateBookmark(id, { is_favorite: newValue })
-  
+
   // Update local state
   const index = items.value.findIndex(b => b.id === id)
   if (index !== -1 && items.value[index]) {

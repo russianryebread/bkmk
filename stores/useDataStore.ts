@@ -3,8 +3,7 @@
 //           pinia → IndexedDB → server (on write, background sync)
 
 import { defineStore } from 'pinia'
-import { useIdb, type Note, type Tag } from '~/composables/idb'
-import type { Bookmark, BookmarkFilters } from '~/composables/useBookmarks'
+import { useIdb, type Note, type Tag, type Bookmark, type BookmarkFilters } from '~/composables/idb'
 
 // Types for sync queue items
 interface SyncQueueItem {
@@ -44,18 +43,18 @@ export const useDataStore = defineStore('data', () => {
   // ==================== LIFECYCLE ====================
   async function initialize() {
     console.log('[DataStore] Initializing...')
-    
+
     // Initialize IndexedDB first
     await idb.initialize()
-    
+
     // Load from IndexedDB into state
     await loadFromIdb()
-    
+
     // Set up online/offline listeners
     isOnline.value = navigator.onLine
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-    
+
     // Fetch latest from server and update IndexedDB
     if (isOnline.value) {
       syncWithServer()
@@ -351,9 +350,9 @@ export const useDataStore = defineStore('data', () => {
 
   async function mergeBookmarks(serverBookmarks: Bookmark[]) {
     const localMap = new Map(bookmarks.value.map(b => [b.id, { ...b }]))
-    
+
     const toSave: Bookmark[] = []
-    
+
     for (const server of serverBookmarks) {
       const local = localMap.get(server.id)
       if (!local || new Date(server.updated_at) > new Date(local.updated_at)) {
@@ -362,7 +361,7 @@ export const useDataStore = defineStore('data', () => {
         toSave.push(local)
       }
     }
-    
+
     if (toSave.length > 0) {
       await idb.saveBookmarks(toSave)
       // Properly merge: keep local bookmarks not in server response
@@ -374,9 +373,9 @@ export const useDataStore = defineStore('data', () => {
 
   async function mergeNotes(serverNotes: Note[]) {
     const localMap = new Map(notes.value.map(n => [n.id, { ...n }]))
-    
+
     const toSave: Note[] = []
-    
+
     for (const server of serverNotes) {
       const local = localMap.get(server.id)
       if (!local || new Date(server.updatedAt) > new Date(local.updatedAt)) {
@@ -385,7 +384,7 @@ export const useDataStore = defineStore('data', () => {
         toSave.push(local)
       }
     }
-    
+
     if (toSave.length > 0) {
       await idb.saveNotes(toSave)
       // Properly merge: keep local notes not in server response
@@ -397,7 +396,7 @@ export const useDataStore = defineStore('data', () => {
 
   async function mergeTags(serverTags: Tag[]) {
     const localMap = new Map(tags.value.map(t => [t.id, { ...t }]))
-    
+
     const toSave: Tag[] = []
     for (const server of serverTags) {
       const local = localMap.get(server.id)
@@ -407,7 +406,7 @@ export const useDataStore = defineStore('data', () => {
         toSave.push(local)
       }
     }
-    
+
     if (toSave.length > 0) {
       await idb.saveTags(toSave)
       // Properly merge: keep local tags not in server response
@@ -426,7 +425,7 @@ export const useDataStore = defineStore('data', () => {
       data: data || { id },
       timestamp: Date.now(),
     }
-    
+
     await idb.addToSyncQueue(item as Omit<SyncQueueItem, 'retries'>)
 
     // Try immediate sync if online (fire and forget)
