@@ -19,7 +19,7 @@
     <div class="card">
       <!-- Manage Tags -->
       <NuxtLink to="/tags"
-        class="border-b border-1 border-gray-200 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
+        class="border-b border-1 border-gray-200 dark:border-gray-700 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -42,7 +42,7 @@
 
       <!-- API Tokens -->
       <NuxtLink to="/tokens"
-        class="border-b border-1 border-gray-200 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
+        class="border-b border-1 border-gray-200 dark:border-gray-700 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -65,7 +65,7 @@
 
       <!-- Change Password -->
       <NuxtLink to="/change-password" v-if="hasPassword"
-        class="border-b border-1 border-gray-200 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
+        class="border-b border-1 border-gray-200 dark:border-gray-700 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -88,7 +88,7 @@
 
       <!-- Admin Section -->
       <NuxtLink to="/admin/users" v-if="isAdmin"
-        class="border-b border-1 border-gray-200 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
+        class="border-b border-1 border-gray-200 dark:border-gray-700 p-4 rounded-t-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -111,7 +111,7 @@
 
       <!-- API Docs -->
       <NuxtLink to="/docs"
-        class="border-b border-1 border-gray-200 p-4 rounded-b-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
+        class="p-4 rounded-b-xl block hover:bg-gray-50 dark:hover:bg-gray-800">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
