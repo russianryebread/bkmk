@@ -319,6 +319,22 @@ export function useIdb() {
     })
   }
 
+  async function getTagsByType(type: 'bookmark' | 'note' | 'both'): Promise<Tag[]> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(TAGS_STORE, 'readonly')
+      const store = tx.objectStore(TAGS_STORE)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        const result = request.result.filter(t => t.type === type)
+        resolve(result)
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+
   async function deleteTag(id: string): Promise<void> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -493,6 +509,7 @@ export function useIdb() {
     saveTags,
     getTag,
     getAllTags,
+    getTagsByType,
     deleteTag,
     // Bookmarks
     saveBookmark,

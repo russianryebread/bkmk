@@ -236,7 +236,7 @@ const { fontSize, fontFamily, setFontSize, setFontFamily } = useReaderSettings()
 
 // Check if we're on a reader page
 const isReaderPage = computed(() => route.path.includes('/bookmarks/') && route.params.id)
-const isDetailPage = computed(() => route.path.includes('/bookmarks') || route.path.includes('/notes'))
+const isDetailPage = computed(() => route.path.includes('/bookmarks/') || route.path.includes('/notes/'))
 
 // Handle logout
 async function handleLogout() {

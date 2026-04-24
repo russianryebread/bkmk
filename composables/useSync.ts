@@ -1,6 +1,4 @@
-import type { Note, Secret, Tag } from './idb'
-
-export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error' | 'offline'
+import type { Note, Tag } from './idb'
 
 interface SyncQueueItem {
   id: string
@@ -14,14 +12,14 @@ interface SyncQueueItem {
 export function useSync() {
   // Get IDB instance directly without destructuring to avoid cloning refs
   const idb = useIdb()
-  
+
   const isOnline = ref(true)
   const isSyncing = ref(false)
   const syncStatus = ref<SyncStatus>('idle')
   const lastSyncTime = ref<Date | null>(null)
   const pendingChanges = ref(0)
   const syncError = ref<string | null>(null)
-  
+
   let syncInterval: ReturnType<typeof setInterval> | null = null
 
   // Initialize online status listeners
@@ -235,7 +233,7 @@ export function useSync() {
   // Queue a change for sync
   async function queueChange(entity: 'note' | 'secret' | 'tag' | 'bookmark', action: 'create' | 'update' | 'delete', id: string, data?: any): Promise<void> {
     console.log('[Sync] Queueing change:', action, entity, id)
-    
+
     const item = {
       id: `${entity}-${action}-${id}-${Date.now()}`,
       action,
@@ -243,10 +241,10 @@ export function useSync() {
       data: data || { id },
       timestamp: Date.now(),
     }
-    
+
     await idb.addToSyncQueue(item)
     pendingChanges.value++
-    
+
     if (isOnline.value) {
       performSync()
     }
@@ -255,7 +253,7 @@ export function useSync() {
   // One-time sync on init only - no periodic timer
   function startPeriodicSync(): void {
     console.log('[Sync] Starting one-time sync on init')
-    
+
     // Run initial sync if online (background, non-blocking)
     if (isOnline.value) {
       performSync()
@@ -287,7 +285,6 @@ export function useSync() {
   return {
     isOnline,
     isSyncing,
-    syncStatus,
     lastSyncTime,
     pendingChanges,
     syncError,

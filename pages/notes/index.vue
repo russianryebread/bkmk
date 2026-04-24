@@ -7,7 +7,7 @@
       :loading-more="loadingMore"
       :has-more="hasMore"
       :error="error"
-      :available-tags="allTags"
+      :available-tags="tags"
       :selected-tag="selectedTag"
       search-placeholder="Search notes... (Press / to focus)"
       empty-title="No notes yet"
@@ -118,21 +118,13 @@
 
 <script setup lang="ts">
 import type { Note } from '~/composables/idb'
-import { useTagSystem } from '~/composables/useTagSystem'
 import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 
 const router = useRouter()
 const dataStore = useDataStore()
-const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
+const idb = useIdb()
 
-// Watch notes array to trigger refresh when data store updates
-watch(() => dataStore.notes.length, () => {
-  // Data store handles sync automatically
-})
-
-// Get all tags filtered by type (note tags only)
-const allTags = computed(() => getTagsByType('note'))
 
 // Infinite scroll state
 const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)
@@ -147,6 +139,8 @@ const filters = ref({
   tag: '',
   favorite: false,
 })
+
+const tags = ref<Tag[]>([])
 
 const selectedTag = computed(() => filters.value.tag)
 
@@ -240,7 +234,7 @@ function openNote(note: Note) {
 }
 
 onMounted(async () => {
-  await fetchTags()
+  tags.value = await idb.getTagsByType('note')
   loadMore(true)
 })
 </script>

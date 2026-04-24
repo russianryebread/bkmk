@@ -287,7 +287,7 @@ async function saveNote() {
       // Create new note
       const noteToSave = await dataStore.createNote({
         content: editorContent.value,
-        tags: editorTags.value,
+        tags: [ ...editorTags.value ],
       })
 
       if (noteToSave) {
@@ -297,14 +297,14 @@ async function saveNote() {
       // Update existing note
       await dataStore.updateNote(note.value.id, {
         content: editorContent.value,
-        tags: editorTags.value,
+        tags: [ ...editorTags.value ],
       })
 
       // Update local note
       note.value = {
         ...note.value,
         content: editorContent.value,
-        tags: editorTags.value,
+        tags: [ ...editorTags.value ],
         updatedAt: new Date().toISOString(),
       }
 

@@ -138,17 +138,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Bookmark } from '~/composables/idb'
-import { useTagSystem } from '~/composables/useTagSystem'
+import type { Bookmark, Tag } from '~/composables/idb'
 
 const router = useRouter()
 const dataStore = useDataStore()
-const { getTagColor, fetchTags, getTagsByType } = useTagSystem()
-
-// Watch bookmarks array to trigger refresh when data store updates
-watch(() => dataStore.bookmarks.length, () => {
-  // Data store handles sync automatically
-})
+const idb = useIdb()
 
 // Infinite scroll state
 const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)
@@ -164,13 +158,9 @@ const filters = ref({
   favorite: false,
 })
 
+const tags = ref<Tag[]>([])
 const selectedTag = computed(() => filters.value.tag)
-
-// Get tags filtered by type (bookmark tags only)
-const allTags = computed(() => getTagsByType('bookmark'))
-
-// Filter top-level tags (tags without parentTagId)
-const topLevelTags = computed(() => allTags.value.filter(t => !t.parentTagId))
+const topLevelTags = computed(() => tags.value.filter((t: Tag) => !t.parentTagId))
 
 // Modal state
 const showAddModal = ref(false)
@@ -288,8 +278,8 @@ async function addBookmark() {
   }
 }
 
-onMounted(() => {
-  fetchTags()
+onMounted(async () => {
+  tags.value = await idb.getTagsByType('bookmark')
   loadMore(true)
 })
 </script>
