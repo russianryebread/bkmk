@@ -22,23 +22,23 @@ export interface Bookmark {
   title: string
   url: string
   description: string | null
-  original_html: string | null
-  cleaned_markdown: string | null
-  reading_time_minutes: number | null
-  saved_at: string
-  last_accessed_at: string | null
-  is_favorite: boolean
-  sort_order: number | null
-  thumbnail_image_path: string | null
-  is_read: boolean
-  read_at: string | null
-  source_domain: string | null
-  word_count: number | null
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-  tags: string[]
-  tag_ids: string[]
+  originalHtml?: string | null
+  cleanedMarkdown?: string | null
+  readingTimeMinutes?: number | null
+  savedAt: string
+  lastAccessedAt?: string | null
+  isFavorite: boolean
+  sortOrder?: number | null
+  thumbnailImagePath: string | null
+  isRead: boolean
+  readAt: string | null
+  sourceDomain: string | null
+  wordCount?: number | null
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+  tags?: string[]
+  tagIds?: string[]
 }
 
 export interface BookmarkFilters {
@@ -70,8 +70,8 @@ export interface Tag {
   parentTagId: string | null
   color: string | null
   type: 'bookmark' | 'note' | 'both'
-  description: string | null
-  icon: string | null
+  description?: string | null
+  icon?: string | null
   createdAt: string
   bookmarkCount?: number
 }
@@ -359,8 +359,8 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
 
       bookmarks.forEach(bookmark => {
-        bookmark.original_html = null // Don't store original HTML locally.
-        bookmark.tag_ids = [ ...bookmark.tag_ids ] // no reactive proxy objects in IndexedDB
+        bookmark.originalHtml = null // Don't store original HTML locally.
+        bookmark.tagIds = [ ...bookmark.tagIds ] // no reactive proxy objects in IndexedDB
         bookmark.tags = [ ...bookmark.tags ]
         store.put(bookmark)
       })

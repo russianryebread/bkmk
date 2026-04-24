@@ -419,6 +419,50 @@ export const useDataStore = defineStore("data", () => {
     return { merged: Array.from(mergedMap.values()), toSave }
   }
 
+  async function mergeBookmarks(serverBookmarks: Bookmark[]) {
+    const { merged, toSave } = mergeGeneric<Bookmark>({
+      localList: bookmarks.value,
+      serverList: serverBookmarks,
+      tsFor: b => Date.parse(b.updatedAt),
+      preferServer: true,
+      shouldSave: (finalItem, localItem, serverItem) => {
+        return !!serverItem || (localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
+      }
+    })
+
+    if (toSave.length > 0) await idb.saveBookmarks(toSave)
+    bookmarks.value = merged
+  }
+
+  async function mergeNotes(serverNotes: Note[]) {
+    const { merged, toSave } = mergeGeneric<Note>({
+      localList: notes.value,
+      serverList: serverNotes,
+      tsFor: n => Date.parse(n.updatedAt),
+      preferServer: true,
+      shouldSave: (finalItem, localItem, serverItem) => {
+        return !!serverItem || (localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
+      }
+    })
+
+    if (toSave.length > 0) await idb.saveNotes(toSave)
+    notes.value = merged
+  }
+
+  async function mergeTags(serverTags: Tag[]) {
+    const { merged, toSave } = mergeGeneric<Tag>({
+      localList: tags.value,
+      serverList: serverTags,
+      tsFor: t => Date.parse(t.createdAt),
+      preferServer: true,
+      shouldSave: (finalItem, localItem, serverItem) => {
+        return !!serverItem || (localItem && Date.parse(localItem.createdAt) > Date.parse(finalItem.createdAt))
+      }
+    })
+
+    if (toSave.length > 0) await idb.saveTags(toSave)
+    tags.value = merged
+  }
 
   // ==================== QUEUE CHANGE ====================
   async function queueChange(
@@ -498,11 +542,11 @@ export const useDataStore = defineStore("data", () => {
   async function toggleBookmarkFavorite(id: string): Promise<boolean> {
     const bookmark = bookmarks.value.find((b) => b.id === id);
     if (!bookmark) return false;
-    return updateBookmark(id, { is_favorite: !bookmark.is_favorite });
+    return updateBookmark(id, { isFavorite: !bookmark.isFavorite });
   }
 
   async function markBookmarkRead(id: string): Promise<boolean> {
-    return updateBookmark(id, { is_read: true, read_at: new Date().toISOString() });
+    return updateBookmark(id, { isRead: true, readAt: new Date().toISOString() });
   }
 
   // ==================== NOTE OPERATIONS ====================
@@ -663,16 +707,16 @@ export const useDataStore = defineStore("data", () => {
     let results = [...bookmarks.value];
 
     if (filters.favorite) {
-      results = results.filter((b) => b.is_favorite);
+      results = results.filter((b) => b.isFavorite);
     }
     if (filters.unread) {
-      results = results.filter((b) => !b.is_read);
+      results = results.filter((b) => !b.isRead);
     }
     if (filters.tag) {
       results = results.filter((b) => b.tags?.includes(filters.tag!));
     }
     if (filters.domain) {
-      results = results.filter((b) => b.source_domain === filters.domain);
+      results = results.filter((b) => b.sourceDomain === filters.domain);
     }
 
     if (query) {
@@ -682,7 +726,7 @@ export const useDataStore = defineStore("data", () => {
           b.title?.toLowerCase().includes(q) ||
           b.description?.toLowerCase().includes(q) ||
           b.url?.toLowerCase().includes(q) ||
-          b.source_domain?.toLowerCase().includes(q) ||
+          b.sourceDomain?.toLowerCase().includes(q) ||
           b.tags?.some((t) => t.toLowerCase().includes(q)),
       );
     }

@@ -3,7 +3,7 @@ import type { Note, Tag } from './idb'
 interface SyncQueueItem {
   id: string
   action: 'create' | 'update' | 'delete'
-  entity: 'note' | 'secret' | 'tag'
+  entity: 'note' | 'bookmark' | 'tag'
   data: any
   timestamp: number
   retries: number
@@ -103,6 +103,7 @@ export function useSync() {
             isFavorite: n.isFavorite,
             createdAt: n.createdAt,
             updatedAt: n.updatedAt,
+            deletedAt: n.deletedAt,
           }))
           await idb.saveNotes(notes)
           console.log('[Sync] Synced', notes.length, 'notes to IndexedDB')
@@ -115,18 +116,8 @@ export function useSync() {
       try {
         const tagsResponse = await $fetch<{ tags: any[] }>('/api/tags')
         if (tagsResponse.tags && tagsResponse.tags.length > 0) {
-          const tags: Tag[] = tagsResponse.tags.map(t => ({
-            id: t.id,
-            name: t.name,
-            parentTagId: t.parentTagId,
-            color: t.color,
-            createdAt: t.createdAt,
-            bookmarkCount: t.bookmarkCount,
-          }))
-          // Convert to plain object to avoid Vue proxy cloning issues with IndexedDB
-          const plainTags = JSON.parse(JSON.stringify(tags))
-          await idb.saveTags(plainTags)
-          console.log('[Sync] Synced', tags.length, 'tags to IndexedDB')
+          await idb.saveTags(tagsResponse.tags)
+          console.log('[Sync] Synced', tagsResponse.tags.length, 'tags to IndexedDB')
         }
       } catch (e: any) {
         console.warn('[Sync] Failed to fetch tags:', e?.message || e)
@@ -231,7 +222,7 @@ export function useSync() {
   }
 
   // Queue a change for sync
-  async function queueChange(entity: 'note' | 'secret' | 'tag' | 'bookmark', action: 'create' | 'update' | 'delete', id: string, data?: any): Promise<void> {
+  async function queueChange(entity: 'note' | 'tag' | 'bookmark', action: 'create' | 'update' | 'delete', id: string, data?: any): Promise<void> {
     console.log('[Sync] Queueing change:', action, entity, id)
 
     const item = {

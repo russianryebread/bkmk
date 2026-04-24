@@ -94,9 +94,14 @@ export default defineEventHandler(async (event) => {
 
   // Batch delete
   if (del.length > 0) {
-    for (const id of del) {
-      await db.delete(bookmarks).where(eq(bookmarks.id, id))
-      results.deleted.push(id)
+    try {
+      for (const id of del) {
+        // await db.delete(bookmarks).where(eq(bookmarks.id, id))
+        await db.update(bookmarks).set({ deletedAt: new Date().toISOString() }).where(eq(bookmarks.id, id))
+        results.deleted.push(id)
+      }
+    } catch (error) {
+      console.error('[bookmarks] Batch delete error:', error)
     }
   }
 
