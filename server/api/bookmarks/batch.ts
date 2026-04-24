@@ -20,10 +20,11 @@ export default defineEventHandler(async (event) => {
     deleted: [],
   }
 
+  const now = new Date().toISOString()
+
   // Batch create
   if (create.length > 0) {
     for (const b of create) {
-      const now = new Date().toISOString()
       const tagIds: string[] = []
 
       // Auto-create or find tags
@@ -119,17 +120,18 @@ export default defineEventHandler(async (event) => {
         sortOrder: u.sortOrder ?? existing[0].sortOrder,
         thumbnailImagePath: u.thumbnailImagePath ?? existing[0].thumbnailImagePath,
         isRead: u.isRead !== undefined ? (u.isRead ? 1 : 0) : existing[0].isRead,
-        readAt: u.isRead !== undefined ? (u.isRead ? new Date().toISOString() : null) : existing[0].readAt,
+        readAt: u.isRead !== undefined ? (u.isRead ? now : null) : existing[0].readAt,
         sourceDomain: u.sourceDomain ?? existing[0].sourceDomain,
         wordCount: u.wordCount ?? existing[0].wordCount,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       }
 
       const [result] = await db.update(bookmarks).set(updated).where(eq(bookmarks.id, u.id)).returning()
       results.updated.push({
         ...result,
-        is_favorite: Boolean(result.isFavorite),
-        is_read: Boolean(result.isRead),
+        isFavorite: Boolean(result.isFavorite),
+        isRead: Boolean(result.isRead),
+        updatedAt: now,
       })
     }
   }

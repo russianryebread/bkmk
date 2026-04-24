@@ -20,10 +20,11 @@ export default defineEventHandler(async (event) => {
     deleted: [],
   }
 
+  const now = new Date().toISOString()
+
   // Batch create
   if (create.length > 0) {
     for (const c of create) {
-      const now = new Date().toISOString()
       const tagIds: string[] = []
 
       // Auto-create or find tags
@@ -93,6 +94,7 @@ export default defineEventHandler(async (event) => {
       const updated = {
         content: u.content ?? existing[0].content,
         isFavorite: u.isFavorite !== undefined ? (u.isFavorite ? 1 : 0) : existing[0].isFavorite,
+        updatedAt: now,
       }
 
       const [result] = await db
