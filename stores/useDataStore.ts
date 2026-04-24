@@ -420,52 +420,6 @@ export const useDataStore = defineStore("data", () => {
   }
 
 
-  async function mergeBookmarks(serverBookmarks: Bookmark[]) {
-    const { merged, toSave } = mergeGeneric<Bookmark>({
-      localList: bookmarks.value,
-      serverList: serverBookmarks,
-      tsFor: b => Date.parse(b.updated_at),
-      preferServer: true,
-      shouldSave: (finalItem, localItem, serverItem) => {
-        // Save if we chose server (to persist server items locally) or local was newer
-        return !!serverItem || (localItem && Date.parse(localItem.updated_at) > Date.parse(finalItem.updated_at))
-      }
-    })
-
-    if (toSave.length > 0) await idb.saveBookmarks(toSave)
-    bookmarks.value = merged
-  }
-
-  async function mergeNotes(serverNotes: Note[]) {
-    const { merged, toSave } = mergeGeneric<Note>({
-      localList: notes.value,
-      serverList: serverNotes,
-      tsFor: n => Date.parse(n.updatedAt),
-      preferServer: true,
-      shouldSave: (finalItem, localItem, serverItem) => {
-        return !!serverItem || (localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
-      }
-    })
-
-    if (toSave.length > 0) await idb.saveNotes(toSave)
-    notes.value = merged
-  }
-
-  async function mergeTags(serverTags: Tag[]) {
-    const { merged, toSave } = mergeGeneric<Tag>({
-      localList: tags.value,
-      serverList: serverTags,
-      tsFor: t => Date.parse(t.createdAt),
-      preferServer: true,
-      shouldSave: (finalItem, localItem, serverItem) => {
-        return !!serverItem || (localItem && Date.parse(localItem.createdAt) > Date.parse(finalItem.createdAt))
-      }
-    })
-
-    if (toSave.length > 0) await idb.saveTags(toSave)
-    tags.value = merged
-  }
-
   // ==================== QUEUE CHANGE ====================
   async function queueChange(
     entity: "bookmark" | "note" | "tag",
@@ -474,10 +428,10 @@ export const useDataStore = defineStore("data", () => {
     data?: unknown,
   ) {
     const item = {
-      id: `${entity}-${action}-${id}-${Date.now()}`,
+      id,
       action,
       entity,
-      data: data || { id },
+      data: data || `${entity}-${action}-${id}-${Date.now()}`,
       timestamp: Date.now(),
     };
 
