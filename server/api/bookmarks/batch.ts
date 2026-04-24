@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '~/server/database'
-import { bookmarks } from '~/server/database/schema'
+import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
@@ -22,41 +22,83 @@ export default defineEventHandler(async (event) => {
 
   // Batch create
   if (create.length > 0) {
-    const now = new Date().toISOString()
-    const newBookmarks = create.map((b: any) => {
+    for (const b of create) {
+      const now = new Date().toISOString()
+      const tagIds: string[] = []
+
+      // Auto-create or find tags
+      for (const tagName of b.tags || []) {
+        const trimmedName = tagName.trim()
+        if (!trimmedName) continue
+
+        let [existingTag] = await db
+          .select()
+          .from(tags)
+          .where(and(eq(tags.name, trimmedName), eq(tags.userId, currentUser.id)))
+          .limit(1)
+
+        if (!existingTag) {
+          ;[existingTag] = await db
+            .insert(tags)
+            .values({
+              id: crypto.randomUUID(),
+              userId: currentUser.id,
+              name: trimmedName,
+              parentTagId: null,
+              color: null,
+            })
+            .returning()
+        }
+        tagIds.push(existingTag.id)
+      }
+
       let domain = b.source_domain
       if (!domain && b.url) {
         try { domain = new URL(b.url).hostname } catch {}
       }
-      return {
+
+      const newBookmark = {
         id: b.id || crypto.randomUUID(),
         userId: currentUser.id,
         title: b.title,
         url: b.url,
         description: b.description || null,
-        cleanedMarkdown: b.cleaned_markdown || null,
-        originalHtml: b.original_html || null,
-        readingTimeMinutes: b.reading_time_minutes || null,
-        savedAt: b.saved_at || now,
+        cleanedMarkdown: b.cleanedMarkdown || null,
+        originalHtml: b.originalHtml || null,
+        readingTimeMinutes: b.readingTimeMinutes || null,
+        savedAt: b.savedAt || now,
         lastAccessedAt: null,
-        isFavorite: b.is_favorite ? 1 : 0,
-        sortOrder: b.sort_order || null,
-        thumbnailImagePath: b.thumbnail_image_path || null,
-        isRead: b.is_read ? 1 : 0,
-        readAt: b.is_read ? now : null,
+        isFavorite: b.isFavorite ? 1 : 0,
+        sortOrder: b.sortOrder || null,
+        thumbnailImagePath: b.thumbnailImagePath || null,
+        isRead: b.isRead ? 1 : 0,
+        readAt: b.isRead ? now : null,
         sourceDomain: domain || null,
-        wordCount: b.word_count || null,
+        wordCount: b.wordCount || null,
         createdAt: now,
         updatedAt: now,
+        deletedAt: null,
       }
-    })
 
-    const inserted = await db.insert(bookmarks).values(newBookmarks).returning()
-    results.created = inserted.map(b => ({
-      ...b,
-      is_favorite: Boolean(b.isFavorite),
-      is_read: Boolean(b.isRead),
-    }))
+      const [inserted] = await db.insert(bookmarks).values(newBookmark).returning()
+
+      for (const tagId of tagIds) {
+        await db
+          .insert(bookmarkTags)
+          .values({
+            id: crypto.randomUUID(),
+            bookmarkId: inserted.id,
+            tagId,
+          })
+          .onConflictDoNothing()
+      }
+
+      results.created.push({
+        ...inserted,
+        isFavorite: Boolean(inserted.isFavorite),
+        tags: b.tags || [],
+      })
+    }
   }
 
   // Batch update
@@ -70,16 +112,16 @@ export default defineEventHandler(async (event) => {
         title: u.title ?? existing[0].title,
         url: u.url ?? existing[0].url,
         description: u.description ?? existing[0].description,
-        cleanedMarkdown: u.cleaned_markdown ?? existing[0].cleanedMarkdown,
-        readingTimeMinutes: u.reading_time_minutes ?? existing[0].readingTimeMinutes,
-        savedAt: u.saved_at ?? existing[0].savedAt,
-        isFavorite: u.is_favorite !== undefined ? (u.is_favorite ? 1 : 0) : existing[0].isFavorite,
-        sortOrder: u.sort_order ?? existing[0].sortOrder,
-        thumbnailImagePath: u.thumbnail_image_path ?? existing[0].thumbnailImagePath,
-        isRead: u.is_read !== undefined ? (u.is_read ? 1 : 0) : existing[0].isRead,
-        readAt: u.is_read !== undefined ? (u.is_read ? new Date().toISOString() : null) : existing[0].readAt,
-        sourceDomain: u.source_domain ?? existing[0].sourceDomain,
-        wordCount: u.word_count ?? existing[0].wordCount,
+        cleanedMarkdown: u.cleanedMarkdown ?? existing[0].cleanedMarkdown,
+        readingTimeMinutes: u.readingTimeMinutes ?? existing[0].readingTimeMinutes,
+        savedAt: u.savedAt ?? existing[0].savedAt,
+        isFavorite: u.isFavorite !== undefined ? (u.isFavorite ? 1 : 0) : existing[0].isFavorite,
+        sortOrder: u.sortOrder ?? existing[0].sortOrder,
+        thumbnailImagePath: u.thumbnailImagePath ?? existing[0].thumbnailImagePath,
+        isRead: u.isRead !== undefined ? (u.isRead ? 1 : 0) : existing[0].isRead,
+        readAt: u.isRead !== undefined ? (u.isRead ? new Date().toISOString() : null) : existing[0].readAt,
+        sourceDomain: u.sourceDomain ?? existing[0].sourceDomain,
+        wordCount: u.wordCount ?? existing[0].wordCount,
         updatedAt: new Date().toISOString(),
       }
 

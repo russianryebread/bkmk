@@ -69,9 +69,9 @@ function extractVimeoId(videoUrl: string): string | null {
 export default defineEventHandler(async (event) => {
   // Require authentication
   const currentUser = await requireAuth(event)
-  
+
   const body = await readBody(event)
-  
+
   const { url } = body
 
   if (!url || typeof url !== 'string') {
@@ -121,11 +121,11 @@ export default defineEventHandler(async (event) => {
     const sourceDomain = extractDomain(url)
     const platform = getVideoPlatform(url)
     const now = new Date().toISOString()
-    
+
     // Try to fetch video metadata from oEmbed APIs
     let videoTitle = `${platform?.charAt(0).toUpperCase()}${platform?.slice(1)} Video`
     let videoDescription = `Saved from ${platform}`
-    
+
     try {
       if (platform === 'youtube') {
         // Extract video ID and fetch oEmbed data
@@ -193,7 +193,6 @@ export default defineEventHandler(async (event) => {
       isFavorite: Boolean(bookmark.isFavorite),
       isRead: Boolean(bookmark.isRead),
       tags: [],
-      tagIds: [],
       isVideo: true,
       platform,
     }
@@ -202,19 +201,19 @@ export default defineEventHandler(async (event) => {
   // Try to scrape the URL, but handle failures gracefully
   let scraped = null
   let scrapeError: string | null = null
-  
+
   try {
     scraped = await scrapeUrl(url)
   } catch (e: any) {
     scrapeError = e.message
     console.log('[Scrape] Failed to scrape URL, creating text bookmark:', scrapeError)
   }
-  
+
   // If scraping failed, create a text URL bookmark
   if (!scraped) {
     const sourceDomain = extractDomain(url)
     const now = new Date().toISOString()
-    
+
     // Extract a readable domain for the title
     let title = sourceDomain
     if (title.includes('www.')) {
@@ -224,10 +223,10 @@ export default defineEventHandler(async (event) => {
     if (title) {
       title = title.charAt(0).toUpperCase() + title.slice(1)
     }
-    
+
     // Create a markdown link as the content
     const markdownContent = `[${cleanUrl}](${cleanUrl})`
-    
+
     const [bookmark] = await db
       .insert(schema.bookmarks)
       .values({
@@ -259,7 +258,6 @@ export default defineEventHandler(async (event) => {
       isFavorite: Boolean(bookmark.isFavorite),
       isRead: Boolean(bookmark.isRead),
       tags: [],
-      tagIds: [],
       scrapeError,
       fallbackBookmark: true,
     }
@@ -378,7 +376,6 @@ export default defineEventHandler(async (event) => {
     isFavorite: Boolean(fullBookmark.isFavorite),
     isRead: Boolean(fullBookmark.isRead),
     tags: bookmarkTags.map(bt => bt.tagName),
-    tagIds: bookmarkTags.map(bt => bt.tagId),
     imagesProcessed: imageMap.size,
   }
 })

@@ -38,7 +38,6 @@ export interface Bookmark {
   updatedAt: string
   deletedAt: string | null
   tags?: string[]
-  tagIds?: string[]
 }
 
 export interface BookmarkFilters {
@@ -360,7 +359,6 @@ export function useIdb() {
 
       bookmarks.forEach(bookmark => {
         bookmark.originalHtml = null // Don't store original HTML locally.
-        bookmark.tagIds = [ ...bookmark.tagIds ] // no reactive proxy objects in IndexedDB
         bookmark.tags = [ ...bookmark.tags ]
         store.put(bookmark)
       })

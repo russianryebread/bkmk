@@ -121,7 +121,7 @@
         </div>
 
         <form @submit.prevent="addBookmark">
-          <input v-model="newUrl" type="url" placeholder="https://example.com/article" class="input mb-4" required />
+          <input v-model="newUrl" type="url" placeholder="https://example.com/article" class="input mb-4" required autofocus ref="urlInput" />
           <p v-if="addError" class="text-red-600 text-sm mb-4">{{ addError }}</p>
           <div class="flex gap-2">
             <button type="button" @click="showAddModal = false" class="btn-secondary flex-1">
@@ -165,8 +165,17 @@ const topLevelTags = computed(() => tags.value.filter((t: Tag) => !t.parentTagId
 // Modal state
 const showAddModal = ref(false)
 const newUrl = ref('')
+const urlInput = ref(null);
 const adding = ref(false)
 const addError = ref('')
+
+
+watch(showAddModal, async (val) => {
+  if (val) {
+    await nextTick();
+    urlInput.value?.focus();
+  }
+});
 
 // Load bookmarks with cursor-based pagination
 async function loadMore(isRefresh = false) {

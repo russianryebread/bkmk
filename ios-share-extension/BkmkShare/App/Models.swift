@@ -18,10 +18,9 @@ struct Bookmark: Codable, Identifiable, Hashable {
     let wordCount: Int?
     let thumbnailImagePath: String?
     let tags: [String]?
-    let tagIds: [String]?
     let createdAt: String?
     let updatedAt: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id, title, url, description
         case cleanedMarkdown = "cleaned_markdown"
@@ -35,7 +34,7 @@ struct Bookmark: Codable, Identifiable, Hashable {
         case sourceDomain = "source_domain"
         case wordCount = "word_count"
         case thumbnailImagePath = "thumbnail_image_path"
-        case tags, tagIds
+        case tags
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -51,7 +50,7 @@ struct Note: Codable, Identifiable, Hashable {
     let createdAt: String?
     let updatedAt: String?
     let deletedAt: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id, content
         case isFavorite = "is_favorite"
