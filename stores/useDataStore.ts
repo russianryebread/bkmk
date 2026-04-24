@@ -491,21 +491,16 @@ export const useDataStore = defineStore("data", () => {
 
   // ==================== BOOKMARK OPERATIONS ====================
   async function createBookmark(url: string): Promise<Bookmark | null> {
-    try {
-      const response = await $fetch<Bookmark>("/api/scrape", {
-        method: "POST",
-        body: { url },
-      });
+    const response = await $fetch<Bookmark>("/api/scrape", {
+      method: "POST",
+      body: { url },
+    });
 
-      // Add to local state and IndexedDB immediately
-      bookmarks.value.push(response);
-      await idb.saveBookmark(response);
+    // Add to local state and IndexedDB immediately
+    bookmarks.value.push(response);
+    await idb.saveBookmark(response);
 
-      return response;
-    } catch (e) {
-      console.error("[DataStore] Failed to create bookmark:", e);
-      return null;
-    }
+    return response;
   }
 
   async function updateBookmark(id: string, updates: Partial<Bookmark>): Promise<boolean> {

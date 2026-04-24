@@ -1,6 +1,6 @@
 import { db, schema } from '~/server/database'
 import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 import { UrlCleaner } from '~/server/utils/url-cleaner'
 import {
@@ -101,7 +101,8 @@ export default defineEventHandler(async (event) => {
     .from(schema.bookmarks)
     .where(and(
       eq(schema.bookmarks.url, cleanUrl),
-      eq(schema.bookmarks.userId, currentUser.id)
+      eq(schema.bookmarks.userId, currentUser.id),
+      isNull(schema.bookmarks.deletedAt),
     ))
     .limit(1)
 

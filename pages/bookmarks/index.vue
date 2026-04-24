@@ -91,8 +91,8 @@
             </h3>
             <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
               <span>{{ item.sourceDomain }}</span>
-              <span v-if="item.readingTimeMinutes" class="mx-2">•</span>
-              <span v-if="item.readingTimeMinutes">{{ item.readingTimeMinutes }} min</span>
+              <span v-if="item.reading_time_minutes" class="mx-2">•</span>
+              <span v-if="item.reading_time_minutes">{{ item.reading_time_minutes }} min</span>
             </div>
           </div>
           <div class="flex gap-2 flex-shrink-0">
@@ -279,6 +279,7 @@ async function addBookmark() {
       showAddModal.value = false
       newUrl.value = ''
       router.push(`/bookmarks/${bookmark.id}`)
+      dataStore.bookmarks.push(bookmark)
     }
   } catch (e: any) {
     addError.value = e.data?.message || 'Failed to add bookmark'
