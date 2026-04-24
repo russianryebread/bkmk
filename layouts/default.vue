@@ -181,7 +181,7 @@
     </main>
 
     <!-- Mobile Bottom Toolbar (Bookmarks and Notes quick access) -->
-    <!-- <div
+    <div v-if="!isDetailPage"
       class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-140">
       <div class="flex items-center justify-around py-2">
         <NuxtLink to="/bookmarks"
@@ -209,7 +209,7 @@
           <span class="text-xs mt-1">Search</span>
         </button>
       </div>
-    </div> -->
+    </div>
 
     <!-- Global Search Modal -->
     <GlobalSearch ref="globalSearchRef" />
@@ -235,9 +235,8 @@ const { user, isAdmin, logout } = useAuth()
 const { fontSize, fontFamily, setFontSize, setFontFamily } = useReaderSettings()
 
 // Check if we're on a reader page
-const isReaderPage = computed(() => {
-  return route.path.includes('/bookmarks/') && route.params.id
-})
+const isReaderPage = computed(() => route.path.includes('/bookmarks/') && route.params.id)
+const isDetailPage = computed(() => route.path.includes('/bookmarks') || route.path.includes('/notes'))
 
 // Handle logout
 async function handleLogout() {
