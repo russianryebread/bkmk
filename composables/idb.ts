@@ -134,9 +134,9 @@ export function useIdb() {
 
         if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
           const bookmarksStore = db.createObjectStore(BOOKMARKS_STORE, { keyPath: 'id' })
-          bookmarksStore.createIndex('saved_at', 'saved_at', { unique: false })
-          bookmarksStore.createIndex('is_favorite', 'is_favorite', { unique: false })
-          bookmarksStore.createIndex('is_read', 'is_read', { unique: false })
+          bookmarksStore.createIndex('savedAt', 'savedAt', { unique: false })
+          bookmarksStore.createIndex('isFavorite', 'isFavorite', { unique: false })
+          bookmarksStore.createIndex('isRead', 'isRead', { unique: false })
         }
 
         if (!db.objectStoreNames.contains(NOTES_STORE)) {
@@ -359,7 +359,6 @@ export function useIdb() {
 
       bookmarks.forEach(bookmark => {
         bookmark.originalHtml = null // Don't store original HTML locally.
-        bookmark.tags = [ ...bookmark.tags ]
         store.put(bookmark)
       })
 

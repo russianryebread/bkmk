@@ -346,6 +346,8 @@ export const useDataStore = defineStore("data", () => {
         $fetch<{ tags: Tag[] }>("/api/tags"),
       ]);
 
+      console.log(bookmarksRes, notesRes)
+
       if (bookmarksRes.status === "fulfilled" && bookmarksRes.value.bookmarks) {
         const serverBookmarks = bookmarksRes.value.bookmarks;
         await mergeBookmarks(serverBookmarks);

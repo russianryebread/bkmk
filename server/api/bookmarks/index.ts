@@ -5,14 +5,11 @@ import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
-  // Require authentication
   const currentUser = await requireAuth(event)
-  
   const method = event.method
 
   if (method === 'GET') {
     const query = getQuery(event)
-    
     const {
       page = '1',
       limit = '20',
@@ -28,22 +25,12 @@ export default defineEventHandler(async (event) => {
     const limitNum = parseInt(limit as string)
     const offset = (pageNum - 1) * limitNum
 
-    // Build conditions array - always filter by userId
-    const conditions: any[] = [eq(bookmarks.userId, currentUser.id), isNull(bookmarks.deletedAt)]
+    const baseConditions: any[] = [eq(bookmarks.userId, currentUser.id), isNull(bookmarks.deletedAt)]
 
-    if (favorite === 'true') {
-      conditions.push(eq(bookmarks.isFavorite, 1))
-    }
+    if (favorite === 'true') baseConditions.push(eq(bookmarks.isFavorite, 1))
+    if (unread === 'true') baseConditions.push(eq(bookmarks.isRead, 0))
+    if (domain) baseConditions.push(eq(bookmarks.sourceDomain, domain as string))
 
-    if (unread === 'true') {
-      conditions.push(eq(bookmarks.isRead, 0))
-    }
-
-    if (domain) {
-      conditions.push(eq(bookmarks.sourceDomain, domain as string))
-    }
-
-    // Map sort column to schema field
     const sortColumnMap: Record<string, any> = {
       'created_at': bookmarks.createdAt,
       'title': bookmarks.title,
@@ -54,7 +41,7 @@ export default defineEventHandler(async (event) => {
     const sortColumn = sortColumnMap[sort as string] || bookmarks.createdAt
     const sortOrder = order === 'asc' ? asc : desc
 
-    // Get total count
+    // COUNT
     let countResult: any[]
     if (tag) {
       const tagCondition = tag as string
@@ -62,104 +49,97 @@ export default defineEventHandler(async (event) => {
         .select({ total: sql<number>`count(DISTINCT ${bookmarks.id})` })
         .from(bookmarks)
         .innerJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-        .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-        .where(and(...conditions, eq(tags.name, tagCondition), eq(tags.userId, currentUser.id)))
+        .innerJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
+        .where(and(...baseConditions, eq(tags.name, tagCondition)))
     } else {
       countResult = await db
-        .select({ total: sql<number>`count(*)` })
+        .select({ total: sql<number>`count(DISTINCT ${bookmarks.id})` })
         .from(bookmarks)
-        .where(and(...conditions))
+        .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
+        .leftJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
+        .where(and(...baseConditions))
     }
-    
     const total = countResult[0]?.total || 0
 
-    // Get bookmarks with tags
+    // SELECT
     let rawBookmarks: any[]
+    const selectShape = {
+      bookmark: {
+        id: bookmarks.id,
+        title: bookmarks.title,
+        url: bookmarks.url,
+        description: bookmarks.description,
+        cleanedMarkdown: bookmarks.cleanedMarkdown,
+        originalHtml: bookmarks.originalHtml,
+        readingTimeMinutes: bookmarks.readingTimeMinutes,
+        savedAt: bookmarks.savedAt,
+        lastAccessedAt: bookmarks.lastAccessedAt,
+        isFavorite: bookmarks.isFavorite,
+        sortOrder: bookmarks.sortOrder,
+        thumbnailImagePath: bookmarks.thumbnailImagePath,
+        isRead: bookmarks.isRead,
+        readAt: bookmarks.readAt,
+        sourceDomain: bookmarks.sourceDomain,
+        wordCount: bookmarks.wordCount,
+        createdAt: bookmarks.createdAt,
+        updatedAt: bookmarks.updatedAt,
+      },
+      tagName: tags.name,
+    }
+
     if (tag) {
       const tagCondition = tag as string
       rawBookmarks = await db
-        .select({
-          bookmark: {
-            id: bookmarks.id,
-            title: bookmarks.title,
-            url: bookmarks.url,
-            description: bookmarks.description,
-            cleaned_markdown: bookmarks.cleanedMarkdown,
-            original_html: bookmarks.originalHtml,
-            reading_time_minutes: bookmarks.readingTimeMinutes,
-            saved_at: bookmarks.savedAt,
-            last_accessed_at: bookmarks.lastAccessedAt,
-            is_favorite: bookmarks.isFavorite,
-            sort_order: bookmarks.sortOrder,
-            thumbnail_image_path: bookmarks.thumbnailImagePath,
-            is_read: bookmarks.isRead,
-            read_at: bookmarks.readAt,
-            source_domain: bookmarks.sourceDomain,
-            word_count: bookmarks.wordCount,
-            created_at: bookmarks.createdAt,
-            updated_at: bookmarks.updatedAt,
-          },
-          tagName: tags.name,
-          tagId: tags.id,
-        })
+        .select(selectShape)
         .from(bookmarks)
         .innerJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-        .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-        .where(and(...conditions, eq(tags.name, tagCondition)))
+        .innerJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
+        .where(and(...baseConditions, eq(tags.name, tagCondition)))
         .orderBy(sortOrder(sortColumn))
         .limit(limitNum)
         .offset(offset)
     } else {
       rawBookmarks = await db
-        .select({
-          bookmark: {
-            id: bookmarks.id,
-            title: bookmarks.title,
-            url: bookmarks.url,
-            description: bookmarks.description,
-            cleaned_markdown: bookmarks.cleanedMarkdown,
-            original_html: bookmarks.originalHtml,
-            reading_time_minutes: bookmarks.readingTimeMinutes,
-            saved_at: bookmarks.savedAt,
-            last_accessed_at: bookmarks.lastAccessedAt,
-            is_favorite: bookmarks.isFavorite,
-            sort_order: bookmarks.sortOrder,
-            thumbnail_image_path: bookmarks.thumbnailImagePath,
-            is_read: bookmarks.isRead,
-            read_at: bookmarks.readAt,
-            source_domain: bookmarks.sourceDomain,
-            word_count: bookmarks.wordCount,
-            created_at: bookmarks.createdAt,
-            updated_at: bookmarks.updatedAt,
-          },
-          tagName: tags.name,
-          tagId: tags.id,
-        })
+        .select(selectShape)
         .from(bookmarks)
         .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
-        .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
-        .where(and(...conditions))
+        .leftJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
+        .where(and(...baseConditions))
         .orderBy(sortOrder(sortColumn))
         .limit(limitNum)
         .offset(offset)
     }
 
-    // Group by bookmark and aggregate tags
     const bookmarkMap = new Map<string, any>()
     for (const row of rawBookmarks) {
-      const bookmarkId = row.bookmark.id
+      const bm = row.bookmark
+      const bookmarkId = bm.id
       if (!bookmarkMap.has(bookmarkId)) {
         bookmarkMap.set(bookmarkId, {
-          ...row.bookmark,
-          is_favorite: Boolean(row.bookmark.is_favorite),
-          is_read: Boolean(row.bookmark.is_read),
-          tags: [],
-          tag_ids: [],
+          id: bm.id,
+          title: bm.title,
+          url: bm.url,
+          description: bm.description,
+          cleanedMarkdown: bm.cleanedMarkdown,
+          originalHtml: bm.originalHtml,
+          readingTimeMinutes: bm.readingTimeMinutes,
+          savedAt: bm.savedAt,
+          lastAccessedAt: bm.lastAccessedAt,
+          isFavorite: Boolean(bm.isFavorite),
+          sortOrder: bm.sortOrder,
+          thumbnailImagePath: bm.thumbnailImagePath,
+          isRead: Boolean(bm.isRead),
+          readAt: bm.readAt,
+          sourceDomain: bm.sourceDomain,
+          wordCount: bm.wordCount,
+          createdAt: bm.createdAt,
+          updatedAt: bm.updatedAt,
+          tags: [] as string[],
         })
       }
       if (row.tagName) {
-        bookmarkMap.get(bookmarkId).tags.push(row.tagName)
-        bookmarkMap.get(bookmarkId).tag_ids.push(row.tagId)
+        const item = bookmarkMap.get(bookmarkId)
+        if (!item.tags.includes(row.tagName)) item.tags.push(row.tagName)
       }
     }
 
@@ -178,24 +158,9 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'POST') {
     const body = await readBody(event)
-    const {
-      title,
-      url,
-      description,
-      cleaned_markdown,
-      original_html,
-      reading_time_minutes,
-      saved_at,
-      is_favorite,
-      sort_order,
-      thumbnail_image_path,
-      is_read,
-      source_domain,
-      word_count,
-    } = body
+    const { url, sourceDomain } = body
 
-    // Extract domain from URL if not provided
-    let domain = source_domain
+    let domain = sourceDomain
     if (!domain && url) {
       try {
         domain = new URL(url).hostname
@@ -205,38 +170,20 @@ export default defineEventHandler(async (event) => {
     const now = new Date().toISOString()
 
     const newBookmark = {
+      ...body,
       id: crypto.randomUUID(),
       userId: currentUser.id,
-      title,
-      url,
-      description: description || null,
-      cleanedMarkdown: cleaned_markdown || null,
-      originalHtml: original_html || null,
-      readingTimeMinutes: reading_time_minutes || null,
-      savedAt: saved_at || now,
-      lastAccessedAt: null,
-      isFavorite: is_favorite ? 1 : 0,
-      sortOrder: sort_order || null,
-      thumbnailImagePath: thumbnail_image_path || null,
-      isRead: is_read ? 1 : 0,
-      readAt: is_read ? now : null,
-      sourceDomain: domain || null,
-      wordCount: word_count || null,
       createdAt: now,
       updatedAt: now,
+      deletedAt: null,
     }
 
     const result = await db.insert(bookmarks).values(newBookmark).returning()
+    const inserted = result[0]
 
     return {
       success: true,
-      bookmark: {
-        ...result[0],
-        is_favorite: Boolean(result[0].isFavorite),
-        is_read: Boolean(result[0].isRead),
-        tags: [],
-        tag_ids: [],
-      },
+      bookmark: inserted,
     }
   }
 

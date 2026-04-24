@@ -7,7 +7,7 @@ import { requireAuth } from '~/server/utils/auth'
 export default defineEventHandler(async (event) => {
   // Require authentication
   const currentUser = await requireAuth(event)
-  
+
   const query = getQuery(event)
   const { q, limit = '20' } = query
 
@@ -32,28 +32,7 @@ export default defineEventHandler(async (event) => {
     // Use PostgreSQL full-text search with to_tsvector and to_tsquery
     // Only search bookmarks belonging to current user
     const rawResults = await db
-      .select({
-        id: bookmarks.id,
-        title: bookmarks.title,
-        url: bookmarks.url,
-        description: bookmarks.description,
-        cleaned_markdown: bookmarks.cleanedMarkdown,
-        original_html: bookmarks.originalHtml,
-        reading_time_minutes: bookmarks.readingTimeMinutes,
-        saved_at: bookmarks.savedAt,
-        last_accessed_at: bookmarks.lastAccessedAt,
-        is_favorite: bookmarks.isFavorite,
-        sort_order: bookmarks.sortOrder,
-        thumbnail_image_path: bookmarks.thumbnailImagePath,
-        is_read: bookmarks.isRead,
-        read_at: bookmarks.readAt,
-        source_domain: bookmarks.sourceDomain,
-        word_count: bookmarks.wordCount,
-        created_at: bookmarks.createdAt,
-        updated_at: bookmarks.updatedAt,
-        tagName: tags.name,
-        tagId: tags.id,
-      })
+      .select()
       .from(bookmarks)
       .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
       .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
@@ -83,32 +62,10 @@ export default defineEventHandler(async (event) => {
     for (const row of rawResults) {
       const bookmarkId = row.id
       if (!bookmarkMap.has(bookmarkId)) {
-        bookmarkMap.set(bookmarkId, {
-          id: row.id,
-          title: row.title,
-          url: row.url,
-          description: row.description,
-          cleaned_markdown: row.cleaned_markdown,
-          original_html: row.original_html,
-          reading_time_minutes: row.reading_time_minutes,
-          saved_at: row.saved_at,
-          last_accessed_at: row.last_accessed_at,
-          is_favorite: Boolean(row.is_favorite),
-          sort_order: row.sort_order,
-          thumbnail_image_path: row.thumbnail_image_path,
-          is_read: Boolean(row.is_read),
-          read_at: row.read_at,
-          source_domain: row.source_domain,
-          word_count: row.word_count,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-          tags: [],
-          tag_ids: [],
-        })
+        bookmarkMap.set(bookmarkId, row)
       }
       if (row.tagName) {
         bookmarkMap.get(bookmarkId).tags.push(row.tagName)
-        bookmarkMap.get(bookmarkId).tag_ids.push(row.tagId)
       }
     }
 
@@ -125,28 +82,7 @@ export default defineEventHandler(async (event) => {
     const likePattern = `%${sanitizedTerm}%`
 
     const rawResults = await db
-      .select({
-        id: bookmarks.id,
-        title: bookmarks.title,
-        url: bookmarks.url,
-        description: bookmarks.description,
-        cleaned_markdown: bookmarks.cleanedMarkdown,
-        original_html: bookmarks.originalHtml,
-        reading_time_minutes: bookmarks.readingTimeMinutes,
-        saved_at: bookmarks.savedAt,
-        last_accessed_at: bookmarks.lastAccessedAt,
-        is_favorite: bookmarks.isFavorite,
-        sort_order: bookmarks.sortOrder,
-        thumbnail_image_path: bookmarks.thumbnailImagePath,
-        is_read: bookmarks.isRead,
-        read_at: bookmarks.readAt,
-        source_domain: bookmarks.sourceDomain,
-        word_count: bookmarks.wordCount,
-        created_at: bookmarks.createdAt,
-        updated_at: bookmarks.updatedAt,
-        tagName: tags.name,
-        tagId: tags.id,
-      })
+      .select()
       .from(bookmarks)
       .leftJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
       .leftJoin(tags, eq(bookmarkTags.tagId, tags.id))
@@ -164,32 +100,10 @@ export default defineEventHandler(async (event) => {
     for (const row of rawResults) {
       const bookmarkId = row.id
       if (!bookmarkMap.has(bookmarkId)) {
-        bookmarkMap.set(bookmarkId, {
-          id: row.id,
-          title: row.title,
-          url: row.url,
-          description: row.description,
-          cleaned_markdown: row.cleaned_markdown,
-          original_html: row.original_html,
-          reading_time_minutes: row.reading_time_minutes,
-          saved_at: row.saved_at,
-          last_accessed_at: row.last_accessed_at,
-          is_favorite: Boolean(row.is_favorite),
-          sort_order: row.sort_order,
-          thumbnail_image_path: row.thumbnail_image_path,
-          is_read: Boolean(row.is_read),
-          read_at: row.read_at,
-          source_domain: row.source_domain,
-          word_count: row.word_count,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-          tags: [],
-          tag_ids: [],
-        })
+        bookmarkMap.set(bookmarkId, row)
       }
       if (row.tagName) {
         bookmarkMap.get(bookmarkId).tags.push(row.tagName)
-        bookmarkMap.get(bookmarkId).tag_ids.push(row.tagId)
       }
     }
 

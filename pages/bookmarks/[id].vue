@@ -2,7 +2,6 @@
   <div class="min-h-[calc(var(--dvh)-110px)] md:min-h-[calc(var(--dvh)-136px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to bookmarks" back-to="/bookmarks"
       :actions="toolbarActions" />
-
     <!-- Simple back button for new/editing mode -->
     <div v-else class="flex mb-4">
       <div class="flex-1">
@@ -49,13 +48,13 @@
 
         <a :href="bookmark.url" target="_blank" rel="noopener"
           class="hover:text-primary-600 mb-2 inline-block text-sm text-gray-500 dark:text-gray-400">
-          {{ bookmark.source_domain }}
+          {{ bookmark.sourceDomain }}
         </a>
 
         <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
-          <span>Saved {{ formatDateFull(bookmark.saved_at) }}</span>
-          <span v-if="bookmark.reading_time_minutes" class="mx-2">•</span>
-          <span v-if="bookmark.reading_time_minutes">{{ bookmark.reading_time_minutes }} min read</span>
+          <span>Saved {{ formatDateFull(bookmark.savedAt) }}</span>
+          <span v-if="bookmark.readingTimeMinutes" class="mx-2">•</span>
+          <span v-if="bookmark.readingTimeMinutes">{{ bookmark.readingTimeMinutes }} min read</span>
         </div>
 
         <div v-if="bookmark.tags && bookmark.tags.length > 0" class="flex flex-wrap gap-2">
@@ -203,8 +202,8 @@ const isNew = computed(() => route.params.id === 'new')
 
 // Computed properties
 const renderedMarkdown = computed(() => {
-  if (!bookmark.value?.cleaned_markdown) return ''
-  return render(bookmark.value.cleaned_markdown)
+  if (!bookmark.value?.cleanedMarkdown) return ''
+  return render(bookmark.value.cleanedMarkdown)
 })
 
 const editorWordCount = computed(() => {
@@ -216,7 +215,7 @@ const editorWordCount = computed(() => {
 const hasChanges = computed(() => {
   if (!bookmark.value) return editorContent.value.trim() || editorTitle.value.trim()
   return editorTitle.value !== bookmark.value.title ||
-    editorContent.value !== (bookmark.value.cleaned_markdown || '') ||
+    editorContent.value !== (bookmark.value.cleanedMarkdown || '') ||
     JSON.stringify(editorTags.value) !== JSON.stringify(bookmark.value.tags || [])
 })
 
@@ -245,7 +244,7 @@ function initFromBookmark() {
   if (bookmark.value) {
     editorTitle.value = bookmark.value.title || ''
     editorUrl.value = bookmark.value.url || ''
-    editorContent.value = bookmark.value.cleaned_markdown || ''
+    editorContent.value = bookmark.value.cleanedMarkdown || ''
     editorTags.value = [...(bookmark.value.tags || [])]
   }
   newTag.value = ''
@@ -316,8 +315,8 @@ async function saveBookmark() {
         // Update with user edits (title, content, tags)
         await dataStore.updateBookmark(bookmarkToSave.id, {
           title: editorTitle.value || editorUrl.value,
-          cleaned_markdown: editorContent.value,
-          tags: editorTags.value,
+          cleanedMarkdown: editorContent.value,
+          tags: [ ...editorTags.value ],
         })
         router.replace(`/bookmarks/${bookmarkToSave.id}`)
       }
@@ -325,7 +324,7 @@ async function saveBookmark() {
       // Update existing bookmark
       await dataStore.updateBookmark(bookmark.value.id, {
         title: editorTitle.value,
-        cleaned_markdown: editorContent.value,
+        cleanedMarkdown: editorContent.value,
         tags: [ ...editorTags.value ],
       })
 
@@ -333,9 +332,9 @@ async function saveBookmark() {
       bookmark.value = {
         ...bookmark.value,
         title: editorTitle.value,
-        cleaned_markdown: editorContent.value,
+        cleanedMarkdown: editorContent.value,
         tags: [ ...editorTags.value ],
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }
 
       editing.value = false
@@ -351,7 +350,7 @@ async function saveBookmark() {
 async function toggleFavorite() {
   if (!bookmark.value) return
   await dataStore.toggleBookmarkFavorite(bookmark.value.id)
-  bookmark.value.is_favorite = !bookmark.value.is_favorite
+  bookmark.value.isfavorite = !bookmark.value.isFavorite
 }
 
 async function deleteBookmarkConfirm() {
@@ -404,8 +403,8 @@ interface Action {
 const toolbarActions = computed<Action[]>(() => [
   {
     icon: 'heart' as const,
-    title: bookmark.value?.is_favorite ? 'Remove from favorites' : 'Add to favorites',
-    active: bookmark.value?.is_favorite,
+    title: bookmark.value?.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+    active: bookmark.value?.isFavorite,
     handler: () => toggleFavorite(),
   },
   {
