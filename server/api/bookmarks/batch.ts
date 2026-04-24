@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { db } from '~/server/database'
 import { bookmarks } from '~/server/database/schema'
 import { requireAuth } from '~/server/utils/auth'
@@ -62,7 +63,7 @@ export default defineEventHandler(async (event) => {
   if (update.length > 0) {
     for (const u of update) {
       if (!u.id) continue
-      const existing = await db.select().from(bookmarks).where((b) => b.id.eq(u.id)).limit(1)
+      const existing = await db.select().from(bookmarks).where((b) => eq(b.id, u.id)).limit(1)
       if (!existing[0]) continue
 
       const updated = {
@@ -82,7 +83,7 @@ export default defineEventHandler(async (event) => {
         updatedAt: new Date().toISOString(),
       }
 
-      const [result] = await db.update(bookmarks).set(updated).where((b) => b.id.eq(u.id)).returning()
+      const [result] = await db.update(bookmarks).set(updated).where(eq(bookmarks.id, u.id)).returning()
       results.updated.push({
         ...result,
         is_favorite: Boolean(result.isFavorite),
@@ -94,7 +95,7 @@ export default defineEventHandler(async (event) => {
   // Batch delete
   if (del.length > 0) {
     for (const id of del) {
-      await db.delete(bookmarks).where((b) => b.id.eq(id))
+      await db.delete(bookmarks).where(eq(bookmarks.id, id))
       results.deleted.push(id)
     }
   }

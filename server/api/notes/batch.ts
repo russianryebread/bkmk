@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm'
 import { db } from '~/server/database'
 import { notes, notesTags, tags } from '~/server/database/schema'
 import { requireAuth } from '~/server/utils/auth'
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
         let [existingTag] = await db
           .select()
           .from(tags)
-          .where((t) => t.name.eq(trimmedName).and(t.userId.eq(currentUser.id)))
+          .where(and(eq(tags.name, trimmedName), eq(tags.userId, currentUser.id)))
           .limit(1)
 
         if (!existingTag) {
@@ -86,7 +87,7 @@ export default defineEventHandler(async (event) => {
     for (const u of update) {
       if (!u.id) continue
 
-      const existing = await db.select().from(notes).where((n) => n.id.eq(u.id).and(n.userId.eq(currentUser.id))).limit(1)
+      const existing = await db.select().from(notes).where(and(eq(notes.id, u.id), eq(notes.userId, currentUser.id))).limit(1)
       if (!existing[0]) continue
 
       const updated = {
@@ -97,7 +98,7 @@ export default defineEventHandler(async (event) => {
       const [result] = await db
         .update(notes)
         .set(updated)
-        .where((n) => n.id.eq(u.id))
+        .where(eq(notes.id, u.id))
         .returning()
 
       results.updated.push({
@@ -110,7 +111,7 @@ export default defineEventHandler(async (event) => {
   // Batch delete
   if (del.length > 0) {
     for (const id of del) {
-      await db.delete(notes).where((n) => n.id.eq(id).and(n.userId.eq(currentUser.id)))
+      await db.delete(notes).where(and(eq(notes.id, id), eq(notes.userId, currentUser.id)))
       results.deleted.push(id)
     }
   }

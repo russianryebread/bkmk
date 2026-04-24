@@ -1,3 +1,4 @@
+import { and, eq } from 'drizzle-orm'
 import { db } from '~/server/database'
 import { tags } from '~/server/database/schema'
 import { requireAuth } from '~/server/utils/auth'
@@ -48,7 +49,7 @@ export default defineEventHandler(async (event) => {
     for (const u of update) {
       if (!u.id) continue
 
-      const existing = await db.select().from(tags).where((t) => t.id.eq(u.id).and(t.userId.eq(currentUser.id))).limit(1)
+      const existing = await db.select().from(tags).where(and(eq(tags.id, u.id), eq(tags.userId, currentUser.id))).limit(1)
       if (!existing[0]) continue
 
       const updated = {
@@ -63,7 +64,7 @@ export default defineEventHandler(async (event) => {
       const [result] = await db
         .update(tags)
         .set(updated)
-        .where((t) => t.id.eq(u.id))
+        .where(eq(tags.id, u.id))
         .returning()
 
       results.updated.push(result)
@@ -73,7 +74,7 @@ export default defineEventHandler(async (event) => {
   // Batch delete
   if (del.length > 0) {
     for (const id of del) {
-      await db.delete(tags).where((t) => t.id.eq(id).and(t.userId.eq(currentUser.id)))
+      await db.delete(tags).where(and(eq(tags.id, id), eq(tags.userId, currentUser.id)))
       results.deleted.push(id)
     }
   }
