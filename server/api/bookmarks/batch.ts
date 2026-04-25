@@ -124,6 +124,7 @@ export default defineEventHandler(async (event) => {
         sourceDomain: u.sourceDomain ?? existing[0].sourceDomain,
         wordCount: u.wordCount ?? existing[0].wordCount,
         updatedAt: now,
+        tags: u.tags ?? existing[0].tags,
       }
 
       const [result] = await db.update(bookmarks).set(updated).where(eq(bookmarks.id, u.id)).returning()
