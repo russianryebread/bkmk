@@ -125,6 +125,8 @@ const router = useRouter()
 const dataStore = useDataStore()
 const idb = useIdb()
 
+const { getTagColor } = useTagSystem()
+
 
 // Infinite scroll state
 const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)

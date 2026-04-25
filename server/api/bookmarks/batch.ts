@@ -1,154 +1,212 @@
-import { and, eq } from 'drizzle-orm'
-import { db } from '~/server/database'
-import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
-import { requireAuth } from '~/server/utils/auth'
+import { and, eq } from "drizzle-orm";
+import { db } from "~/server/database";
+import { bookmarks, bookmarkTags, tags } from "~/server/database/schema";
+import { requireAuth } from "~/server/utils/auth";
 
 export default defineEventHandler(async (event) => {
-  const currentUser = await requireAuth(event)
-  const method = event.method
+  const currentUser = await requireAuth(event);
 
-  if (method !== 'POST') {
-    throw createError({ statusCode: 405, message: 'Method not allowed' })
+  if (event.method !== "POST") {
+    throw createError({ statusCode: 405, message: "Method not allowed" });
   }
 
-  const body = await readBody(event)
-  const { create = [], update = [], del = [] } = body
+  const body = await readBody(event);
+  const { create = [], update = [], del = [] } = body ?? {};
 
-  const results: { created: any[]; updated: any[]; deleted: string[] } = {
+  const now = new Date().toISOString();
+
+  const results: {
+    created: any[];
+    updated: any[];
+    deleted: string[];
+  } = {
     created: [],
     updated: [],
     deleted: [],
-  }
+  };
 
-  const now = new Date().toISOString()
+  const resolveTagIds = async (tx: typeof db, tagNames: string[] = []): Promise<{ ids: string[]; names: string[] }> => {
+    const uniqueNames = [...new Set(tagNames.map((name) => String(name).trim()).filter(Boolean))];
 
-  // Batch create
-  if (create.length > 0) {
-    for (const b of create) {
-      const tagIds: string[] = []
+    const ids: string[] = [];
 
-      // Auto-create or find tags
-      for (const tagName of b.tags || []) {
-        const trimmedName = tagName.trim()
-        if (!trimmedName) continue
+    for (const name of uniqueNames) {
+      let [tag] = await tx
+        .select()
+        .from(tags)
+        .where(and(eq(tags.name, name), eq(tags.userId, currentUser.id)))
+        .limit(1);
 
-        let [existingTag] = await db
-          .select()
-          .from(tags)
-          .where(and(eq(tags.name, trimmedName), eq(tags.userId, currentUser.id)))
-          .limit(1)
-
-        if (!existingTag) {
-          ;[existingTag] = await db
-            .insert(tags)
-            .values({
-              id: crypto.randomUUID(),
-              userId: currentUser.id,
-              name: trimmedName,
-              parentTagId: null,
-              color: null,
-            })
-            .returning()
-        }
-        tagIds.push(existingTag.id)
+      if (!tag) {
+        [tag] = await tx
+          .insert(tags)
+          .values({
+            id: crypto.randomUUID(),
+            userId: currentUser.id,
+            name,
+            parentTagId: null,
+            color: null,
+          })
+          .returning();
       }
 
-      let domain = b.source_domain
-      if (!domain && b.url) {
-        try { domain = new URL(b.url).hostname } catch {}
+      ids.push(tag.id);
+    }
+
+    return { ids, names: uniqueNames };
+  };
+
+  // Batch create
+  for (const bookmark of create) {
+    await db.transaction(async (tx) => {
+      const { ids: tagIds, names: tagNames } = await resolveTagIds(tx, bookmark.tags ?? []);
+
+      let domain = bookmark.sourceDomain ?? bookmark.source_domain ?? null;
+      if (!domain && bookmark.url) {
+        try {
+          domain = new URL(bookmark.url).hostname;
+        } catch {
+          domain = null;
+        }
       }
 
       const newBookmark = {
-        id: b.id || crypto.randomUUID(),
+        id: bookmark.id || crypto.randomUUID(),
         userId: currentUser.id,
-        title: b.title,
-        url: b.url,
-        description: b.description || null,
-        cleanedMarkdown: b.cleanedMarkdown || null,
-        originalHtml: b.originalHtml || null,
-        readingTimeMinutes: b.readingTimeMinutes || null,
-        savedAt: b.savedAt || now,
+        title: bookmark.title,
+        url: bookmark.url,
+        description: bookmark.description ?? null,
+        cleanedMarkdown: bookmark.cleanedMarkdown ?? null,
+        originalHtml: bookmark.originalHtml ?? null,
+        readingTimeMinutes: bookmark.readingTimeMinutes ?? null,
+        savedAt: bookmark.savedAt ?? now,
         lastAccessedAt: null,
-        isFavorite: b.isFavorite ? 1 : 0,
-        sortOrder: b.sortOrder || null,
-        thumbnailImagePath: b.thumbnailImagePath || null,
-        isRead: b.isRead ? 1 : 0,
-        readAt: b.isRead ? now : null,
-        sourceDomain: domain || null,
-        wordCount: b.wordCount || null,
+        isFavorite: bookmark.isFavorite ? 1 : 0,
+        sortOrder: bookmark.sortOrder ?? null,
+        thumbnailImagePath: bookmark.thumbnailImagePath ?? null,
+        isRead: bookmark.isRead ? 1 : 0,
+        readAt: bookmark.isRead ? now : null,
+        sourceDomain: domain,
+        wordCount: bookmark.wordCount ?? null,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
-      }
+      };
 
-      const [inserted] = await db.insert(bookmarks).values(newBookmark).returning()
+      const [inserted] = await tx.insert(bookmarks).values(newBookmark).returning();
 
-      for (const tagId of tagIds) {
-        await db
-          .insert(bookmarkTags)
-          .values({
+      if (tagIds.length > 0) {
+        await tx.insert(bookmarkTags).values(
+          tagIds.map((tagId) => ({
             id: crypto.randomUUID(),
             bookmarkId: inserted.id,
             tagId,
-          })
-          .onConflictDoNothing()
+          })),
+        );
       }
 
       results.created.push({
         ...inserted,
         isFavorite: Boolean(inserted.isFavorite),
-        tags: b.tags || [],
-      })
-    }
+        isRead: Boolean(inserted.isRead),
+        tags: tagNames,
+      });
+    });
   }
 
   // Batch update
-  if (update.length > 0) {
-    for (const u of update) {
-      if (!u.id) continue
-      const existing = await db.select().from(bookmarks).where((b) => eq(b.id, u.id)).limit(1)
-      if (!existing[0]) continue
+  for (const bookmark of update) {
+    if (!bookmark?.id) continue;
 
-      const updated = {
-        title: u.title ?? existing[0].title,
-        url: u.url ?? existing[0].url,
-        description: u.description ?? existing[0].description,
-        cleanedMarkdown: u.cleanedMarkdown ?? existing[0].cleanedMarkdown,
-        readingTimeMinutes: u.readingTimeMinutes ?? existing[0].readingTimeMinutes,
-        savedAt: u.savedAt ?? existing[0].savedAt,
-        isFavorite: u.isFavorite !== undefined ? (u.isFavorite ? 1 : 0) : existing[0].isFavorite,
-        sortOrder: u.sortOrder ?? existing[0].sortOrder,
-        thumbnailImagePath: u.thumbnailImagePath ?? existing[0].thumbnailImagePath,
-        isRead: u.isRead !== undefined ? (u.isRead ? 1 : 0) : existing[0].isRead,
-        readAt: u.isRead !== undefined ? (u.isRead ? now : null) : existing[0].readAt,
-        sourceDomain: u.sourceDomain ?? existing[0].sourceDomain,
-        wordCount: u.wordCount ?? existing[0].wordCount,
-        updatedAt: now,
-        tags: u.tags ?? existing[0].tags,
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(bookmarks)
+        .where(and(eq(bookmarks.id, bookmark.id), eq(bookmarks.userId, currentUser.id)))
+        .limit(1);
+
+      if (!existing) {
+        return;
       }
 
-      const [result] = await db.update(bookmarks).set(updated).where(eq(bookmarks.id, u.id)).returning()
+      let domain = bookmark.sourceDomain;
+      if (bookmark.url && !domain) {
+        try {
+          domain = new URL(bookmark.url).hostname;
+        } catch {
+          domain = existing.sourceDomain;
+        }
+      }
+
+      const updatedFields = {
+        title: bookmark.title ?? existing.title,
+        url: bookmark.url ?? existing.url,
+        description: bookmark.description ?? existing.description,
+        cleanedMarkdown: bookmark.cleanedMarkdown ?? existing.cleanedMarkdown,
+        originalHtml: bookmark.originalHtml ?? existing.originalHtml,
+        readingTimeMinutes: bookmark.readingTimeMinutes ?? existing.readingTimeMinutes,
+        savedAt: bookmark.savedAt ?? existing.savedAt,
+        isFavorite: bookmark.isFavorite !== undefined ? (bookmark.isFavorite ? 1 : 0) : existing.isFavorite,
+        sortOrder: bookmark.sortOrder ?? existing.sortOrder,
+        thumbnailImagePath: bookmark.thumbnailImagePath ?? existing.thumbnailImagePath,
+        isRead: bookmark.isRead !== undefined ? (bookmark.isRead ? 1 : 0) : existing.isRead,
+        readAt: bookmark.isRead !== undefined ? (bookmark.isRead ? now : null) : existing.readAt,
+        sourceDomain: domain ?? existing.sourceDomain,
+        wordCount: bookmark.wordCount ?? existing.wordCount,
+        updatedAt: now,
+      };
+
+      const [updatedBookmark] = await tx
+        .update(bookmarks)
+        .set(updatedFields)
+        .where(and(eq(bookmarks.id, bookmark.id), eq(bookmarks.userId, currentUser.id)))
+        .returning();
+
+      let tagNames: string[] | undefined;
+
+      if (Array.isArray(bookmark.tags)) {
+        const resolved = await resolveTagIds(tx, bookmark.tags);
+        tagNames = resolved.names;
+
+        await tx.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmark.id));
+
+        if (resolved.ids.length > 0) {
+          await tx.insert(bookmarkTags).values(
+            resolved.ids.map((tagId) => ({
+              id: crypto.randomUUID(),
+              bookmarkId: bookmark.id,
+              tagId,
+            })),
+          );
+        }
+      }
+
       results.updated.push({
-        ...result,
-        isFavorite: Boolean(result.isFavorite),
-        isRead: Boolean(result.isRead),
+        ...updatedBookmark,
+        isFavorite: Boolean(updatedBookmark.isFavorite),
+        isRead: Boolean(updatedBookmark.isRead),
+        tags: tagNames ?? bookmark.tags,
+      });
+    });
+  }
+
+  // Batch soft delete
+  for (const id of del) {
+    if (!id) continue;
+
+    const [deleted] = await db
+      .update(bookmarks)
+      .set({
+        deletedAt: now,
         updatedAt: now,
       })
+      .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, currentUser.id)))
+      .returning({ id: bookmarks.id });
+
+    if (deleted) {
+      results.deleted.push(deleted.id);
     }
   }
 
-  // Batch delete
-  if (del.length > 0) {
-    try {
-      for (const id of del) {
-        // await db.delete(bookmarks).where(eq(bookmarks.id, id))
-        await db.update(bookmarks).set({ deletedAt: new Date().toISOString() }).where(eq(bookmarks.id, id))
-        results.deleted.push(id)
-      }
-    } catch (error) {
-      console.error('[bookmarks] Batch delete error:', error)
-    }
-  }
-
-  return results
-})
+  return results;
+});
