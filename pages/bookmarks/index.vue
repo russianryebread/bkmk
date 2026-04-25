@@ -161,6 +161,7 @@ const filters = ref({
 const tags = ref<Tag[]>([])
 const selectedTag = computed(() => filters.value.tag)
 const topLevelTags = computed(() => tags.value.filter((t: Tag) => !t.parentTagId))
+const { getTagColor } = useTagSystem()
 
 // Modal state
 const showAddModal = ref(false)

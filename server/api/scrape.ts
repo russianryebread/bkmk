@@ -278,7 +278,7 @@ export default defineEventHandler(async (event) => {
       title: scraped.title,
       url: cleanUrl,
       description: scraped.description,
-      originalHtml: scraped.html,
+      // originalHtml: scraped.html, // Let's not store the original HTML.
       cleanedMarkdown: scraped.markdown,
       readingTimeMinutes: scraped.readingTimeMinutes,
       sourceDomain: sourceDomain,
@@ -310,11 +310,11 @@ export default defineEventHandler(async (event) => {
   console.log('[Scrape] Processed', imageMap.size, 'images')
 
   // Update bookmark with processed content (images replaced with API URLs)
-  let processedHtml = scraped.originalHtml || scraped.html
+  // let processedHtml = scraped.originalHtml || scraped.html
   let processedMarkdown = scraped.markdown
 
   if (imageMap.size > 0) {
-    processedHtml = replaceImageUrlsInHtml(scraped.originalHtml || scraped.html || '', imageMap)
+    // processedHtml = replaceImageUrlsInHtml(scraped.originalHtml || scraped.html || '', imageMap)
     processedMarkdown = replaceImageUrlsInMarkdown(scraped.markdown || '', imageMap)
   }
 
@@ -322,7 +322,7 @@ export default defineEventHandler(async (event) => {
   await db
     .update(schema.bookmarks)
     .set({
-      originalHtml: processedHtml,
+      // originalHtml: processedHtml,
       cleanedMarkdown: processedMarkdown,
     })
     .where(eq(schema.bookmarks.id, bookmark.id))
