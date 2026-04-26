@@ -1,18 +1,18 @@
 <template>
-  <div 
-    class="infinite-item-list" 
+  <div
+    class="infinite-item-list"
     ref="containerRef"
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
   >
     <!-- Pull to Refresh Indicator -->
-    <div 
+    <div
       class="pull-to-refresh-indicator"
-      :class="{ 
+      :class="{
         'pulling': isPulling,
         'ready': pullDistance >= pullThreshold && !isRefreshing,
-        'refreshing': isRefreshing 
+        'refreshing': isRefreshing
       }"
       :style="{ height: `${pullDistance}px` }"
     >
@@ -32,7 +32,7 @@
     </div>
 
     <!-- Header with Search and Actions -->
-    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+    <div class="flex flex-row gap-4 mb-6">
       <!-- Search -->
       <div class="flex-1">
         <div class="relative">
@@ -52,7 +52,6 @@
 
       <!-- Actions -->
       <div class="flex gap-2">
-        <ViewToggle />
         <slot name="actions"></slot>
       </div>
     </div>
@@ -100,7 +99,7 @@
       </div>
 
       <!-- List View -->
-      <div v-else class="space-y-2">
+      <div v-else class="card">
         <slot name="list" v-for="(item, index) in items" :item="item" :index="index"></slot>
       </div>
 
@@ -217,10 +216,10 @@ function handleTagChange(tag: string) {
 function handleTouchStart(e: TouchEvent) {
   if (!props.pullToRefresh) return
   if (isRefreshing.value) return
-  
+
   // Only activate when scrolled near top
   if (containerRef.value && containerRef.value.scrollTop > 10) return
-  
+
   isPulling.value = true
   startY.value = e.touches[0].clientY
   currentY.value = startY.value
@@ -228,10 +227,10 @@ function handleTouchStart(e: TouchEvent) {
 
 function handleTouchMove(e: TouchEvent) {
   if (!props.pullToRefresh || !isPulling.value) return
-  
+
   currentY.value = e.touches[0].clientY
   const diff = currentY.value - startY.value
-  
+
   // Only allow pulling down (positive diff)
   if (diff > 0) {
     // Apply resistance to make it feel natural
@@ -242,9 +241,9 @@ function handleTouchMove(e: TouchEvent) {
 
 function handleTouchEnd() {
   if (!props.pullToRefresh || !isPulling.value) return
-  
+
   isPulling.value = false
-  
+
   if (pullDistance.value >= pullThreshold && !isRefreshing.value) {
     // Trigger refresh
     triggerRefresh()
@@ -257,7 +256,7 @@ function handleTouchEnd() {
 function triggerRefresh() {
   isRefreshing.value = true
   emit('refresh')
-  
+
   // Reset after a delay (parent should call resetRefreshing when done)
   setTimeout(() => {
     if (isRefreshing.value) {

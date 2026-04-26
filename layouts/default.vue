@@ -92,6 +92,17 @@
                     </button>
                   </div>
 
+                  <!-- Card/Table Mode Toggle -->
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm text-gray-700 dark:text-gray-300" v-text="viewMode === 'card' ? 'Card View' : 'List View'"></span>
+                    <button @click="toggleViewMode"
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                      :class="viewMode === 'card' ? 'bg-primary-600' : 'bg-gray-300'">
+                      <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                        :class="viewMode === 'card' ? 'translate-x-6' : 'translate-x-1'" />
+                    </button>
+                  </div>
+
                   <!-- Reader Settings (only show on reader pages) -->
                   <div v-if="isReaderPage">
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Reader</p>
@@ -220,7 +231,6 @@
 const route = useRoute()
 const globalSearchRef = ref<any>(null)
 
-// Provide global search to child components
 function openGlobalSearch() {
   globalSearchRef.value?.open()
 }
@@ -228,17 +238,15 @@ provide('openGlobalSearch', openGlobalSearch)
 
 const mobileMenuOpen = ref(false)
 const menuOpen = ref(false)
+
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
 const { user, isAdmin, logout } = useAuth()
-
-// Reader settings with real-time reactivity
+const { viewMode, toggleViewMode } = useViewMode()
 const { fontSize, fontFamily, setFontSize, setFontFamily } = useReaderSettings()
 
-// Check if we're on a reader page
 const isReaderPage = computed(() => route.path.includes('/bookmarks/') && route.params.id)
 const isDetailPage = computed(() => route.path.includes('/bookmarks/') || route.path.includes('/notes/'))
 
-// Handle logout
 async function handleLogout() {
   menuOpen.value = false
   mobileMenuOpen.value = false

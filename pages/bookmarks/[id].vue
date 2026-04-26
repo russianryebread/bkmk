@@ -157,6 +157,8 @@
 </template>
 
 <script setup lang="ts">
+import type { Action } from '~/utils/types'
+
 import { formatDateFull } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
 
@@ -390,15 +392,6 @@ watch(() => route.params.id, async (newId) => {
     await loadBookmark()
   }
 }, { immediate: true })
-
-// Toolbar actions for the sticky toolbar
-interface Action {
-  icon?: 'heart' | 'tag' | 'edit' | 'external' | 'trash' | 'copy' | 'plus' | 'close'
-  title: string
-  active?: boolean
-  variant?: 'default' | 'danger'
-  handler?: () => void
-}
 
 const toolbarActions = computed<Action[]>(() => [
   {

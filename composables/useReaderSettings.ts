@@ -6,7 +6,7 @@ export interface ReaderSettings {
 
 const DEFAULT_SETTINGS: ReaderSettings = {
   fontSize: 16,
-  fontFamily: 'sans-serif',
+  fontFamily: 'serif',
   lineHeight: 'normal',
 }
 

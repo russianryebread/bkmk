@@ -77,7 +77,7 @@
             </svg>
           </button>
         </div>
-        
+
         <!-- Keyboard hints -->
         <div class="flex gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
           <span><kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">↑</kbd> <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">↓</kbd> Navigate</span>
@@ -94,8 +94,8 @@
           :ref="el => setResultRef(el, index)"
           :class="[
             'card p-4 cursor-pointer transition-all',
-            selectedIndex === index 
-              ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+            selectedIndex === index
+              ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
               : 'hover:shadow-md'
           ]"
           @click="openResult(result)"
@@ -105,8 +105,8 @@
             <!-- Type indicator -->
             <div :class="[
               'p-2 rounded-lg flex-shrink-0',
-              result.type === 'bookmark' 
-                ? 'bg-blue-100 dark:bg-blue-900' 
+              result.type === 'bookmark'
+                ? 'bg-blue-100 dark:bg-blue-900'
                 : 'bg-green-100 dark:bg-green-900'
             ]">
               <svg v-if="result.type === 'bookmark'" class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            
+
             <!-- Content -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
@@ -137,9 +137,9 @@
               <div v-if="result.type === 'bookmark'" class="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
                 <span>{{ result.source_domain }}</span>
                 <span v-if="result.tags && result.tags.length > 0" class="flex gap-1">
-                  <span 
-                    v-for="tag in (result.tags ?? []).slice(0, 3)" 
-                    :key="tag" 
+                  <span
+                    v-for="tag in (result.tags ?? []).slice(0, 3)"
+                    :key="tag"
                     class="px-2 py-0.5 text-xs rounded-full"
                     :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
                   >{{ tag }}</span>
@@ -149,7 +149,7 @@
                 <span>Updated {{ formatDate(result.updated_at ?? "") }}</span>
               </div>
             </div>
-            
+
             <!-- Arrow indicator for selected -->
             <div v-if="selectedIndex === index" class="flex-shrink-0">
               <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,7 +183,7 @@
                 </svg>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Bookmarks</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Bookmarks <span class="text-gray-600 dark:text-gray-400 rounded-full bg-gray-200 dark:bg-slate-700 py-1 px-2">{{ stats.totalBookmarks }}</span></h3>
                 <p class="text-gray-500 dark:text-gray-400">View and manage all your saved links</p>
               </div>
             </div>
@@ -202,7 +202,7 @@
                 </svg>
               </div>
               <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Notes</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Notes <span class="text-gray-600 dark:text-gray-400 rounded-full bg-gray-200 dark:bg-slate-700 py-1 px-2">{{ stats.totalNotes }}</span></h3>
                 <p class="text-gray-500 dark:text-gray-400">Create and edit markdown notes</p>
               </div>
             </div>
@@ -272,14 +272,14 @@ async function fetchStats() {
       getAllNotes(),
       getAllTags(),
     ])
-    
+
     stats.value = {
       totalBookmarks: bookmarks.length,
       unreadBookmarks: bookmarks.filter(b => !b.is_read).length,
       totalNotes: notes.length,
       totalTags: tags.length,
     }
-    
+
     // Also try to refresh from server in background
     refreshStatsFromServer()
   } catch (e) {
@@ -302,7 +302,7 @@ async function refreshStatsFromServer(): Promise<void> {
 async function scrapeUrl() {
   const query = searchQuery.value.trim()
   if (!isUrl(query)) return
-  
+
   try {
     searching.value = true
     const response = await $fetch<{ id: string }>('/api/scrape', {
@@ -321,7 +321,7 @@ let debounceTimeout: NodeJS.Timeout | null = null
 
 function handleSearch() {
   selectedIndex.value = 0
-  
+
   if (debounceTimeout) {
     clearTimeout(debounceTimeout)
   }
@@ -337,16 +337,16 @@ function handleSearch() {
   debounceTimeout = setTimeout(async () => {
     try {
       const query = searchQuery.value.toLowerCase()
-      
+
       // Search locally first (instant)
       const [bookmarks, notes] = await Promise.all([
         getAllBookmarks(),
         getAllNotes(),
       ])
-      
+
       // Filter bookmarks locally
       const bookmarkResults: SearchResult[] = bookmarks
-        .filter(b => 
+        .filter(b =>
           b.title?.toLowerCase().includes(query) ||
           b.description?.toLowerCase().includes(query) ||
           b.source_domain?.toLowerCase().includes(query) ||
@@ -383,7 +383,7 @@ function handleSearch() {
 
       // Interleave results (bookmarks first, then notes)
       searchResults.value = [...bookmarkResults, ...noteResults]
-      
+
       // Also refresh from server in background for completeness
       refreshSearchFromServer(query)
     } catch (e) {
@@ -399,12 +399,12 @@ function handleSearch() {
 async function refreshSearchFromServer(query: string): Promise<void> {
   try {
     const encodedQuery = encodeURIComponent(query)
-    
+
     const [bookmarkResponse, notesResponse] = await Promise.all([
       $fetch<{ bookmarks: any[] }>(`/api/bookmarks/search?q=${encodedQuery}&limit=10`),
       $fetch<{ notes: any[] }>(`/api/notes/search?q=${encodedQuery}&limit=10`)
     ])
-    
+
     // Transform and combine results
     const bookmarkResults: SearchResult[] = bookmarkResponse.bookmarks.map(b => ({
       id: b.id,
@@ -498,7 +498,7 @@ function openResult(result: SearchResult) {
 onMounted(() => {
   fetchStats()
   fetchTags()
-  
+
   // Auto-focus search on page load
   nextTick(() => {
     searchInputRef.value?.focus()

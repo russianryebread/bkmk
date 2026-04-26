@@ -44,13 +44,7 @@
 </template>
 
 <script setup lang="ts">
-interface Action {
-  icon?: 'heart' | 'tag' | 'edit' | 'external' | 'trash' | 'copy' | 'plus' | 'close'
-  title: string
-  active?: boolean
-  variant?: 'default' | 'danger'
-  handler?: () => void
-}
+import type { Action } from '~/utils/types'
 
 const props = withDefaults(defineProps<{
   showBack?: boolean
@@ -86,7 +80,7 @@ onMounted(() => {
     isScrolled.value = window.scrollY > 50
   }
   window.addEventListener('scroll', handleScroll, { passive: true })
-  
+
   onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll)
   })

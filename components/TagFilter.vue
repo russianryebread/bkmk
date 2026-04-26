@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap gap-2">
+  <div class="flex gap-2 overflow-x-auto">
     <button
       @click="$emit('update:selectedTag', '')"
       class="px-3 py-1 text-sm rounded-full transition-colors"
@@ -27,7 +27,7 @@
       v-for="tag in tags"
       :key="tag.name"
       @click="$emit('update:selectedTag', tag.name)"
-      class="px-3 py-1 text-sm rounded-full transition-colors"
+      class="px-3 py-1 text-sm rounded-full transition-colors text-nowrap"
       :style="selectedTag === tag.name ? {} : { backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text, borderColor: getTagColor(tag.name).bg }"
       :class="selectedTag === tag.name ? 'bg-primary-600 text-white' : ''"
     >

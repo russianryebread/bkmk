@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import type { Action } from '~/utils/types'
 import type { Note } from '~/composables/idb'
 import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
@@ -363,7 +364,7 @@ watch(() => route.params.id, async (newId) => {
 }, { immediate: true })
 
 // Toolbar actions for the sticky toolbar
-const toolbarActions = computed(() => [
+const toolbarActions = computed<Action[]>(() => [
   {
     icon: 'heart' as const,
     title: note.value?.isFavorite ? 'Remove from favorites' : 'Add to favorites',
@@ -374,11 +375,6 @@ const toolbarActions = computed(() => [
     icon: 'edit' as const,
     title: 'Edit note',
     handler: () => startEditing(),
-  },
-  {
-    icon: 'tag' as const,
-    title: 'Manage tags',
-    handler: () => { editing.value = true; initFromNote() },
   },
   {
     icon: 'trash' as const,
