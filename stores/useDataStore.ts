@@ -33,12 +33,21 @@ export const useDataStore = defineStore("data", () => {
 
   const isOnline = ref(true);
 
-  // ==================== COMPUTED ====================
-  const pendingChangesCount = computed(() => syncQueue.value.length);
-  const hasPendingChanges = computed(() => syncQueue.value.length > 0);
+  // ==================== SYNC QUEUE COUNT ====================
+  // Mirrors the size of the persisted IDB sync queue. Updated explicitly after
+  // each queueChange and at the end of every syncWithServer.
+  const pendingChanges = ref(0);
+  const pendingChangesCount = computed(() => pendingChanges.value);
+  const hasPendingChanges = computed(() => pendingChanges.value > 0);
 
-  // ==================== SYNC QUEUE ====================
-  const syncQueue = ref<SyncQueueItem[]>([]);
+  async function refreshPendingCount() {
+    try {
+      const queue = await idb.getSyncQueue();
+      pendingChanges.value = queue.length;
+    } catch (e) {
+      console.warn("[DataStore] Failed to read sync queue length", e);
+    }
+  }
 
   // ==================== SYNC LOCK ====================
   // Prevents concurrent sync attempts that cause race conditions
@@ -53,6 +62,7 @@ export const useDataStore = defineStore("data", () => {
 
     // Load from IndexedDB into state
     await loadFromIdb();
+    await refreshPendingCount();
 
     // Set up online/offline listeners
     isOnline.value = navigator.onLine;
@@ -137,91 +147,63 @@ export const useDataStore = defineStore("data", () => {
     } finally {
       syncInProgress = false;
       syncing.value = false;
+      await refreshPendingCount();
     }
   }
 
-  async function pushLocalChanges() {
+  async function pushLocalChanges(): Promise<{ allSucceeded: boolean }> {
     const queue = await idb.getSyncQueue();
-    if (queue.length === 0) return;
+    if (queue.length === 0) return { allSucceeded: true };
 
     console.log(`[DataStore] Processing ${queue.length} queued changes...`);
 
-    // Group by entity type for batch operations
     const bookmarkItems = queue.filter((q) => q.entity === "bookmark");
     const noteItems = queue.filter((q) => q.entity === "note");
     const tagItems = queue.filter((q) => q.entity === "tag");
 
-    // Process bookmarks
-    if (bookmarkItems.length > 0) {
-      const creates = bookmarkItems.filter((q) => q.action === "create");
-      const updates = bookmarkItems.filter((q) => q.action === "update");
-      const deletes = bookmarkItems.filter((q) => q.action === "delete");
+    const results = await Promise.all([
+      pushQueueGroup(bookmarkItems, pushBookmarksBatch, "bookmarks"),
+      pushQueueGroup(noteItems, pushNotesBatch, "notes"),
+      pushQueueGroup(tagItems, pushTagsBatch, "tags"),
+    ]);
 
-      try {
-        await pushBookmarksBatch(creates, updates, deletes);
-      } catch (e) {
-        console.warn(`[DataStore] Batch push failed for bookmarks, falling back to individual pushes`);
-        for (const item of bookmarkItems) {
-          try {
-            await pushChange(item);
-          } catch (err) {
-            item.retries++;
-            await idb.updateSyncQueueItem(item);
-          }
-        }
-      }
-      for (const item of bookmarkItems) {
-        await idb.removeFromSyncQueue(item.id);
-      }
+    return { allSucceeded: results.every((r) => r) };
+  }
+
+  type BatchFn = (
+    creates: SyncQueueItem[],
+    updates: SyncQueueItem[],
+    deletes: SyncQueueItem[],
+  ) => Promise<void>;
+
+  async function pushQueueGroup(items: SyncQueueItem[], batchFn: BatchFn, label: string): Promise<boolean> {
+    if (items.length === 0) return true;
+
+    const creates = items.filter((q) => q.action === "create");
+    const updates = items.filter((q) => q.action === "update");
+    const deletes = items.filter((q) => q.action === "delete");
+
+    try {
+      await batchFn(creates, updates, deletes);
+      for (const item of items) await idb.removeFromSyncQueue(item.id);
+      return true;
+    } catch (e) {
+      console.warn(`[DataStore] Batch push failed for ${label}, falling back to individual pushes`, e);
     }
 
-    // Process notes
-    if (noteItems.length > 0) {
-      const creates = noteItems.filter((q) => q.action === "create");
-      const updates = noteItems.filter((q) => q.action === "update");
-      const deletes = noteItems.filter((q) => q.action === "delete");
-
+    let allOk = true;
+    for (const item of items) {
       try {
-        await pushNotesBatch(creates, updates, deletes);
-      } catch (e) {
-        console.warn(`[DataStore] Batch push failed for notes, falling back to individual pushes`);
-        for (const item of noteItems) {
-          try {
-            await pushChange(item);
-          } catch (err) {
-            item.retries++;
-            await idb.updateSyncQueueItem(item);
-          }
-        }
-      }
-      for (const item of noteItems) {
+        await pushChange(item);
         await idb.removeFromSyncQueue(item.id);
+      } catch (err) {
+        allOk = false;
+        item.retries++;
+        await idb.updateSyncQueueItem(item);
+        console.warn(`[DataStore] Item kept in queue (retries=${item.retries}):`, item.entity, item.action, item.id);
       }
     }
-
-    // Process tags
-    if (tagItems.length > 0) {
-      const creates = tagItems.filter((q) => q.action === "create");
-      const updates = tagItems.filter((q) => q.action === "update");
-      const deletes = tagItems.filter((q) => q.action === "delete");
-
-      try {
-        await pushTagsBatch(creates, updates, deletes);
-      } catch (e) {
-        console.warn(`[DataStore] Batch push failed for tags, falling back to individual pushes`);
-        for (const item of tagItems) {
-          try {
-            await pushChange(item);
-          } catch (err) {
-            item.retries++;
-            await idb.updateSyncQueueItem(item);
-          }
-        }
-      }
-      for (const item of tagItems) {
-        await idb.removeFromSyncQueue(item.id);
-      }
-    }
+    return allOk;
   }
 
   async function pushBookmarksBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[]) {
@@ -341,12 +323,10 @@ export const useDataStore = defineStore("data", () => {
 
     try {
       const [bookmarksRes, notesRes, tagsRes] = await Promise.allSettled([
-        $fetch<{ bookmarks: Bookmark[] }>("/api/bookmarks?limit=1000"),
-        $fetch<{ notes: Note[] }>("/api/notes?limit=1000"),
+        $fetch<{ bookmarks: Bookmark[] }>("/api/bookmarks?limit=1000&includeDeleted=true"),
+        $fetch<{ notes: Note[] }>("/api/notes?limit=1000&includeDeleted=true"),
         $fetch<{ tags: Tag[] }>("/api/tags"),
       ]);
-
-      console.log(bookmarksRes, notesRes)
 
       if (bookmarksRes.status === "fulfilled" && bookmarksRes.value.bookmarks) {
         const serverBookmarks = bookmarksRes.value.bookmarks;
@@ -380,85 +360,106 @@ export const useDataStore = defineStore("data", () => {
     preferServer?: boolean
     // optional: predicate deciding whether an item should be persisted to IDB
     shouldSave?: (finalItem: T, localItem?: T, serverItem?: T) => boolean
+    // optional: predicate identifying tombstones — items so flagged are excluded from merged
+    // and their ids are reported in toDelete so callers can purge them locally
+    isDeleted?: (item: T) => boolean
   }
 
-  function mergeGeneric<T extends HasId>(opts: MergeOptions<T>): { merged: T[]; toSave: T[] } {
-    const { localList, serverList, tsFor, preferServer = true, shouldSave } = opts
+  function mergeGeneric<T extends HasId>(opts: MergeOptions<T>): { merged: T[]; toSave: T[]; toDelete: string[] } {
+    const { localList, serverList, tsFor, preferServer = true, shouldSave, isDeleted } = opts
 
     const localMap = new Map(localList.map(i => [i.id, i]))
-    const serverMap = new Map(serverList.map(i => [i.id, i]))
     const mergedMap = new Map<string, T>()
     const toSave: T[] = []
+    const toDelete: string[] = []
 
     // Handle ids present on the server: choose newer between server and local
     for (const server of serverList) {
       const local = localMap.get(server.id)
+      let chosen: T
+      let pairLocal: T | undefined
+      let pairServer: T | undefined = server
       if (!local) {
-        const chosen = { ...server }
-        mergedMap.set(server.id, chosen)
-        if (!shouldSave || shouldSave(chosen, undefined, server)) toSave.push(chosen)
+        chosen = { ...server }
       } else {
+        pairLocal = local
         const serverTs = tsFor(server)
         const localTs = tsFor(local)
-        let chosen: T
         if (serverTs > localTs) chosen = { ...server }
         else if (localTs > serverTs) chosen = { ...local }
         else chosen = preferServer ? { ...server } : { ...local }
-        mergedMap.set(server.id, chosen)
-        if (!shouldSave || shouldSave(chosen, local, server)) toSave.push(chosen)
       }
+      if (isDeleted && isDeleted(chosen)) {
+        toDelete.push(server.id)
+        continue
+      }
+      mergedMap.set(server.id, chosen)
+      if (!shouldSave || shouldSave(chosen, pairLocal, pairServer)) toSave.push(chosen)
     }
 
     // Add local-only items
     for (const local of localList) {
-      if (!mergedMap.has(local.id)) {
+      if (!mergedMap.has(local.id) && !toDelete.includes(local.id)) {
+        if (isDeleted && isDeleted(local)) {
+          toDelete.push(local.id)
+          continue
+        }
         const chosen = { ...local }
         mergedMap.set(local.id, chosen)
         if (!shouldSave || shouldSave(chosen, local, undefined)) toSave.push(chosen)
       }
     }
 
-    return { merged: Array.from(mergedMap.values()), toSave }
+    return { merged: Array.from(mergedMap.values()), toSave, toDelete }
   }
 
   async function mergeBookmarks(serverBookmarks: Bookmark[]) {
-    const { merged, toSave } = mergeGeneric<Bookmark>({
+    const { merged, toSave, toDelete } = mergeGeneric<Bookmark>({
       localList: bookmarks.value,
       serverList: serverBookmarks,
       tsFor: b => Date.parse(b.updatedAt),
       preferServer: true,
+      isDeleted: b => b.deletedAt != null,
       shouldSave: (finalItem, localItem, serverItem) => {
-        return !!serverItem || (localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
+        return !!serverItem || !!(localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
       }
     })
 
     if (toSave.length > 0) await idb.saveBookmarks(toSave)
+    for (const id of toDelete) await idb.deleteBookmark(id)
     bookmarks.value = merged
   }
 
   async function mergeNotes(serverNotes: Note[]) {
-    const { merged, toSave } = mergeGeneric<Note>({
+    const { merged, toSave, toDelete } = mergeGeneric<Note>({
       localList: notes.value,
       serverList: serverNotes,
       tsFor: n => Date.parse(n.updatedAt),
       preferServer: true,
+      isDeleted: n => n.deletedAt != null,
       shouldSave: (finalItem, localItem, serverItem) => {
-        return !!serverItem || (localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
+        return !!serverItem || !!(localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
       }
     })
 
     if (toSave.length > 0) await idb.saveNotes(toSave)
+    for (const id of toDelete) await idb.deleteNote(id)
     notes.value = merged
   }
 
   async function mergeTags(serverTags: Tag[]) {
+    // Tags lack a server-side `updatedAt` column, so timestamp comparisons collapse to ties on
+    // every merge. Preferring local on ties keeps queued local edits (rename, recolor, reparent)
+    // from being silently clobbered by the next pull before the queue has flushed. Once the
+    // server schema gains `tags.updated_at`, switch this back to `preferServer: true` and merge
+    // on `updatedAt`.
     const { merged, toSave } = mergeGeneric<Tag>({
       localList: tags.value,
       serverList: serverTags,
       tsFor: t => Date.parse(t.createdAt),
-      preferServer: true,
+      preferServer: false,
       shouldSave: (finalItem, localItem, serverItem) => {
-        return !!serverItem || (localItem && Date.parse(localItem.createdAt) > Date.parse(finalItem.createdAt))
+        return !!serverItem || !!(localItem && Date.parse(localItem.createdAt) > Date.parse(finalItem.createdAt))
       }
     })
 
@@ -482,6 +483,7 @@ export const useDataStore = defineStore("data", () => {
     };
 
     await idb.addToSyncQueue(item as Omit<SyncQueueItem, "retries">);
+    await refreshPendingCount();
 
     // Try immediate sync if online (fire and forget)
     if (isOnline.value && !syncing.value) {
@@ -510,7 +512,7 @@ export const useDataStore = defineStore("data", () => {
     const current = bookmarks.value[index];
     if (!current) return false;
 
-    const updated = { ...current, ...updates, updated_at: new Date().toISOString() };
+    const updated = { ...current, ...updates, updatedAt: new Date().toISOString() };
     bookmarks.value[index] = updated;
 
     // Save to IndexedDB immediately
@@ -700,14 +702,17 @@ export const useDataStore = defineStore("data", () => {
   }
 
   // ==================== SEARCH ====================
-  function searchBookmarks(query: string, filters: BookmarkFilters = {}): Bookmark[] {
-    let results = [...bookmarks.value];
+  function searchBookmarks(query: string, filters: BookmarkFilters & { untagged?: boolean } = {}): Bookmark[] {
+    let results = bookmarks.value.filter((b) => !b.deletedAt);
 
     if (filters.favorite) {
       results = results.filter((b) => b.isFavorite);
     }
     if (filters.unread) {
       results = results.filter((b) => !b.isRead);
+    }
+    if (filters.untagged) {
+      results = results.filter((b) => !b.tags || b.tags.length === 0);
     }
     if (filters.tag) {
       results = results.filter((b) => b.tags?.includes(filters.tag!));
@@ -742,10 +747,11 @@ export const useDataStore = defineStore("data", () => {
   }
 
   function searchNotes(query: string): Note[] {
-    if (!query) return notes.value;
+    const live = notes.value.filter((n) => !n.deletedAt);
+    if (!query) return live;
 
     const q = query.toLowerCase();
-    return notes.value.filter(
+    return live.filter(
       (n) => n.content.toLowerCase().includes(q) || n.tags.some((t) => t.toLowerCase().includes(q)),
     );
   }

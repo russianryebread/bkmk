@@ -16,7 +16,8 @@
 const dataStore = useDataStore()
 const { init: initAuth, isAuthenticated } = useAuth()
 
-const { isOnline, syncStatus, lastSyncTime, pendingChangesCount, triggerSync } = storeToRefs(dataStore)
+const { isOnline, syncStatus, lastSyncTime, pendingChangesCount } = storeToRefs(dataStore)
+const triggerSync = () => dataStore.triggerSync()
 
 onMounted(async () => {
   console.log('[App] Initializing services...')

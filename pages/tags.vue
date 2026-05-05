@@ -189,13 +189,13 @@
 </template>
 
 <script setup lang="ts">
-import { useTagSystem, type Tag, type TagNode, type TagType } from '~/composables/useTagSystem'
+import { useTagSystem } from '~/composables/useTagSystem'
+import type { Tag, TagNode, TagType } from '~/composables/idb'
 
 const {
   tags,
   loading,
   isOnline,
-  error: offlineError,
   fetchTags,
   createTag,
   updateTag,

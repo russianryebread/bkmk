@@ -159,7 +159,6 @@ const {
   getTagColor,
   fetchTags,
   createTag,
-  syncItemTags,
 } = useTagSystem()
 
 async function loadAllTags(forceRefresh = false) {

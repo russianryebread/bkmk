@@ -17,7 +17,7 @@
       <div class="flex gap-4">
         <button @click="saveBookmark"
           class="text-green-500 disabled:text-gray-500 p-2 rounded-xl flex items-center justify-center action-button"
-          :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
+          :disabled="saving || (!isNew && editing && !hasChanges)">
           <span v-if="saving"
             class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
           <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,39 +158,31 @@
 
 <script setup lang="ts">
 import type { Action } from '~/utils/types'
+import type { Bookmark } from '~/composables/idb'
 
 import { formatDateFull } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
+import { useDataStore } from '~/stores/useDataStore'
 
 const route = useRoute()
 const router = useRouter()
-const dataStore = useDataStore()
 const { render } = useMarkdown()
 const { fontSize, fontFamily } = useReaderSettings()
+const dataStore = useDataStore()
 
 const {
   tags,
   getTagColor,
-  fetchTags,
   createTag,
 } = useTagSystem()
-
-async function loadAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
-async function getAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
 
 async function handleCreateTag(name: string) {
   await createTag({ name })
 }
 
 // State
-const bookmark = ref<any>(null)
+const bookmark = ref<Bookmark | null>(null)
 const loading = ref(true)
-const tagsLoading = ref(true)
 const editing = ref(false)
 const editorTitle = ref('')
 const editorUrl = ref('')
@@ -199,10 +191,8 @@ const editorTags = ref<string[]>([])
 const newTag = ref('')
 const saving = ref(false)
 
-// Determine mode - use isNew computed property
 const isNew = computed(() => route.params.id === 'new')
 
-// Computed properties
 const renderedMarkdown = computed(() => {
   if (!bookmark.value?.cleanedMarkdown) return ''
   return render(bookmark.value.cleanedMarkdown)
@@ -213,7 +203,6 @@ const editorWordCount = computed(() => {
   return editorContent.value.split(/\s+/).filter(w => w.length > 0).length
 })
 
-// Check if there are unsaved changes
 const hasChanges = computed(() => {
   if (!bookmark.value) return editorContent.value.trim() || editorTitle.value.trim()
   return editorTitle.value !== bookmark.value.title ||
@@ -221,7 +210,6 @@ const hasChanges = computed(() => {
     JSON.stringify(editorTags.value) !== JSON.stringify(bookmark.value.tags || [])
 })
 
-// Suggested tags based on all available tags minus current editor tags
 const suggestedTags = computed(() => {
   return tags.value
     .filter(t => t.type === 'bookmark' || t.type === 'both')
@@ -230,7 +218,6 @@ const suggestedTags = computed(() => {
     .slice(0, 5)
 })
 
-// Initialize editor state for new bookmark
 function initNewBookmark() {
   editorTitle.value = ''
   editorUrl.value = ''
@@ -241,7 +228,6 @@ function initNewBookmark() {
   bookmark.value = null
 }
 
-// Initialize editor state from existing bookmark
 function initFromBookmark() {
   if (bookmark.value) {
     editorTitle.value = bookmark.value.title || ''
@@ -252,26 +238,28 @@ function initFromBookmark() {
   newTag.value = ''
 }
 
-// Load existing bookmark - instant from local, then sync in background
+// Show local store data immediately, then fetch full content (cleanedMarkdown
+// isn't carried by the list-pull endpoint, so we always need a detail fetch).
 async function loadBookmark() {
   loading.value = true
-
   const id = route.params.id as string
 
-  // Load from data store - reads from IndexedDB first (instant)
-  bookmark.value = dataStore.getBookmarkById(id) ?? null
-  loading.value = false
-
-  if (bookmark.value) {
+  const local = dataStore.getBookmarkById(id)
+  if (local) {
+    bookmark.value = { ...local }
     initFromBookmark()
+    loading.value = false
   }
 
-  // Now load tags in background (non-blocking)
-  getAllTags(false).then(() => {
-    tagsLoading.value = false
-  }).catch(() => {
-    tagsLoading.value = false
-  })
+  try {
+    const fresh = await $fetch<Bookmark>(`/api/bookmarks/${id}`)
+    bookmark.value = fresh
+    initFromBookmark()
+  } catch {
+    if (!local) bookmark.value = null
+  } finally {
+    loading.value = false
+  }
 }
 
 function startEditing() {
@@ -289,58 +277,38 @@ function cancelEditing() {
   initFromBookmark()
 }
 
-// Unified save logic - handles both create and update
 async function saveBookmark() {
-  if (!editorContent.value.trim()) return
-
   saving.value = true
-
   try {
-    // Handle tag creation for any new tags
-    const newTags = editorTags.value.filter(tag => !tags.value.find(t => t.name.toLowerCase() === tag.toLowerCase()))
-    for (const tagName of newTags) {
-      await handleCreateTag(tagName)
-    }
-
     if (isNew.value) {
-      // Create new bookmark - need URL at minimum
       if (!editorUrl.value.trim()) {
         alert('Please enter a URL')
-        saving.value = false
         return
       }
-
-      // createBookmark only takes a URL and scrapes content
-      const bookmarkToSave = await dataStore.createBookmark(editorUrl.value)
-
-      if (bookmarkToSave) {
-        // Update with user edits (title, content, tags)
-        await dataStore.updateBookmark(bookmarkToSave.id, {
+      const created = await dataStore.createBookmark(editorUrl.value)
+      if (created?.id) {
+        await dataStore.updateBookmark(created.id, {
           title: editorTitle.value || editorUrl.value,
           cleanedMarkdown: editorContent.value,
-          tags: [ ...editorTags.value ],
+          tags: [...editorTags.value],
         })
-        router.replace(`/bookmarks/${bookmarkToSave.id}`)
+        router.replace(`/bookmarks/${created.id}`)
       }
     } else if (bookmark.value) {
-      // Update existing bookmark
-      await dataStore.updateBookmark(bookmark.value.id, {
+      const id = bookmark.value.id
+      await dataStore.updateBookmark(id, {
         title: editorTitle.value,
         cleanedMarkdown: editorContent.value,
-        tags: [ ...editorTags.value ],
+        tags: [...editorTags.value],
       })
-
-      // Update local bookmark
       bookmark.value = {
         ...bookmark.value,
         title: editorTitle.value,
         cleanedMarkdown: editorContent.value,
-        tags: [ ...editorTags.value ],
+        tags: [...editorTags.value],
         updatedAt: new Date().toISOString(),
       }
-
       editing.value = false
-      loadAllTags(true) // Refresh tags
     }
   } catch (e) {
     console.error('Failed to save bookmark:', e)
@@ -352,12 +320,11 @@ async function saveBookmark() {
 async function toggleFavorite() {
   if (!bookmark.value) return
   await dataStore.toggleBookmarkFavorite(bookmark.value.id)
-  bookmark.value.isfavorite = !bookmark.value.isFavorite
+  bookmark.value.isFavorite = !bookmark.value.isFavorite
 }
 
 async function deleteBookmarkConfirm() {
   if (!bookmark.value) return
-
   if (confirm(`Delete "${bookmark.value.title}"?`)) {
     await dataStore.deleteBookmark(bookmark.value.id)
     router.push('/bookmarks')

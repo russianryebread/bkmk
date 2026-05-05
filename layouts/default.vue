@@ -187,7 +187,12 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8" :class="!isDetailPage ? 'mb-[60px] md:mb-0' : ''">
+    <main
+      :class="[
+        isListPage ? '' : 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8',
+        !isDetailPage ? 'mb-[60px] md:mb-0' : '',
+      ]"
+    >
       <slot />
     </main>
 
@@ -246,6 +251,7 @@ const { fontSize, fontFamily, setFontSize, setFontFamily } = useReaderSettings()
 
 const isReaderPage = computed(() => route.path.includes('/bookmarks/') && route.params.id)
 const isDetailPage = computed(() => route.path.includes('/bookmarks/') || route.path.includes('/notes/'))
+const isListPage = computed(() => route.path === '/bookmarks' || route.path === '/notes')
 
 async function handleLogout() {
   menuOpen.value = false

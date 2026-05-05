@@ -3,13 +3,11 @@ import { eq, sql } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
-  // Require authentication
   const currentUser = await requireAuth(event)
-  
   const method = event.method
 
   if (method === 'GET') {
-    const tags = await db
+    const tagList = await db
       .select({
         id: schema.tags.id,
         name: schema.tags.name,
@@ -19,26 +17,34 @@ export default defineEventHandler(async (event) => {
         description: schema.tags.description,
         icon: schema.tags.icon,
         createdAt: schema.tags.createdAt,
-        bookmarkCount: sql<number>`count(${schema.bookmarkTags.bookmarkId})`,
+        bookmarkCount: sql<number>`count(DISTINCT ${schema.bookmarkTags.bookmarkId})`,
+        noteCount: sql<number>`count(DISTINCT ${schema.notesTags.noteId})`,
       })
       .from(schema.tags)
       .leftJoin(schema.bookmarkTags, eq(schema.tags.id, schema.bookmarkTags.tagId))
+      .leftJoin(schema.notesTags, eq(schema.tags.id, schema.notesTags.tagId))
       .where(eq(schema.tags.userId, currentUser.id))
       .groupBy(schema.tags.id)
       .orderBy(schema.tags.name)
 
-    return { tags }
+    return {
+      tags: tagList.map(t => ({
+        ...t,
+        bookmarkCount: Number(t.bookmarkCount),
+        noteCount: Number(t.noteCount),
+      })),
+    }
   }
 
   if (method === 'POST') {
     const body = await readBody(event)
-    const { name, parent_tag_id, color, type, description, icon } = body
+    const { id, name, parent_tag_id, parentTagId, color, type, description, icon } = body
+    const parentId = parentTagId !== undefined ? parentTagId : parent_tag_id
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       throw createError({ statusCode: 400, message: 'Tag name is required' })
     }
 
-    // Validate type
     if (type && !['bookmark', 'note', 'both'].includes(type)) {
       throw createError({ statusCode: 400, message: 'Invalid tag type. Must be "bookmark", "note", or "both"' })
     }
@@ -47,10 +53,10 @@ export default defineEventHandler(async (event) => {
       const [tag] = await db
         .insert(schema.tags)
         .values({
-          id: crypto.randomUUID(),
+          id: id || crypto.randomUUID(),
           userId: currentUser.id,
           name: name.trim(),
-          parentTagId: parent_tag_id || null,
+          parentTagId: parentId || null,
           color: color || null,
           type: type || 'both',
           description: description || null,

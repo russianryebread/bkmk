@@ -73,6 +73,7 @@ export interface Tag {
   icon?: string | null
   createdAt: string
   bookmarkCount?: number
+  noteCount?: number
 }
 
 export interface TagNode extends Tag {

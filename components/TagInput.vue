@@ -68,7 +68,8 @@
 </template>
 
 <script setup lang="ts">
-import { useTagSystem, type TagType } from '~/composables/useTagSystem'
+import { useTagSystem } from '~/composables/useTagSystem'
+import type { TagType } from '~/composables/idb'
 
 interface TagItem {
   id: string

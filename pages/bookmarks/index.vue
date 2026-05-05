@@ -1,112 +1,135 @@
 <template>
-  <div>
-    <InfiniteItemList
-      ref="infiniteListRef"
-      :items="items"
-      :loading="loading"
-      :loading-more="loadingMore"
-      :has-more="hasMore"
-      :error="error"
-      :available-tags="topLevelTags"
-      :selected-tag="selectedTag"
-      search-placeholder="Search bookmarks... (Press / to focus)"
-      empty-title="No bookmarks yet"
-      empty-description="Add your first bookmark to get started"
-      @search="handleSearch"
-      @tag-change="handleTagChange"
-      @load-more="loadMore"
-      @retry="reset"
-      @refresh="handleRefresh"
-    >
-      <!-- Add button -->
-      <template #actions>
-        <button @click="showAddModal = true" class="">
+  <div class="flex h-full min-h-[calc(100vh-64px)]">
+    <!-- Tag Sidebar -->
+    <TagSidebar
+      ref="sidebarRef"
+      mode="bookmark"
+      :current-view="currentView"
+      :active-tag="activeTag"
+      :mobile-open="sidebarOpen"
+      :inbox-count="inboxCount"
+      :total-count="totalCount"
+      @update:mobile-open="sidebarOpen = $event"
+      @change="handleSidebarChange"
+    />
+
+    <!-- Main content -->
+    <div class="flex-1 min-w-0 flex flex-col">
+      <!-- Toolbar -->
+      <div class="sticky top-16 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+        <!-- Mobile sidebar toggle -->
+        <button
+          class="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
+          @click="sidebarOpen = true"
+        >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-      </template>
 
-      <!-- Empty state override -->
-      <template #empty>
-        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-        </svg>
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No bookmarks yet</h3>
-        <p class="text-gray-500 dark:text-gray-400 mb-4">Add your first bookmark to get started</p>
-        <button @click="showAddModal = true" class="btn-primary">Add Bookmark</button>
-      </template>
+        <!-- View title -->
+        <h1 class="text-base font-semibold text-gray-900 dark:text-white">
+          {{ viewTitle }}
+        </h1>
 
-      <!-- Card view slot -->
-      <template #card="{ item }">
-        <div
-          class="card p-4 hover:shadow-md transition-shadow cursor-pointer"
-          @click="goToBookmark(item.id)"
-        >
-          <div class="flex justify-between items-start mb-2">
-            <h3 class="font-medium text-gray-900 dark:text-white line-clamp-2 flex-1">
-              {{ item.title }}
-            </h3>
-            <button @click.stop="toggleFavorite(item.id)" class="ml-2 p-1">
-              <svg class="w-5 h-5" :class="item.isFavorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-          </div>
+        <div class="flex-1" />
 
-          <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-2">
-            <span>{{ item.sourceDomain }}</span>
-            <span v-if="item.readingTimeMinutes" class="mx-2">•</span>
-            <span v-if="item.readingTimeMinutes">{{ item.readingTimeMinutes }} min read</span>
-          </div>
+        <!-- Search -->
+        <div class="relative">
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search... (/)"
+            class="input text-sm py-1.5 pl-8 pr-3 w-48 md:w-64"
+            @input="handleSearchInput"
+          />
+          <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
 
-          <p v-if="item.description" class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-3">
-            {{ item.description }}
+        <!-- Add bookmark -->
+        <button @click="showAddModal = true" class="btn-primary text-sm py-1.5 px-3 flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          <span class="hidden sm:inline">Add</span>
+        </button>
+      </div>
+
+      <!-- Content area -->
+      <div class="flex-1 overflow-y-auto p-4">
+        <!-- Loading -->
+        <div v-if="loading && bookmarks.length === 0" class="flex justify-center py-16">
+          <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        </div>
+
+        <!-- Error -->
+        <div v-else-if="error && bookmarks.length === 0" class="card p-8 text-center">
+          <p class="text-red-600 dark:text-red-400 mb-4">{{ error }}</p>
+          <button @click="dataStore.triggerSync()" class="btn-secondary">Try Again</button>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="!loading && bookmarks.length === 0" class="card p-12 text-center">
+          <svg v-if="currentView === 'inbox'" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+          <svg v-else class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+          <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            {{ currentView === 'inbox' ? 'Inbox is empty' : currentView === 'tag' ? `No bookmarks tagged "${activeTag}"` : 'No bookmarks yet' }}
+          </h3>
+          <p class="text-gray-500 dark:text-gray-400 mb-4">
+            {{ currentView === 'inbox' ? 'Newly saved bookmarks appear here until you tag them.' : 'Add your first bookmark to get started.' }}
           </p>
+          <button @click="showAddModal = true" class="btn-primary">Add Bookmark</button>
+        </div>
 
-          <div v-if="item.tags && item.tags.length > 0" class="flex flex-wrap gap-1">
-            <span v-for="tag in item.tags.slice(0, 3)" :key="tag"
-              class="px-2 py-0.5 text-xs rounded-full"
-              :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-              {{ tag }}
-            </span>
-            <span v-if="item.tags.length > 3" class="text-xs text-gray-500">
-              +{{ item.tags.length - 3 }}
-            </span>
+        <!-- Bookmark list/grid -->
+        <div v-else>
+          <!-- Card view -->
+          <div v-if="viewMode === 'card'" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <BookmarkCard
+              v-for="bookmark in bookmarks"
+              :key="bookmark.id"
+              :bookmark="bookmark"
+              @click="goToBookmark(bookmark.id)"
+              @favorite="toggleFavorite(bookmark)"
+            />
+          </div>
+
+          <!-- List view -->
+          <div v-else class="card divide-y divide-gray-200 dark:divide-gray-700">
+            <BookmarkListItem
+              v-for="bookmark in bookmarks"
+              :key="bookmark.id"
+              :bookmark="bookmark"
+              @click="goToBookmark(bookmark.id)"
+              @favorite="toggleFavorite(bookmark)"
+            />
+          </div>
+
+          <!-- Load more -->
+          <div v-if="hasMore" ref="sentinelRef" class="flex justify-center py-8">
+            <svg v-if="loadingMore" class="animate-spin h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <button v-else @click="loadMore" class="btn-secondary text-sm">Load more</button>
+          </div>
+
+          <div v-if="!hasMore && bookmarks.length > 0" class="text-center py-6 text-sm text-gray-400 dark:text-gray-500">
+            All caught up
           </div>
         </div>
-      </template>
-
-      <!-- List view slot -->
-      <template #list="{ item }">
-        <div
-          class="border-b border-b-slate-200 dark:border-b-slate-700 last:border-none py-2 px-3 hover:shadow-md transition-shadow cursor-pointer flex items-center gap-4"
-          @click="goToBookmark(item.id)"
-        >
-          <div class="flex-1 min-w-0">
-            <h3 class="font-medium text-gray-900 dark:text-white truncate">
-              {{ item.title }}
-            </h3>
-            <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-              <span>{{ item.sourceDomain }}</span>
-              <span v-if="item.reading_time_minutes" class="mx-2">•</span>
-              <span v-if="item.reading_time_minutes">{{ item.reading_time_minutes }} min</span>
-            </div>
-          </div>
-          <div class="flex gap-2 flex-shrink-0">
-            <button @click.stop="toggleFavorite(item.id)" class="p-1 flex-shrink-0">
-              <svg class="w-4 h-4" :class="item.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </template>
-    </InfiniteItemList>
+      </div>
+    </div>
 
     <!-- Add Bookmark Modal -->
     <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -119,14 +142,19 @@
             </svg>
           </button>
         </div>
-
         <form @submit.prevent="addBookmark">
-          <input v-model="newUrl" type="url" placeholder="https://example.com/article" class="input mb-4" required autofocus ref="urlInput" />
+          <input
+            v-model="newUrl"
+            ref="urlInputRef"
+            type="url"
+            placeholder="https://example.com/article"
+            class="input mb-4"
+            required
+            autofocus
+          />
           <p v-if="addError" class="text-red-600 text-sm mb-4">{{ addError }}</p>
           <div class="flex gap-2">
-            <button type="button" @click="showAddModal = false" class="btn-secondary flex-1">
-              Cancel
-            </button>
+            <button type="button" @click="showAddModal = false" class="btn-secondary flex-1">Cancel</button>
             <button type="submit" class="btn-primary flex-1" :disabled="adding">
               {{ adding ? 'Adding...' : 'Add' }}
             </button>
@@ -138,159 +166,172 @@
 </template>
 
 <script setup lang="ts">
-import type { Bookmark, Tag } from '~/composables/idb'
+import { storeToRefs } from 'pinia'
+import { useViewMode } from '~/composables/useViewMode'
+import { useDataStore } from '~/stores/useDataStore'
+import type { Bookmark } from '~/composables/idb'
 
 const router = useRouter()
+const route = useRoute()
+const { viewMode } = useViewMode()
 const dataStore = useDataStore()
-const idb = useIdb()
+const { bookmarks: storeBookmarks, syncStatus } = storeToRefs(dataStore)
 
-// Infinite scroll state
-const infiniteListRef = ref<InstanceType<typeof import('~/components/InfiniteItemList.vue').default> | null>(null)
-const cursor = ref<string | null>(null)
-const items = ref<Bookmark[]>([])
-const loading = ref(false)
-const loadingMore = ref(false)
-const error = ref<string | null>(null)
-const hasMore = ref(true)
-const filters = ref({
-  search: '',
-  tag: '',
-  favorite: false,
+// Sidebar state
+const sidebarRef = ref<any>(null)
+const sidebarOpen = ref(false)
+
+const PAGE_SIZE = 25
+
+const currentView = computed(() => {
+  if (route.query.tag) return 'tag'
+  if (route.query.view === 'favorites') return 'favorites'
+  if (route.query.view === 'all') return 'all'
+  return 'inbox'
 })
 
-const tags = ref<Tag[]>([])
-const selectedTag = computed(() => filters.value.tag)
-const topLevelTags = computed(() => tags.value.filter((t: Tag) => !t.parentTagId))
-const { getTagColor } = useTagSystem()
+const activeTag = computed(() => (route.query.tag as string) || '')
 
-// Modal state
-const showAddModal = ref(false)
-const newUrl = ref('')
-const urlInput = ref(null);
-const adding = ref(false)
-const addError = ref('')
+const viewTitle = computed(() => {
+  if (currentView.value === 'inbox') return 'Inbox'
+  if (currentView.value === 'all') return 'All Bookmarks'
+  if (currentView.value === 'favorites') return 'Favorites'
+  if (currentView.value === 'tag') return `#${activeTag.value}`
+  return 'Bookmarks'
+})
 
+const searchQuery = ref('')
+const debouncedSearch = ref('')
+const displayedCount = ref(PAGE_SIZE)
+const error = ref<string | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const sentinelRef = ref<HTMLElement | null>(null)
 
-watch(showAddModal, async (val) => {
-  if (val) {
-    await nextTick();
-    urlInput.value?.focus();
+const filteredBookmarks = computed<Bookmark[]>(() => {
+  const filters: Parameters<typeof dataStore.searchBookmarks>[1] = {
+    sort: 'savedAt',
+    order: 'desc',
   }
-});
+  if (currentView.value === 'inbox') filters.untagged = true
+  if (currentView.value === 'favorites') filters.favorite = true
+  if (currentView.value === 'tag' && activeTag.value) filters.tag = activeTag.value
+  // touch storeBookmarks so this computed re-runs when the store array updates
+  void storeBookmarks.value.length
+  return dataStore.searchBookmarks(debouncedSearch.value, filters)
+})
 
-// Load bookmarks with cursor-based pagination
-async function loadMore(isRefresh = false) {
-  if (loading.value || loadingMore.value) return
-  if (!hasMore.value && !isRefresh) return
+const bookmarks = computed(() => filteredBookmarks.value.slice(0, displayedCount.value))
+const hasMore = computed(() => displayedCount.value < filteredBookmarks.value.length)
+const loading = computed(() => syncStatus.value === 'syncing' && storeBookmarks.value.length === 0)
+const loadingMore = ref(false)
 
-  if (isRefresh) {
-    loading.value = true
-    cursor.value = null
-  } else {
-    loadingMore.value = true
-  }
-  error.value = null
+const inboxCount = computed(() =>
+  dataStore.searchBookmarks('', { untagged: true }).length,
+)
+const totalCount = computed(() =>
+  storeBookmarks.value.filter((b) => !b.deletedAt).length,
+)
 
-  try {
-    const result = dataStore.getBookmarksPaginated(
-      isRefresh ? null : cursor.value,
-      {
-        search: filters.value.search || undefined,
-        tag: filters.value.tag || undefined,
-        favorite: filters.value.tag === 'favorite' ? true : undefined,
-        sort: 'saved_at',
-        order: 'desc',
-      }
-    )
+// Reset pagination when filters change
+watch(
+  () => [currentView.value, activeTag.value, debouncedSearch.value],
+  () => {
+    displayedCount.value = PAGE_SIZE
+  },
+)
 
-    if (isRefresh) {
-      items.value = result.bookmarks
-    } else {
-      items.value = [...items.value, ...result.bookmarks]
-    }
+watch(
+  () => [route.query.tag, route.query.view],
+  () => {
+    searchQuery.value = ''
+    debouncedSearch.value = ''
+  },
+)
 
-    cursor.value = result.nextCursor
-    hasMore.value = result.hasMore
-  } catch (e: any) {
-    error.value = e.message || 'Failed to load bookmarks'
-  } finally {
-    loading.value = false
-    loadingMore.value = false
-  }
+function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
+  loadingMore.value = true
+  displayedCount.value = Math.min(displayedCount.value + PAGE_SIZE, filteredBookmarks.value.length)
+  loadingMore.value = false
 }
 
-// Reset and reload
-async function reset() {
-  items.value = []
-  cursor.value = null
-  hasMore.value = true
-  await loadMore(true)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function handleSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    debouncedSearch.value = searchQuery.value
+  }, 300)
 }
 
-// Handle search
-function handleSearch(query: string) {
-  filters.value.search = query
-  // Debounce is handled in the component
-  reset()
+function handleSidebarChange(view: string, tag: string) {
+  const query: Record<string, string> = {}
+  if (view === 'tag') query.tag = tag
+  else if (view === 'all') query.view = 'all'
+  else if (view === 'favorites') query.view = 'favorites'
+  router.push({ path: '/bookmarks', query })
+  sidebarOpen.value = false
 }
 
-// Handle tag change
-function handleTagChange(tag: string | null) {
-  filters.value.tag = tag || ''
-  reset()
+async function toggleFavorite(bookmark: Bookmark) {
+  await dataStore.toggleBookmarkFavorite(bookmark.id)
 }
 
-// Handle pull to refresh
-async function handleRefresh() {
-  await dataStore.triggerSync() // Ensure we get the latest data from the server
-  await reset()
-  infiniteListRef.value?.resetRefreshing()
-}
-
-// Toggle favorite
-async function toggleFavorite(id: string) {
-  const bookmark = items.value.find(b => b.id === id)
-  if (!bookmark) return
-
-  const newValue = !bookmark.isFavorite
-  await dataStore.updateBookmark(id, { isFavorite: newValue })
-
-  // Update local state
-  const index = items.value.findIndex(b => b.id === id)
-  if (index !== -1 && items.value[index]) {
-    items.value[index]!.isFavorite = newValue
-  }
-}
-
-// Navigate to bookmark
 function goToBookmark(id: string) {
   router.push(`/bookmarks/${id}`)
 }
 
-// Add bookmark
+// Modal
+const showAddModal = ref(false)
+const newUrl = ref('')
+const urlInputRef = ref<HTMLInputElement | null>(null)
+const adding = ref(false)
+const addError = ref('')
+
+watch(showAddModal, async (val) => {
+  if (val) {
+    await nextTick()
+    urlInputRef.value?.focus()
+  }
+})
+
 async function addBookmark() {
   if (!newUrl.value) return
-
   adding.value = true
   addError.value = ''
-
   try {
-    const bookmark = await dataStore.createBookmark(newUrl.value)
-    if (bookmark) {
-      showAddModal.value = false
-      newUrl.value = ''
-      router.push(`/bookmarks/${bookmark.id}`)
-      dataStore.bookmarks.push(bookmark)
-    }
+    const created = await dataStore.createBookmark(newUrl.value)
+    const bookmarkId = created?.id
+    showAddModal.value = false
+    newUrl.value = ''
+    if (bookmarkId) router.push(`/bookmarks/${bookmarkId}`)
   } catch (e: any) {
-    addError.value = e.data?.message || 'Failed to add bookmark'
+    addError.value = e.data?.message || e.message || 'Failed to add bookmark'
   } finally {
     adding.value = false
   }
 }
 
-onMounted(async () => {
-  tags.value = await idb.getTagsByType('bookmark')
-  loadMore(true)
+let observer: IntersectionObserver | null = null
+watch(sentinelRef, (el) => {
+  if (observer) observer.disconnect()
+  if (!el) return
+  observer = new IntersectionObserver(
+    ([entry]) => { if (entry.isIntersecting) loadMore() },
+    { rootMargin: '200px' }
+  )
+  observer.observe(el)
+})
+
+onUnmounted(() => observer?.disconnect())
+
+onMounted(() => {
+  const handler = (e: KeyboardEvent) => {
+    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      e.preventDefault()
+      searchInputRef.value?.focus()
+    }
+  }
+  window.addEventListener('keydown', handler)
+  onUnmounted(() => window.removeEventListener('keydown', handler))
 })
 </script>

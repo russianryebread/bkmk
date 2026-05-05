@@ -53,14 +53,16 @@ export default defineEventHandler(async (event) => {
       })
     }
     const body = await readBody(event)
-    const { name, parent_tag_id, color, type, description, icon } = body
+    const { name, parent_tag_id, parentTagId, color, type, description, icon } = body
 
     const updates: Record<string, any> = {}
 
     if (name !== undefined) {
       updates.name = name.trim()
     }
-    if (parent_tag_id !== undefined) {
+    if (parentTagId !== undefined) {
+      updates.parentTagId = parentTagId
+    } else if (parent_tag_id !== undefined) {
       updates.parentTagId = parent_tag_id
     }
     if (color !== undefined) {
