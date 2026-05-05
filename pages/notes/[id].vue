@@ -82,53 +82,20 @@
 
         <!-- Footer -->
         <div
-          class="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+          class="flex justify-between items-center gap-8 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
           <div class="text-sm text-gray-500 dark:text-gray-400 hidden md:block">
             {{ editorWordCount }} words
           </div>
 
           <!-- Tags Section -->
-          <div class="">
-            <div class="flex items-center gap-3 flex-wrap">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0 hidden ">Tags:</span>
-
-              <!-- Current tags -->
-              <div class="flex flex-wrap gap-1 items-center">
-                <span v-for="tag in editorTags" :key="tag"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full flex-shrink-0"
-                  :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
-                  {{ tag }}
-                  <button @click="removeTag(tag)" class="hover:opacity-75">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
-                <span v-if="editorTags.length === 0" class="text-xs text-gray-400">No tags</span>
-              </div>
-
-              <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-
-              <!-- Tag input -->
-              <div class="relative">
-                <input v-model="newTag" type="text" placeholder="Add tag..."
-                  class="w-32 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                  @keydown.enter.prevent="addTag" @keydown.comma.prevent="addTag" />
-              </div>
-              <button @click="addTag" :disabled="!newTag.trim()"
-                class="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                Add
-              </button>
-
-              <!-- Suggested tags -->
-              <div v-if="suggestedTags.length > 0" class="flex items-center gap-1">
-                <span class="text-xs text-gray-400 flex-shrink-0">Sug:</span>
-                <button v-for="tag in suggestedTags" :key="tag" @click="addSuggestedTag(tag)"
-                  class="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
-                  {{ tag }}
-                </button>
-              </div>
-            </div>
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <TagInput
+              v-model="editorTags"
+              tag-type="note"
+              placeholder="Add tag..."
+              class="flex-1 min-w-[180px]"
+              @createTag="handleCreateTag"
+            />
           </div>
         </div>
       </div>
@@ -155,7 +122,6 @@ const dataStore = useDataStore()
 const { render } = useMarkdown()
 
 const {
-  tags,
   getTagColor,
   fetchTags,
   createTag,
@@ -180,7 +146,6 @@ const tagsLoading = ref(true)
 const editing = ref(false)
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
-const newTag = ref('')
 const saving = ref(false)
 
 // Determine mode - use isNew computed property
@@ -206,20 +171,10 @@ const hasChanges = computed(() => {
     JSON.stringify(editorTags.value) !== JSON.stringify(note.value.tags || [])
 })
 
-// Suggested tags based on all available tags minus current editor tags
-const suggestedTags = computed(() => {
-  return tags.value
-    .filter(t => t.type === 'note' || t.type === 'both')
-    .map(t => t.name)
-    .filter(tag => !editorTags.value.includes(tag))
-    .slice(0, 5)
-})
-
 // Initialize editor state for new note
 function initNewNote() {
   editorContent.value = ''
   editorTags.value = []
-  newTag.value = ''
   editing.value = true
   note.value = null
 }
@@ -230,7 +185,6 @@ function initFromNote() {
     editorContent.value = note.value.content
     editorTags.value = [...(note.value.tags || [])]
   }
-  newTag.value = ''
 }
 
 // Load existing note - instant from local, then sync in background
@@ -277,12 +231,6 @@ async function saveNote() {
   saving.value = true
 
   try {
-    // Handle tag creation for any new tags
-    const newTags = editorTags.value.filter(tag => !tags.value.find(t => t.name.toLowerCase() === tag.toLowerCase()))
-    for (const tagName of newTags) {
-      await handleCreateTag(tagName)
-    }
-
     if (isNew.value) {
       // Create new note
       const noteToSave = await dataStore.createNote({
@@ -331,25 +279,6 @@ async function deleteNoteConfirm() {
     await dataStore.deleteNote(note.value.id)
     router.push('/notes')
   }
-}
-
-// Unified tag management functions
-function addTag() {
-  const tag = newTag.value.trim()
-  if (tag && !editorTags.value.includes(tag)) {
-    editorTags.value.push(tag)
-  }
-  newTag.value = ''
-}
-
-function addSuggestedTag(tag: string) {
-  if (!editorTags.value.includes(tag)) {
-    editorTags.value.push(tag)
-  }
-}
-
-function removeTag(tag: string) {
-  editorTags.value = editorTags.value.filter(t => t !== tag)
 }
 
 // Watch for route changes to reload data

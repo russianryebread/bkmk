@@ -1,69 +1,84 @@
 <template>
   <div class="relative">
-    <!-- Selected tags -->
-    <div v-if="modelValue && modelValue.length > 0" class="flex flex-wrap gap-2 mb-2">
+    <div
+      class="input flex flex-wrap items-center gap-1.5 min-h-[38px] cursor-text"
+      :class="{ 'ring-2 ring-primary-500 border-transparent': focused }"
+      @mousedown="onContainerMousedown"
+    >
       <span
         v-for="tag in modelValue"
         :key="tag"
-        class="inline-flex items-center gap-1 px-2 py-1 text-sm rounded-full"
+        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full whitespace-nowrap"
         :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }"
       >
         {{ tag }}
-        <button @click="removeTag(tag)" class="hover:opacity-75">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button
+          type="button"
+          tabindex="-1"
+          class="hover:opacity-75"
+          @mousedown.prevent
+          @click.stop="removeTag(tag)"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </span>
-    </div>
 
-    <!-- Input with typeahead -->
-    <div class="relative">
       <input
+        ref="inputRef"
         v-model="searchQuery"
         type="text"
-        :placeholder="placeholder"
-        class="input w-full"
-        @focus="showDropdown = true"
-        @blur="handleBlur"
+        :placeholder="modelValue.length === 0 ? placeholder : ''"
+        class="flex-1 min-w-[80px] bg-transparent border-none outline-none text-sm py-0.5"
+        @focus="onFocus"
+        @blur="onBlur"
         @keydown.down.prevent="navigateDown"
         @keydown.up.prevent="navigateUp"
         @keydown.enter.prevent="selectHighlighted"
-        @keydown.escape="showDropdown = false"
+        @keydown.tab="onTab"
+        @keydown.escape="closeDropdown"
         @keydown.backspace="handleBackspace"
       />
-
-      <!-- Dropdown -->
-      <div
-        v-if="showDropdown && filteredTags.length > 0"
-        class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-      >
-        <button
-          v-for="(tag, index) in filteredTags"
-          :key="tag.id"
-          @mousedown.prevent="selectTag(tag)"
-          :class="[
-            'w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700',
-            index === highlightedIndex ? 'bg-gray-100 dark:bg-gray-700' : ''
-          ]"
-        >
-          <span
-            class="px-2 py-0.5 text-xs rounded-full mr-2"
-            :style="{ backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text }"
-          >
-            {{ tag.name }}
-          </span>
-          <span v-if="tag.bookmarkCount" class="text-xs text-gray-500">
-            {{ tag.bookmarkCount }} bookmark{{ tag.bookmarkCount !== 1 ? 's' : '' }}
-          </span>
-        </button>
-      </div>
     </div>
 
-    <!-- No results hint -->
-    <p v-if="showDropdown && searchQuery && filteredTags.length === 0" class="text-xs text-gray-500 mt-1">
-      Press Enter to create "{{ searchQuery }}"
-    </p>
+    <div
+      v-if="showDropdown && (filteredTags.length > 0 || canCreate)"
+      class="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+    >
+      <button
+        v-for="(tag, index) in filteredTags"
+        :key="tag.id"
+        type="button"
+        @mousedown.prevent="selectTag(tag)"
+        :class="[
+          'w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700',
+          index === highlightedIndex ? 'bg-gray-100 dark:bg-gray-700' : ''
+        ]"
+      >
+        <span
+          class="px-2 py-0.5 text-xs rounded-full"
+          :style="{ backgroundColor: getTagColor(tag.name).bg, color: getTagColor(tag.name).text }"
+        >
+          {{ tag.name }}
+        </span>
+        <span v-if="tag.bookmarkCount" class="text-xs text-gray-500">
+          {{ tag.bookmarkCount }} bookmark{{ tag.bookmarkCount !== 1 ? 's' : '' }}
+        </span>
+      </button>
+
+      <button
+        v-if="canCreate"
+        type="button"
+        @mousedown.prevent="createFromQuery"
+        :class="[
+          'w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
+          highlightedIndex === filteredTags.length ? 'bg-gray-100 dark:bg-gray-700' : ''
+        ]"
+      >
+        Create <span class="font-medium">"{{ searchQuery.trim() }}"</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -85,7 +100,7 @@ const props = withDefaults(defineProps<{
   excludeCurrentTags?: boolean
   tagType?: TagType
 }>(), {
-  placeholder: 'Search or create tags...',
+  placeholder: 'Add tag...',
   excludeCurrentTags: true,
   tagType: 'both',
 })
@@ -93,13 +108,17 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string[]): void
   (e: 'createTag', name: string): void
-  (e: 'tagCreated', tag: { id: string; name: string }): void
 }>()
 
-const { tags, getTagColor, fetchTags, createTag: createSystemTag } = useTagSystem()
+const { tags, getTagColor } = useTagSystem()
 
-// Derive allTags from centralized tags, filtered by type if specified
-const allTags = computed(() => {
+const inputRef = ref<HTMLInputElement | null>(null)
+const searchQuery = ref('')
+const focused = ref(false)
+const showDropdown = ref(false)
+const highlightedIndex = ref(0)
+
+const allTags = computed<TagItem[]>(() => {
   let result = tags.value
   if (props.tagType && props.tagType !== 'both') {
     result = result.filter(t => t.type === props.tagType || t.type === 'both')
@@ -113,36 +132,74 @@ const allTags = computed(() => {
   }))
 })
 
-async function loadAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
-const searchQuery = ref('')
-const showDropdown = ref(false)
-const highlightedIndex = ref(-1)
-const creatingTag = ref(false)
-
-const filteredTags = computed((): TagItem[] => {
-  if (!allTags.value) return []
-  
-  let tags = allTags.value
-  
-  // Filter by search query
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    tags = tags.filter(t => t.name.toLowerCase().includes(query))
+const filteredTags = computed<TagItem[]>(() => {
+  let list = allTags.value
+  if (props.excludeCurrentTags) {
+    list = list.filter(t => !props.modelValue.includes(t.name))
   }
-  
-  // Exclude already selected tags if specified
-  if (props.excludeCurrentTags !== false) {
-    tags = tags.filter(t => !props.modelValue.includes(t.name))
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(t => t.name.toLowerCase().includes(q))
   }
-  
-  return (tags as TagItem[]).slice(0, 10) // Limit to 10 results
+  return list.slice(0, 10)
 })
 
-function removeTag(tag: string) {
-  emit('update:modelValue', props.modelValue.filter(t => t !== tag))
+const canCreate = computed(() => {
+  const q = searchQuery.value.trim()
+  if (!q) return false
+  if (props.modelValue.some(t => t.toLowerCase() === q.toLowerCase())) return false
+  if (filteredTags.value.some(t => t.name.toLowerCase() === q.toLowerCase())) return false
+  return true
+})
+
+const totalOptions = computed(() => filteredTags.value.length + (canCreate.value ? 1 : 0))
+
+watch(searchQuery, () => {
+  highlightedIndex.value = 0
+})
+
+watch(filteredTags, () => {
+  if (highlightedIndex.value >= totalOptions.value) {
+    highlightedIndex.value = Math.max(0, totalOptions.value - 1)
+  }
+})
+
+function onContainerMousedown(e: MouseEvent) {
+  // Don't steal focus when clicking inside the input itself or pill close buttons
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.closest('button')) return
+  e.preventDefault()
+  inputRef.value?.focus()
+}
+
+function onFocus() {
+  focused.value = true
+  showDropdown.value = true
+}
+
+function onBlur() {
+  focused.value = false
+  // Delay so dropdown click can register
+  setTimeout(() => {
+    showDropdown.value = false
+  }, 150)
+}
+
+function closeDropdown() {
+  showDropdown.value = false
+  inputRef.value?.blur()
+}
+
+function navigateDown() {
+  showDropdown.value = true
+  if (totalOptions.value === 0) return
+  highlightedIndex.value = (highlightedIndex.value + 1) % totalOptions.value
+}
+
+function navigateUp() {
+  showDropdown.value = true
+  if (totalOptions.value === 0) return
+  highlightedIndex.value = (highlightedIndex.value - 1 + totalOptions.value) % totalOptions.value
 }
 
 function selectTag(tag: TagItem) {
@@ -150,95 +207,58 @@ function selectTag(tag: TagItem) {
     emit('update:modelValue', [...props.modelValue, tag.name])
   }
   searchQuery.value = ''
-  showDropdown.value = false
-  highlightedIndex.value = -1
+  highlightedIndex.value = 0
+  inputRef.value?.focus()
 }
 
-async function handleCreateTag(name: string) {
-  if (creatingTag.value) return
-  creatingTag.value = true
-  
-  try {
-    // Emit event to parent to handle tag creation
-    emit('createTag', name)
-    
-    // Clear input
-    searchQuery.value = ''
-    showDropdown.value = false
-    highlightedIndex.value = -1
-  } finally {
-    creatingTag.value = false
+function addTagByName(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  if (!props.modelValue.includes(trimmed)) {
+    emit('update:modelValue', [...props.modelValue, trimmed])
   }
+  searchQuery.value = ''
+  highlightedIndex.value = 0
 }
 
-// Expose method for parent to call when tag is created
-function onTagCreated(tagInfo: { id: string; name: string }) {
-  // Refresh the allTags list to include the new tag
-  loadAllTags(true)
-  
-  // Add the tag to selected tags
-  if (!props.modelValue.includes(tagInfo.name)) {
-    emit('update:modelValue', [...props.modelValue, tagInfo.name])
-  }
-}
-
-// Expose to parent
-defineExpose({ onTagCreated })
-
-function navigateDown() {
-  if (filteredTags.value.length > 0) {
-    highlightedIndex.value = Math.min(highlightedIndex.value + 1, filteredTags.value.length - 1)
-  }
-}
-
-function navigateUp() {
-  if (filteredTags.value.length > 0) {
-    highlightedIndex.value = Math.max(highlightedIndex.value - 1, 0)
-  }
+function createFromQuery() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  emit('createTag', q)
+  addTagByName(q)
+  inputRef.value?.focus()
 }
 
 function selectHighlighted() {
-  const query = searchQuery.value.trim()
-  if (!query) return
-
-  // Check if highlighted item exists
-  const highlightedTag = filteredTags.value[highlightedIndex.value]
-  if (highlightedIndex.value >= 0 && highlightedTag) {
-    selectTag(highlightedTag)
+  if (totalOptions.value === 0) {
+    // Empty dropdown but query present? Treat as create.
+    if (canCreate.value) createFromQuery()
     return
   }
-
-  // Check if exact match exists in the dropdown
-  const exactMatch = filteredTags.value.find(t => t.name.toLowerCase() === query.toLowerCase())
-  if (exactMatch) {
-    selectTag(exactMatch)
-    return
+  if (highlightedIndex.value < filteredTags.value.length) {
+    const tag = filteredTags.value[highlightedIndex.value]
+    if (tag) selectTag(tag)
+  } else {
+    createFromQuery()
   }
+}
 
-  // No match found - create new tag
-  handleCreateTag(query)
+function onTab(e: KeyboardEvent) {
+  // Tab accepts the highlighted suggestion (if any) without leaving the field
+  if (showDropdown.value && totalOptions.value > 0) {
+    e.preventDefault()
+    selectHighlighted()
+  }
+}
+
+function removeTag(tag: string) {
+  emit('update:modelValue', props.modelValue.filter(t => t !== tag))
+  inputRef.value?.focus()
 }
 
 function handleBackspace() {
-  if (!searchQuery.value && props.modelValue.length > 0) {
-    // Remove last tag when backspace is pressed with empty input
+  if (searchQuery.value === '' && props.modelValue.length > 0) {
     emit('update:modelValue', props.modelValue.slice(0, -1))
   }
 }
-
-function handleBlur() {
-  // Delay to allow click on dropdown items
-  setTimeout(() => {
-    showDropdown.value = false
-    highlightedIndex.value = -1
-  }, 200)
-}
-
-// Watch for external changes to modelValue
-watch(() => props.modelValue, (newVal) => {
-  // Clear search if all tags are selected
-  if (newVal.length === 0) {
-    searchQuery.value = ''
-  }
-}, { deep: true })
 </script>
