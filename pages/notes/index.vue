@@ -2,7 +2,6 @@
   <div class="flex h-full min-h-[calc(100vh-64px)]">
     <!-- Tag Sidebar -->
     <TagSidebar
-      ref="sidebarRef"
       mode="note"
       :current-view="currentView"
       :active-tag="activeTag"
@@ -199,7 +198,11 @@ import { storeToRefs } from 'pinia'
 import { deriveTitle } from '~/composables/idb'
 import type { Note } from '~/composables/idb'
 import { useViewMode } from '~/composables/useViewMode'
+import { usePaginatedList } from '~/composables/usePaginatedList'
+import { useDebouncedSearch } from '~/composables/useDebouncedSearch'
+import { useSearchHotkey } from '~/composables/useSearchHotkey'
 import { useDataStore } from '~/stores/useDataStore'
+import { formatDateShort } from '~/utils/date'
 
 const router = useRouter()
 const route = useRoute()
@@ -208,10 +211,9 @@ const { getTagColor } = useTagSystem()
 const dataStore = useDataStore()
 const { notes: storeNotes, syncStatus } = storeToRefs(dataStore)
 
-const sidebarRef = ref<any>(null)
 const sidebarOpen = ref(false)
-
-const PAGE_SIZE = 25
+const error = ref<string | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
 
 const currentView = computed(() => {
   if (route.query.tag) return 'tag'
@@ -228,67 +230,31 @@ const viewTitle = computed(() => {
   return 'Notes'
 })
 
-const searchQuery = ref('')
-const debouncedSearch = ref('')
-const displayedCount = ref(PAGE_SIZE)
-const error = ref<string | null>(null)
-const searchInputRef = ref<HTMLInputElement | null>(null)
-const sentinelRef = ref<HTMLElement | null>(null)
-
-function formatDate(dateStr: string) {
-  try {
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(dateStr))
-  } catch {
-    return dateStr
-  }
-}
+const { query: searchQuery, debounced: debouncedSearch, onInput: handleSearchInput, reset: resetSearch } =
+  useDebouncedSearch()
 
 const filteredNotes = computed<Note[]>(() => {
   void storeNotes.value.length
   let results = dataStore.searchNotes(debouncedSearch.value)
   if (currentView.value === 'favorites') results = results.filter(n => n.isFavorite)
   if (currentView.value === 'tag' && activeTag.value) {
-    results = results.filter(n => n.tags?.some(t => t.toLowerCase() === activeTag.value.toLowerCase()))
+    const tagLower = activeTag.value.toLowerCase()
+    results = results.filter(n => n.tags?.some(t => t.toLowerCase() === tagLower))
   }
   return [...results].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 })
 
-const notes = computed(() => filteredNotes.value.slice(0, displayedCount.value))
-const hasMore = computed(() => displayedCount.value < filteredNotes.value.length)
-const loading = computed(() => syncStatus.value === 'syncing' && storeNotes.value.length === 0)
-const loadingMore = ref(false)
+const { visible: notes, hasMore, loadingMore, sentinelRef } = usePaginatedList<Note>({
+  items: filteredNotes,
+  resetTriggers: [currentView, activeTag, debouncedSearch],
+})
 
+const loading = computed(() => syncStatus.value === 'syncing' && storeNotes.value.length === 0)
 const totalCount = computed(() => storeNotes.value.filter(n => !n.deletedAt).length)
 
-watch(
-  () => [currentView.value, activeTag.value, debouncedSearch.value],
-  () => {
-    displayedCount.value = PAGE_SIZE
-  },
-)
+watch(() => [route.query.tag, route.query.view], () => resetSearch())
 
-watch(
-  () => [route.query.tag, route.query.view],
-  () => {
-    searchQuery.value = ''
-    debouncedSearch.value = ''
-  },
-)
-
-function loadMore() {
-  if (!hasMore.value || loadingMore.value) return
-  loadingMore.value = true
-  displayedCount.value = Math.min(displayedCount.value + PAGE_SIZE, filteredNotes.value.length)
-  loadingMore.value = false
-}
-
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-function handleSearchInput() {
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    debouncedSearch.value = searchQuery.value
-  }, 300)
-}
+const formatDate = (d: string) => formatDateShort(d)
 
 function handleSidebarChange(view: string, tag: string) {
   const query: Record<string, string> = {}
@@ -307,26 +273,5 @@ async function deleteNote(note: Note) {
   await dataStore.deleteNote(note.id)
 }
 
-let observer: IntersectionObserver | null = null
-watch(sentinelRef, (el) => {
-  if (observer) observer.disconnect()
-  if (!el) return
-  observer = new IntersectionObserver(
-    ([entry]) => { if (entry.isIntersecting) loadMore() },
-    { rootMargin: '200px' }
-  )
-  observer.observe(el)
-})
-onUnmounted(() => observer?.disconnect())
-
-onMounted(() => {
-  const handler = (e: KeyboardEvent) => {
-    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-      e.preventDefault()
-      searchInputRef.value?.focus()
-    }
-  }
-  window.addEventListener('keydown', handler)
-  onUnmounted(() => window.removeEventListener('keydown', handler))
-})
+useSearchHotkey(searchInputRef)
 </script>

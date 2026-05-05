@@ -115,6 +115,7 @@ import type { Note } from '~/composables/idb'
 import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
+import { useViewportHeight } from '~/composables/useViewportHeight'
 
 const route = useRoute()
 const router = useRouter()
@@ -127,14 +128,6 @@ const {
   createTag,
 } = useTagSystem()
 
-async function loadAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
-async function getAllTags(forceRefresh = false) {
-  await fetchTags(forceRefresh)
-}
-
 async function handleCreateTag(name: string) {
   await createTag({ name })
 }
@@ -142,7 +135,6 @@ async function handleCreateTag(name: string) {
 // State
 const note = ref<Note | null>(null)
 const loading = ref(true)
-const tagsLoading = ref(true)
 const editing = ref(false)
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
@@ -201,12 +193,8 @@ async function loadNote() {
     initFromNote()
   }
 
-  // Now load tags in background (non-blocking)
-  getAllTags(false).then(() => {
-    tagsLoading.value = false
-  }).catch(() => {
-    tagsLoading.value = false
-  })
+  // Refresh tags in the background so the editor's typeahead has fresh data.
+  fetchTags(false).catch(() => {})
 }
 
 function startEditing() {
@@ -257,7 +245,7 @@ async function saveNote() {
       }
 
       editing.value = false
-      loadAllTags(true) // Refresh tags
+      fetchTags(true) // Refresh tags after save (server may have created new ones)
     }
   } catch (e) {
     console.error('Failed to save note:', e)
@@ -312,20 +300,7 @@ const toolbarActions = computed<Action[]>(() => [
   },
 ])
 
-function setDvh() {
-  document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`)
-}
-
-onMounted(() => {
-  setDvh()
-  window.addEventListener('resize', setDvh)
-  window.addEventListener('orientationchange', setDvh)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', setDvh)
-  window.removeEventListener('orientationchange', setDvh)
-})
+useViewportHeight()
 
 onBeforeRouteLeave((to, from) => {
   if (editing.value && hasChanges.value) {

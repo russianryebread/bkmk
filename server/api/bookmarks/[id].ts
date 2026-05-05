@@ -1,8 +1,9 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags, syncMetadata } from '~/server/database/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
+import { resolveTagIds } from '~/server/utils/tags'
 
 export default defineEventHandler(async (event) => {
   // Require authentication
@@ -132,31 +133,11 @@ export default defineEventHandler(async (event) => {
 
     // Update tags if provided (replace all)
     if (Array.isArray(tagNames)) {
-      // Delete existing tag associations
       await db.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, id))
 
       if (tagNames.length > 0) {
-        // Look up tag IDs by name, create missing ones
-        const existingTags = await db
-          .select({ id: tags.id, name: tags.name })
-          .from(tags)
-          .where(and(eq(tags.userId, currentUser.id), inArray(tags.name, tagNames)))
-
-        const existingByName = new Map(existingTags.map(t => [t.name, t.id]))
-
-        for (const name of tagNames) {
-          let tagId = existingByName.get(name)
-          if (!tagId) {
-            const now = new Date().toISOString()
-            const [newTag] = await db.insert(tags).values({
-              id: crypto.randomUUID(),
-              name,
-              userId: currentUser.id,
-              type: 'bookmark',
-              createdAt: now,
-            }).returning({ id: tags.id })
-            tagId = newTag.id
-          }
+        const { ids: tagIds } = await resolveTagIds(currentUser.id, tagNames)
+        for (const tagId of tagIds) {
           await db.insert(bookmarkTags).values({
             id: crypto.randomUUID(),
             bookmarkId: id,

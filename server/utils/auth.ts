@@ -314,7 +314,9 @@ export async function login(email: string, password: string): Promise<{ user: Au
     email: user.email,
     role: user.role
   })
-  
+
+  await touchLastLogin(user.id)
+
   return {
     user: {
       id: user.id,
@@ -323,6 +325,20 @@ export async function login(email: string, password: string): Promise<{ user: Au
       hasPassword: !!user.passwordHash
     },
     token
+  }
+}
+
+// Stamp the user's last successful login. Called from every auth path
+// (password login, OAuth). Failure is non-fatal so a transient DB hiccup can't
+// block sign-in.
+export async function touchLastLogin(userId: string): Promise<void> {
+  try {
+    await db
+      .update(users)
+      .set({ lastLogin: new Date().toISOString() })
+      .where(eq(users.id, userId))
+  } catch (e) {
+    console.warn('[auth] Failed to update lastLogin for', userId, e)
   }
 }
 

@@ -230,18 +230,6 @@ export function useIdb() {
     })
   }
 
-  async function getNote(id: string): Promise<Note | null> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(NOTES_STORE, 'readonly')
-      const store = tx.objectStore(NOTES_STORE)
-      const request = store.get(id)
-
-      request.onsuccess = () => resolve(request.result || null)
-      request.onerror = () => reject(request.error)
-    })
-  }
-
   async function getAllNotes(): Promise<Note[]> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -264,17 +252,6 @@ export function useIdb() {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
-  }
-
-  async function searchNotes(query: string): Promise<Note[]> {
-    const notes = await getAllNotes()
-    const lowerQuery = query.toLowerCase()
-
-    return notes.filter(note =>
-      deriveTitle(note.content).toLowerCase().includes(lowerQuery) ||
-      note.content.toLowerCase().includes(lowerQuery) ||
-      note.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
-    )
   }
 
   // ==================== TAGS ====================
@@ -318,22 +295,6 @@ export function useIdb() {
       request.onerror = () => reject(request.error)
     })
   }
-
-  async function getTagsByType(type: 'bookmark' | 'note' | 'both'): Promise<Tag[]> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(TAGS_STORE, 'readonly')
-      const store = tx.objectStore(TAGS_STORE)
-      const request = store.getAll()
-
-      request.onsuccess = () => {
-        const result = request.result.filter(t => t.type === type)
-        resolve(result)
-      }
-      request.onerror = () => reject(request.error)
-    })
-  }
-
 
   async function deleteTag(id: string): Promise<void> {
     const db = await openDatabase()
@@ -404,18 +365,6 @@ export function useIdb() {
     })
   }
 
-  async function clearBookmarks(): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(BOOKMARKS_STORE, 'readwrite')
-      const store = tx.objectStore(BOOKMARKS_STORE)
-      const request = store.clear()
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
-  }
-
   // ==================== SYNC QUEUE ====================
   async function addToSyncQueue(item: Omit<SyncQueueItem, 'retries'>): Promise<void> {
     const db = await openDatabase()
@@ -468,46 +417,18 @@ export function useIdb() {
     })
   }
 
-  // ==================== SETTINGS ====================
-  async function setSetting(key: string, value: any): Promise<void> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SETTINGS_STORE, 'readwrite')
-      const store = tx.objectStore(SETTINGS_STORE)
-      const request = store.put({ key, value })
-
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
-  }
-
-  async function getSetting<T>(key: string): Promise<T | null> {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(SETTINGS_STORE, 'readonly')
-      const store = tx.objectStore(SETTINGS_STORE)
-      const request = store.get(key)
-
-      request.onsuccess = () => resolve(request.result?.value ?? null)
-      request.onerror = () => reject(request.error)
-    })
-  }
-
   return {
     initialize,
     // Notes
     saveNote,
     saveNotes,
-    getNote,
     getAllNotes,
     deleteNote,
-    searchNotes,
     // Tags
     saveTag,
     saveTags,
     getTag,
     getAllTags,
-    getTagsByType,
     deleteTag,
     // Bookmarks
     saveBookmark,
@@ -515,14 +436,10 @@ export function useIdb() {
     getBookmark,
     getAllBookmarks,
     deleteBookmark,
-    clearBookmarks,
     // Sync queue
     addToSyncQueue,
     getSyncQueue,
     removeFromSyncQueue,
     updateSyncQueueItem,
-    // Settings
-    setSetting,
-    getSetting,
   }
 }

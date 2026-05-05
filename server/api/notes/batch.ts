@@ -1,43 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "~/server/database";
-import { notes, notesTags, tags } from "~/server/database/schema";
+import { notes, notesTags } from "~/server/database/schema";
 import { requireAuth } from "~/server/utils/auth";
+import { resolveTagIds } from "~/server/utils/tags";
 
 type BatchPayload = {
   create?: any[];
   update?: any[];
   del?: string[];
 };
-
-async function resolveTagIds(tagNames: string[] = [], userId: string) {
-  const uniqueNames = [...new Set(tagNames.map((t) => t?.trim()).filter(Boolean))];
-  const tagIds: string[] = [];
-
-  for (const name of uniqueNames) {
-    let [existingTag] = await db
-      .select()
-      .from(tags)
-      .where(and(eq(tags.name, name), eq(tags.userId, userId)))
-      .limit(1);
-
-    if (!existingTag) {
-      [existingTag] = await db
-        .insert(tags)
-        .values({
-          id: crypto.randomUUID(),
-          userId,
-          name,
-          parentTagId: null,
-          color: null,
-        })
-        .returning();
-    }
-
-    tagIds.push(existingTag.id);
-  }
-
-  return tagIds;
-}
 
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event);
@@ -64,7 +35,7 @@ export default defineEventHandler(async (event) => {
   // Batch create
   for (const c of create) {
     await db.transaction(async (tx) => {
-      const tagIds = await resolveTagIds(c.tags || [], currentUser.id);
+      const { ids: tagIds } = await resolveTagIds(currentUser.id, c.tags || []);
 
       const [inserted] = await tx
         .insert(notes)
@@ -121,7 +92,7 @@ export default defineEventHandler(async (event) => {
         .returning();
 
       if (Array.isArray(u.tags)) {
-        const tagIds = await resolveTagIds(u.tags, currentUser.id);
+        const { ids: tagIds } = await resolveTagIds(currentUser.id, u.tags);
 
         await tx.delete(notesTags).where(eq(notesTags.noteId, u.id));
 

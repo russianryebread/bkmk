@@ -44,6 +44,9 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Created
               </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Last login
+              </th>
               <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Actions
               </th>
@@ -81,6 +84,10 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                 {{ formatDateShort(user.createdAt) }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                <span v-if="user.lastLogin">{{ formatDateShort(user.lastLogin) }}</span>
+                <span v-else class="text-gray-400 dark:text-gray-600">Never</span>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
@@ -128,6 +135,7 @@ interface User {
   hasPassword: boolean
   createdAt: string
   updatedAt: string
+  lastLogin: string | null
 }
 
 const { user: currentUser } = useAuth()

@@ -78,6 +78,13 @@
       "when": 1775761606452,
       "tag": "0010_volatile_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778007670438,
+      "tag": "0011_wild_amazoness",
+      "breakpoints": true
     }
   ]
 }

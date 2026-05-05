@@ -1,7 +1,8 @@
 import { db, schema } from '~/server/database'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
+import { resolveTagIds } from '~/server/utils/tags'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,57 +46,6 @@ async function getNoteTags(noteId: string): Promise<string[]> {
         .where(eq(schema.notesTags.noteId, noteId))
 
     return rows.map((r) => r.name)
-}
-
-/**
- * Upsert tags for a user in bulk, returning their IDs.
- *
- * Strategy:
- *   1. Fetch all existing tags for this user that match the requested names
- *      in a single query.
- *   2. Insert only the missing ones (also in a single statement).
- *   3. Return all IDs.
- *
- * This collapses the original O(n) serial loop into 2 queries regardless of
- * how many tags are supplied.
- */
-async function upsertTags(names: string[], userId: string): Promise<string[]> {
-    const trimmed = [...new Set(names.map((n) => n.trim()).filter(Boolean))]
-    if (trimmed.length === 0) return []
-
-    // 1. Fetch existing tags (one query)
-    const existing = await db
-        .select({ id: schema.tags.id, name: schema.tags.name })
-        .from(schema.tags)
-        .where(
-            and(
-                eq(schema.tags.userId, userId),
-                inArray(schema.tags.name, trimmed),
-            ),
-        )
-
-    const existingByName = new Map(existing.map((t) => [t.name, t.id]))
-
-    // 2. Insert missing tags (one query, if any)
-    const missing = trimmed.filter((n) => !existingByName.has(n))
-    if (missing.length > 0) {
-        const inserted = await db
-            .insert(schema.tags)
-            .values(
-                missing.map((name) => ({
-                    id: crypto.randomUUID(),
-                    userId,
-                    name,
-                    parentTagId: null,
-                    color: null,
-                })),
-            )
-            .returning({ id: schema.tags.id, name: schema.tags.name })
-
-        for (const t of inserted) existingByName.set(t.name, t.id)
-    }
-
-    return trimmed.map((n) => existingByName.get(n)!).filter(Boolean)
 }
 
 /**
@@ -264,7 +214,7 @@ export default defineEventHandler(async (event) => {
         // Run tag upsert + note update + sync metadata atomically
         const [note] = await db.transaction(async (tx) => {
             if (body.tags !== undefined) {
-                const tagIds = await upsertTags(body.tags, currentUser.id)
+                const { ids: tagIds } = await resolveTagIds(currentUser.id, body.tags)
                 await replaceNoteTags(id, tagIds)
             }
 

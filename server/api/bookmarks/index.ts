@@ -3,6 +3,7 @@ import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
 import { eq, desc, asc, sql, and, isNull, notExists } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
+import { tagNameEquals } from '~/server/utils/tags'
 
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event)
@@ -107,14 +108,14 @@ export default defineEventHandler(async (event) => {
         .from(bookmarks)
         .innerJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
         .innerJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
-        .where(and(...baseConditions, eq(tags.name, tagName)))
+        .where(and(...baseConditions, tagNameEquals(tagName)))
 
       const rawBookmarks = await db
         .select(selectShape)
         .from(bookmarks)
         .innerJoin(bookmarkTags, eq(bookmarks.id, bookmarkTags.bookmarkId))
         .innerJoin(tags, and(eq(bookmarkTags.tagId, tags.id), eq(tags.userId, currentUser.id)))
-        .where(and(...baseConditions, eq(tags.name, tagName)))
+        .where(and(...baseConditions, tagNameEquals(tagName)))
         .orderBy(sortOrder(sortColumn))
         .limit(limitNum)
         .offset(offset)

@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "~/server/database";
-import { bookmarks, bookmarkTags, tags } from "~/server/database/schema";
+import { bookmarks, bookmarkTags } from "~/server/database/schema";
 import { requireAuth } from "~/server/utils/auth";
+import { resolveTagIds } from "~/server/utils/tags";
 
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event);
@@ -25,41 +26,10 @@ export default defineEventHandler(async (event) => {
     deleted: [],
   };
 
-  const resolveTagIds = async (tx: typeof db, tagNames: string[] = []): Promise<{ ids: string[]; names: string[] }> => {
-    const uniqueNames = [...new Set(tagNames.map((name) => String(name).trim()).filter(Boolean))];
-
-    const ids: string[] = [];
-
-    for (const name of uniqueNames) {
-      let [tag] = await tx
-        .select()
-        .from(tags)
-        .where(and(eq(tags.name, name), eq(tags.userId, currentUser.id)))
-        .limit(1);
-
-      if (!tag) {
-        [tag] = await tx
-          .insert(tags)
-          .values({
-            id: crypto.randomUUID(),
-            userId: currentUser.id,
-            name,
-            parentTagId: null,
-            color: null,
-          })
-          .returning();
-      }
-
-      ids.push(tag.id);
-    }
-
-    return { ids, names: uniqueNames };
-  };
-
   // Batch create
   for (const bookmark of create) {
     await db.transaction(async (tx) => {
-      const { ids: tagIds, names: tagNames } = await resolveTagIds(tx, bookmark.tags ?? []);
+      const { ids: tagIds, names: tagNames } = await resolveTagIds(currentUser.id, bookmark.tags ?? []);
 
       let domain = bookmark.sourceDomain ?? bookmark.source_domain ?? null;
       if (!domain && bookmark.url) {
@@ -165,7 +135,7 @@ export default defineEventHandler(async (event) => {
       let tagNames: string[] | undefined;
 
       if (Array.isArray(bookmark.tags)) {
-        const resolved = await resolveTagIds(tx, bookmark.tags);
+        const resolved = await resolveTagIds(currentUser.id, bookmark.tags);
         tagNames = resolved.names;
 
         await tx.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmark.id));

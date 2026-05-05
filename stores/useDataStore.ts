@@ -715,7 +715,8 @@ export const useDataStore = defineStore("data", () => {
       results = results.filter((b) => !b.tags || b.tags.length === 0);
     }
     if (filters.tag) {
-      results = results.filter((b) => b.tags?.includes(filters.tag!));
+      const tagLower = filters.tag.toLowerCase();
+      results = results.filter((b) => b.tags?.some((t) => t.toLowerCase() === tagLower));
     }
     if (filters.domain) {
       results = results.filter((b) => b.sourceDomain === filters.domain);

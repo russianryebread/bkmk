@@ -2,7 +2,6 @@
   <div class="flex h-full min-h-[calc(100vh-64px)]">
     <!-- Tag Sidebar -->
     <TagSidebar
-      ref="sidebarRef"
       mode="bookmark"
       :current-view="currentView"
       :active-tag="activeTag"
@@ -167,9 +166,12 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { useViewMode } from '~/composables/useViewMode'
-import { useDataStore } from '~/stores/useDataStore'
 import type { Bookmark } from '~/composables/idb'
+import { useViewMode } from '~/composables/useViewMode'
+import { usePaginatedList } from '~/composables/usePaginatedList'
+import { useDebouncedSearch } from '~/composables/useDebouncedSearch'
+import { useSearchHotkey } from '~/composables/useSearchHotkey'
+import { useDataStore } from '~/stores/useDataStore'
 
 const router = useRouter()
 const route = useRoute()
@@ -177,11 +179,9 @@ const { viewMode } = useViewMode()
 const dataStore = useDataStore()
 const { bookmarks: storeBookmarks, syncStatus } = storeToRefs(dataStore)
 
-// Sidebar state
-const sidebarRef = ref<any>(null)
 const sidebarOpen = ref(false)
-
-const PAGE_SIZE = 25
+const error = ref<string | null>(null)
+const searchInputRef = ref<HTMLInputElement | null>(null)
 
 const currentView = computed(() => {
   if (route.query.tag) return 'tag'
@@ -200,12 +200,8 @@ const viewTitle = computed(() => {
   return 'Bookmarks'
 })
 
-const searchQuery = ref('')
-const debouncedSearch = ref('')
-const displayedCount = ref(PAGE_SIZE)
-const error = ref<string | null>(null)
-const searchInputRef = ref<HTMLInputElement | null>(null)
-const sentinelRef = ref<HTMLElement | null>(null)
+const { query: searchQuery, debounced: debouncedSearch, onInput: handleSearchInput, reset: resetSearch } =
+  useDebouncedSearch()
 
 const filteredBookmarks = computed<Bookmark[]>(() => {
   const filters: Parameters<typeof dataStore.searchBookmarks>[1] = {
@@ -220,48 +216,16 @@ const filteredBookmarks = computed<Bookmark[]>(() => {
   return dataStore.searchBookmarks(debouncedSearch.value, filters)
 })
 
-const bookmarks = computed(() => filteredBookmarks.value.slice(0, displayedCount.value))
-const hasMore = computed(() => displayedCount.value < filteredBookmarks.value.length)
+const { visible: bookmarks, hasMore, loadingMore, sentinelRef } = usePaginatedList<Bookmark>({
+  items: filteredBookmarks,
+  resetTriggers: [currentView, activeTag, debouncedSearch],
+})
+
 const loading = computed(() => syncStatus.value === 'syncing' && storeBookmarks.value.length === 0)
-const loadingMore = ref(false)
+const inboxCount = computed(() => dataStore.searchBookmarks('', { untagged: true }).length)
+const totalCount = computed(() => storeBookmarks.value.filter((b) => !b.deletedAt).length)
 
-const inboxCount = computed(() =>
-  dataStore.searchBookmarks('', { untagged: true }).length,
-)
-const totalCount = computed(() =>
-  storeBookmarks.value.filter((b) => !b.deletedAt).length,
-)
-
-// Reset pagination when filters change
-watch(
-  () => [currentView.value, activeTag.value, debouncedSearch.value],
-  () => {
-    displayedCount.value = PAGE_SIZE
-  },
-)
-
-watch(
-  () => [route.query.tag, route.query.view],
-  () => {
-    searchQuery.value = ''
-    debouncedSearch.value = ''
-  },
-)
-
-function loadMore() {
-  if (!hasMore.value || loadingMore.value) return
-  loadingMore.value = true
-  displayedCount.value = Math.min(displayedCount.value + PAGE_SIZE, filteredBookmarks.value.length)
-  loadingMore.value = false
-}
-
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-function handleSearchInput() {
-  if (searchTimer) clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    debouncedSearch.value = searchQuery.value
-  }, 300)
-}
+watch(() => [route.query.tag, route.query.view], () => resetSearch())
 
 function handleSidebarChange(view: string, tag: string) {
   const query: Record<string, string> = {}
@@ -280,7 +244,7 @@ function goToBookmark(id: string) {
   router.push(`/bookmarks/${id}`)
 }
 
-// Modal
+// Add bookmark modal
 const showAddModal = ref(false)
 const newUrl = ref('')
 const urlInputRef = ref<HTMLInputElement | null>(null)
@@ -311,27 +275,5 @@ async function addBookmark() {
   }
 }
 
-let observer: IntersectionObserver | null = null
-watch(sentinelRef, (el) => {
-  if (observer) observer.disconnect()
-  if (!el) return
-  observer = new IntersectionObserver(
-    ([entry]) => { if (entry.isIntersecting) loadMore() },
-    { rootMargin: '200px' }
-  )
-  observer.observe(el)
-})
-
-onUnmounted(() => observer?.disconnect())
-
-onMounted(() => {
-  const handler = (e: KeyboardEvent) => {
-    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-      e.preventDefault()
-      searchInputRef.value?.focus()
-    }
-  }
-  window.addEventListener('keydown', handler)
-  onUnmounted(() => window.removeEventListener('keydown', handler))
-})
+useSearchHotkey(searchInputRef)
 </script>

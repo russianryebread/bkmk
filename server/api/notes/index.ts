@@ -3,6 +3,7 @@ import { notes, notesTags, tags } from '~/server/database/schema'
 import { eq, desc, sql, and, isNull, inArray, notExists } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
+import { resolveTagIds, tagNameEquals } from '~/server/utils/tags'
 
 async function fetchTagsForNotes(noteIds: string[]): Promise<Map<string, string[]>> {
   if (noteIds.length === 0) return new Map()
@@ -75,7 +76,7 @@ export default defineEventHandler(async (event) => {
       const [tagRecord] = await db
         .select({ id: tags.id })
         .from(tags)
-        .where(and(eq(tags.name, tag as string), eq(tags.userId, currentUser.id)))
+        .where(and(tagNameEquals(tag as string), eq(tags.userId, currentUser.id)))
         .limit(1)
 
       if (!tagRecord) {
@@ -151,28 +152,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const tagsArray: string[] = Array.isArray(tagNames) ? tagNames : []
-    const tagIds: string[] = []
-
-    for (const tagName of tagsArray) {
-      const trimmedName = tagName.trim()
-      if (!trimmedName) continue
-
-      let [existingTag] = await db
-        .select()
-        .from(tags)
-        .where(and(eq(tags.name, trimmedName), eq(tags.userId, currentUser.id)))
-        .limit(1)
-
-      if (!existingTag) {
-        const [newTag] = await db
-          .insert(tags)
-          .values({ id: crypto.randomUUID(), userId: currentUser.id, name: trimmedName, parentTagId: null, color: null })
-          .returning()
-        tagIds.push(newTag.id)
-      } else {
-        tagIds.push(existingTag.id)
-      }
-    }
+    const { ids: tagIds, names: canonicalTagNames } = await resolveTagIds(currentUser.id, tagsArray)
 
     const [note] = await db
       .insert(notes)
@@ -183,7 +163,7 @@ export default defineEventHandler(async (event) => {
       await db.insert(notesTags).values({ id: crypto.randomUUID(), noteId: note.id, tagId }).onConflictDoNothing()
     }
 
-    return { ...note, isFavorite: Boolean(note.isFavorite), tags: tagsArray }
+    return { ...note, isFavorite: Boolean(note.isFavorite), tags: canonicalTagNames }
   }
 
   throw createError({ statusCode: 405, message: 'Method not allowed' })

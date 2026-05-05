@@ -1,5 +1,5 @@
 <template>
-  <div class="relative">
+  <div ref="rootRef" class="relative">
     <div
       class="input flex flex-wrap items-center gap-1.5 min-h-[38px] cursor-text"
       :class="{ 'ring-2 ring-primary-500 border-transparent': focused }"
@@ -44,7 +44,10 @@
 
     <div
       v-if="showDropdown && (filteredTags.length > 0 || canCreate)"
-      class="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+      :class="[
+        'absolute z-20 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto',
+        dropUp ? 'bottom-full mb-1' : 'top-full mt-1',
+      ]"
     >
       <button
         v-for="(tag, index) in filteredTags"
@@ -112,11 +115,25 @@ const emit = defineEmits<{
 
 const { tags, getTagColor } = useTagSystem()
 
+const rootRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
 const focused = ref(false)
 const showDropdown = ref(false)
 const highlightedIndex = ref(0)
+const dropUp = ref(false)
+
+const DROPDOWN_MAX_HEIGHT = 224 // matches Tailwind max-h-56
+
+function updateDropDirection() {
+  const root = rootRef.value
+  if (!root) return
+  const rect = root.getBoundingClientRect()
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+  // Flip up only when there isn't enough room below AND there's more room above.
+  dropUp.value = spaceBelow < DROPDOWN_MAX_HEIGHT && spaceAbove > spaceBelow
+}
 
 const allTags = computed<TagItem[]>(() => {
   let result = tags.value
@@ -175,7 +192,12 @@ function onContainerMousedown(e: MouseEvent) {
 function onFocus() {
   focused.value = true
   showDropdown.value = true
+  updateDropDirection()
 }
+
+watch([searchQuery, filteredTags, canCreate], () => {
+  if (showDropdown.value) updateDropDirection()
+})
 
 function onBlur() {
   focused.value = false

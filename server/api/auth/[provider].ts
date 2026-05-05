@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm'
 import { db } from '~/server/database'
 import { users, userAccounts } from '~/server/database/schema'
-import { setAuthCookie, createToken } from '~/server/utils/auth'
+import { setAuthCookie, createToken, touchLastLogin } from '~/server/utils/auth'
 
 interface OAuthProviderConfig {
   name: string
@@ -231,6 +231,8 @@ export default defineEventHandler(async (event) => {
     email: user.email,
     role: user.role
   })
+
+  await touchLastLogin(user.id)
   
   // For mobile apps with custom redirect_uri, return token as query param
   if (customRedirectUri) {

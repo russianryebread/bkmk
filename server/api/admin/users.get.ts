@@ -15,11 +15,12 @@ export default defineEventHandler(async (event) => {
       role: users.role,
       passwordHash: users.passwordHash,
       createdAt: users.createdAt,
-      updatedAt: users.updatedAt
+      updatedAt: users.updatedAt,
+      lastLogin: users.lastLogin,
     })
     .from(users)
     .orderBy(desc(users.createdAt))
-  
+
   return {
     users: allUsers.map(u => ({
       id: u.id,
@@ -27,7 +28,8 @@ export default defineEventHandler(async (event) => {
       role: u.role,
       hasPassword: !!u.passwordHash,
       createdAt: u.createdAt,
-      updatedAt: u.updatedAt
+      updatedAt: u.updatedAt,
+      lastLogin: u.lastLogin,
     }))
   }
 })

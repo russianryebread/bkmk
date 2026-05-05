@@ -1,6 +1,7 @@
 import { db, schema } from '~/server/database'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
+import { tagNameEquals } from '~/server/utils/tags'
 
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event)
@@ -49,13 +50,27 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, message: 'Invalid tag type. Must be "bookmark", "note", or "both"' })
     }
 
+    const trimmedName = name.trim()
+
+    // Case-insensitive dedup: if a tag with the same name (any casing) already
+    // exists for this user, return it instead of creating a duplicate.
+    const [existing] = await db
+      .select()
+      .from(schema.tags)
+      .where(and(eq(schema.tags.userId, currentUser.id), tagNameEquals(trimmedName)))
+      .limit(1)
+
+    if (existing) {
+      return { tag: existing }
+    }
+
     try {
       const [tag] = await db
         .insert(schema.tags)
         .values({
           id: id || crypto.randomUUID(),
           userId: currentUser.id,
-          name: name.trim(),
+          name: trimmedName,
           parentTagId: parentId || null,
           color: color || null,
           type: type || 'both',

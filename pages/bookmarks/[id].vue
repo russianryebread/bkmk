@@ -129,6 +129,7 @@ import type { Bookmark } from '~/composables/idb'
 
 import { formatDateFull } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
+import { useViewportHeight } from '~/composables/useViewportHeight'
 import { useDataStore } from '~/stores/useDataStore'
 
 const route = useRoute()
@@ -214,6 +215,13 @@ async function loadBookmark() {
     if (!local) bookmark.value = null
   } finally {
     loading.value = false
+  }
+
+  // Viewing the detail page counts as reading — clear the unread indicator.
+  if (bookmark.value && !bookmark.value.isRead) {
+    await dataStore.markBookmarkRead(id)
+    bookmark.value.isRead = true
+    bookmark.value.readAt = new Date().toISOString()
   }
 }
 
@@ -321,20 +329,7 @@ const toolbarActions = computed<Action[]>(() => [
   },
 ])
 
-function setDvh() {
-  document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`)
-}
-
-onMounted(() => {
-  setDvh()
-  window.addEventListener('resize', setDvh)
-  window.addEventListener('orientationchange', setDvh)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', setDvh)
-  window.removeEventListener('orientationchange', setDvh)
-})
+useViewportHeight()
 
 onBeforeRouteLeave((to, from) => {
   if (editing.value && hasChanges.value) {
