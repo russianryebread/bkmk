@@ -56,7 +56,7 @@
           <span>{{ wordCount }} words</span>
         </div>
 
-        <div v-if="note?.tags && note.tags.length > 0" class="flex flex-wrap gap-2">
+        <div v-if="note?.tags && note.tags.length > 0" class="flex flex-wrap gap-2 mb-4">
           <span v-for="tag in note.tags" :key="tag" class="px-2.5 py-0.5 text-xs rounded-full"
             :style="{ backgroundColor: getTagColor(tag).bg, color: getTagColor(tag).text }">
             {{ tag }}
