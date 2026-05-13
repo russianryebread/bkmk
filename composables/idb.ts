@@ -99,6 +99,10 @@ interface SyncQueueItem {
   retries: number
 }
 
+function toPlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
+}
+
 let dbInstance: IDBDatabase | null = null
 
 export function useIdb() {
@@ -220,7 +224,7 @@ export function useIdb() {
       const tx = db.transaction(NOTES_STORE, 'readwrite')
       const store = tx.objectStore(NOTES_STORE)
 
-      notes.forEach(note => store.put(note))
+      notes.forEach(note => store.put(toPlain(note)))
 
       tx.oncomplete = () => {
         console.log('[IDB] Saved', notes.length, 'notes')
@@ -265,7 +269,7 @@ export function useIdb() {
       const tx = db.transaction(TAGS_STORE, 'readwrite')
       const store = tx.objectStore(TAGS_STORE)
 
-      tags.forEach(tag => store.put(tag))
+      tags.forEach(tag => store.put(toPlain(tag)))
 
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
@@ -320,8 +324,9 @@ export function useIdb() {
       const store = tx.objectStore(BOOKMARKS_STORE)
 
       bookmarks.forEach(bookmark => {
-        bookmark.originalHtml = null // Don't store original HTML locally.
-        store.put(bookmark)
+        const plain = toPlain(bookmark)
+        plain.originalHtml = null // Don't store original HTML locally.
+        store.put(plain)
       })
 
       tx.oncomplete = () => resolve()
@@ -371,7 +376,7 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
-      const request = store.put({ ...item, retries: 0 })
+      const request = store.put(toPlain({ ...item, retries: 0 }))
 
       request.onsuccess = () => {
         console.log('[IDB] Added to sync queue:', item.action, item.entity, item.id)
@@ -410,7 +415,7 @@ export function useIdb() {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
       const store = tx.objectStore(SYNC_QUEUE_STORE)
-      const request = store.put(item)
+      const request = store.put(toPlain(item))
 
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
