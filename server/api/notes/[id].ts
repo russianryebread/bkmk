@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull } from 'drizzle-orm'
 import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 import { resolveTagIds } from '~/server/utils/tags'
@@ -26,7 +26,7 @@ async function requireOwnedNote(noteId: string, userId: string) {
                 eq(schema.notes.id, noteId),
                 eq(schema.notes.userId, userId),
                 // Exclude soft-deleted notes from reads
-                eq(schema.notes.deletedAt, null as any),
+                isNull(schema.notes.deletedAt),
             ),
         )
 
