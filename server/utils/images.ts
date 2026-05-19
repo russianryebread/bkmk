@@ -46,11 +46,13 @@ export async function processAndStoreImage(
     // initial URL is checked here.
     await assertSafeUrl(imageUrl)
 
-    // Download the image
+    // Download the image with a per-image timeout so one slow host cannot
+    // stall the caller indefinitely.
     const response = await fetch(imageUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Bkmk/1.0)',
       },
+      signal: AbortSignal.timeout(10000),
     })
 
     if (!response.ok) {

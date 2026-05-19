@@ -317,9 +317,31 @@ export default defineEventHandler(async (event) => {
 
   console.log('[Scrape] Found', imageUrls.length, 'images to process')
 
-  // Process images concurrently with a limit
-  const processedImages = await Promise.all(
-    imageUrls.slice(0, 20).map(imageUrl => processAndStoreImage(imageUrl, bookmark.id))
+  // Process images with a bounded concurrency pool so one slow host cannot
+  // stall the whole request. Individual failures/timeouts are tolerated
+  // (Promise.allSettled semantics) — the bookmark is still saved if images
+  // fail to download.
+  const IMAGE_CONCURRENCY = 3
+  const imagesToProcess = imageUrls.slice(0, 20)
+  const processedImages: (Awaited<ReturnType<typeof processAndStoreImage>>)[] = []
+  let nextImageIndex = 0
+
+  async function imageWorker() {
+    while (true) {
+      const index = nextImageIndex++
+      if (index >= imagesToProcess.length) return
+      try {
+        processedImages[index] = await processAndStoreImage(imagesToProcess[index], bookmark.id)
+      } catch (e) {
+        // A failed image must never abort the scrape.
+        console.error('[Scrape] Image processing failed:', imagesToProcess[index], e)
+        processedImages[index] = null
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(IMAGE_CONCURRENCY, imagesToProcess.length) }, () => imageWorker())
   )
 
   // Build image map
