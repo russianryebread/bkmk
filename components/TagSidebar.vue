@@ -1,14 +1,19 @@
 <template>
-  <!-- Mobile overlay -->
+  <!-- Mobile overlay (covers the area below the sticky header, which sits at z-40) -->
   <div
     v-if="mobileOpen"
-    class="fixed inset-0 bg-black/40 z-20 md:hidden"
+    class="fixed inset-x-0 top-16 bottom-0 bg-black/40 z-20 md:hidden"
     @click="$emit('update:mobileOpen', false)"
   />
 
   <!-- Sidebar -->
+  <!--
+    On mobile the sidebar slides out from under the sticky page header
+    (top-16, h = viewport minus header) so its own "Navigation" bar / close
+    button isn't covered. On desktop it's a normal sticky sidebar.
+  -->
   <aside
-    class="fixed md:sticky top-0 left-0 h-screen md:h-[calc(100vh-64px)] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-30 flex flex-col transition-transform duration-200"
+    class="fixed md:sticky top-16 md:top-0 left-0 h-[calc(100vh-64px)] w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-30 flex flex-col transition-transform duration-200"
     :class="mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
   >
     <!-- Mobile close button -->
