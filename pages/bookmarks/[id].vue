@@ -304,30 +304,57 @@ watch(() => route.params.id, async (newId) => {
   }
 }, { immediate: true })
 
-const toolbarActions = computed<Action[]>(() => [
-  {
-    icon: 'heart' as const,
-    title: bookmark.value?.isFavorite ? 'Remove from favorites' : 'Add to favorites',
-    active: bookmark.value?.isFavorite,
-    handler: () => toggleFavorite(),
-  },
-  {
-    icon: 'edit' as const,
-    title: 'Edit bookmark',
-    handler: () => startEditing(),
-  },
-  {
-    icon: 'external' as const,
-    title: 'Open original',
-    handler: () => { window.open(bookmark.value?.url, '_blank') },
-  },
-  {
-    icon: 'trash' as const,
-    title: 'Delete bookmark',
-    variant: 'danger' as const,
-    handler: () => deleteBookmarkConfirm(),
-  },
-])
+async function convertToLink() {
+  if (!bookmark.value) return
+  if (!confirm('Convert this to a plain link? Reader content and images will be permanently discarded.')) {
+    return
+  }
+  const ok = await dataStore.convertBookmarkToLink(bookmark.value.id)
+  if (ok) {
+    const updated = dataStore.getBookmarkById(bookmark.value.id)
+    if (updated) {
+      bookmark.value = { ...updated }
+      initFromBookmark()
+    }
+  }
+}
+
+const toolbarActions = computed<Action[]>(() => {
+  const hasReaderContent =
+    bookmark.value?.readingTimeMinutes != null || bookmark.value?.wordCount != null
+
+  return [
+    {
+      icon: 'heart' as const,
+      title: bookmark.value?.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+      active: bookmark.value?.isFavorite,
+      handler: () => toggleFavorite(),
+    },
+    {
+      icon: 'edit' as const,
+      title: 'Edit bookmark',
+      handler: () => startEditing(),
+    },
+    {
+      icon: 'external' as const,
+      title: 'Open original',
+      handler: () => { window.open(bookmark.value?.url, '_blank') },
+    },
+    ...(hasReaderContent
+      ? [{
+          icon: 'link' as const,
+          title: 'Convert to link',
+          handler: () => convertToLink(),
+        }]
+      : []),
+    {
+      icon: 'trash' as const,
+      title: 'Delete bookmark',
+      variant: 'danger' as const,
+      handler: () => deleteBookmarkConfirm(),
+    },
+  ]
+})
 
 useViewportHeight()
 

@@ -538,6 +538,29 @@ export const useDataStore = defineStore("data", () => {
     return true;
   }
 
+  // Online-only: downgrade a reader bookmark to a plain link with metadata.
+  // Not routed through the sync queue.
+  async function convertBookmarkToLink(id: string): Promise<boolean> {
+    try {
+      const updated = await $fetch<Bookmark>(
+        `/api/bookmarks/${id}/convert-to-link`,
+        { method: "POST" },
+      );
+
+      const index = bookmarks.value.findIndex((b) => b.id === id);
+      if (index !== -1) {
+        bookmarks.value[index] = updated;
+      }
+
+      await idb.saveBookmark(updated);
+
+      return true;
+    } catch (e) {
+      console.error("Failed to convert bookmark to link:", e);
+      return false;
+    }
+  }
+
   async function toggleBookmarkFavorite(id: string): Promise<boolean> {
     const bookmark = bookmarks.value.find((b) => b.id === id);
     if (!bookmark) return false;
@@ -858,6 +881,7 @@ export const useDataStore = defineStore("data", () => {
     createBookmark,
     updateBookmark,
     deleteBookmark,
+    convertBookmarkToLink,
     toggleBookmarkFavorite,
     markBookmarkRead,
 
