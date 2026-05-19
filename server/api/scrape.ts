@@ -81,6 +81,28 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Reject absurdly long URLs before doing any further work.
+  if (url.length > 2048) {
+    throw createError({
+      statusCode: 400,
+      message: 'URL is too long',
+    })
+  }
+
+  // Reject non-http(s) URLs early (complements the SSRF guard in the
+  // scraper/image utils).
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('bad scheme')
+    }
+  } catch {
+    throw createError({
+      statusCode: 400,
+      message: 'URL must be a valid http(s) URL',
+    })
+  }
+
   // Validate URL
   let cleanUrl: string
   try {
