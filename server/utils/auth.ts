@@ -140,21 +140,23 @@ export function clearAuthCookie(event: H3Event): void {
   deleteCookie(event, COOKIE_NAME)
 }
 
-// Get current user from request
+// Get current user from request.
+//
+// Tries the Bearer token first (if any), then falls back to the auth cookie.
+// The auth cookie is ONLY cleared when the cookie itself is invalid — a bad
+// Bearer header must never wipe an unrelated session cookie.
 export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
-  const token = getAuthToken(event)
-  
-  if (!token) {
-    return null
+  const bearer = getBearerToken(event)
+  const cookieToken = getCookie(event, COOKIE_NAME)
+
+  let payload: TokenPayload | null = null
+  if (bearer) payload = parseToken(bearer)
+  if (!payload && cookieToken) {
+    payload = parseToken(cookieToken)
+    if (!payload) clearAuthCookie(event)
   }
-  
-  const payload = parseToken(token)
-  
-  if (!payload) {
-    clearAuthCookie(event)
-    return null
-  }
-  
+  if (!payload) return null
+
   // Verify user still exists
   const [user] = await db
     .select({
@@ -166,12 +168,14 @@ export async function getCurrentUser(event: H3Event): Promise<AuthUser | null> {
     .from(users)
     .where(eq(users.id, payload.userId))
     .limit(1)
-  
+
   if (!user) {
-    clearAuthCookie(event)
+    // The token was syntactically valid but the user is gone — only clear
+    // the cookie when we were actually relying on it.
+    if (cookieToken && !bearer) clearAuthCookie(event)
     return null
   }
-  
+
   return {
     id: user.id,
     email: user.email,
