@@ -17,7 +17,7 @@
 
       <div class="flex gap-4">
         <button @click="saveNote"
-          class="text-green-500 disabled:text-gray-500 p2 rounded-xl flex items-center justify-center action-button"
+          class="text-green-500 disabled:text-gray-500 p-2 rounded-xl flex items-center justify-center action-button"
           :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
           <span v-if="saving"
             class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>

@@ -78,7 +78,7 @@
           <input v-model="editorUrl" type="url"
             class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-transparent"
             placeholder="https://..." v-if="isNew && bookmark" />
-          <div v-else class="font-mono text-xs text-grey-500">{{ editorUrl }}</div>
+          <div v-else class="font-mono text-xs text-gray-500">{{ editorUrl }}</div>
         </div>
 
         <div class="mb-4">

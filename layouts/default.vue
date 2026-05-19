@@ -241,7 +241,6 @@ function openGlobalSearch() {
 }
 provide('openGlobalSearch', openGlobalSearch)
 
-const mobileMenuOpen = ref(false)
 const menuOpen = ref(false)
 
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
@@ -255,7 +254,6 @@ const isListPage = computed(() => route.path === '/bookmarks' || route.path === 
 
 async function handleLogout() {
   menuOpen.value = false
-  mobileMenuOpen.value = false
   await logout()
 }
 

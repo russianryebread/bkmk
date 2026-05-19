@@ -126,8 +126,7 @@ export async function getStoredImage(imageId: string) {
     return null
   }
 
-  // Get the actual image data from a separate table or file
-  // For now, we'll need to store image data separately
+  // The base64-encoded image bytes live in the `data` column of this row.
   return image
 }
 
