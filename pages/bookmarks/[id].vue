@@ -28,7 +28,7 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-12">
+    <div v-if="loading" key="loading" class="flex justify-center py-12">
       <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor"
@@ -38,7 +38,7 @@
     </div>
 
     <!-- Bookmark View/Edit -->
-    <div v-if="bookmark || isNew" class="flex-1 flex flex-col">
+    <div v-if="bookmark || isNew" key="content" class="flex-1 flex flex-col">
       <!-- Metadata and tags (view mode - existing bookmark) -->
       <template v-if="!isNew && !editing">
         <!-- Title -->
@@ -116,7 +116,7 @@
     </div>
 
     <!-- Error: Bookmark not found -->
-    <div v-else class="text-center py-12">
+    <div v-else key="notfound" class="text-center py-12">
       <p class="text-gray-500 dark:text-gray-400">Bookmark not found</p>
       <NuxtLink to="/bookmarks" class="btn-primary mt-4">Go Back</NuxtLink>
     </div>
@@ -296,15 +296,23 @@ async function deleteBookmarkConfirm() {
   }
 }
 
-// Watch for route changes to reload data
-watch(() => route.params.id, async (newId) => {
-  if (newId === 'new') {
+async function loadForRoute(id: string | string[]) {
+  if (id === 'new') {
     initNewBookmark()
     loading.value = false
   } else {
     await loadBookmark()
   }
-}, { immediate: true })
+}
+
+// Load on the client only. Bookmark data lives in IndexedDB, so server-side
+// rendering can never resolve it — running the load during SSR would render
+// the "not found" branch and corrupt hydration. Both SSR and the first client
+// render show the loading branch; the keyed branch swap then happens on mount.
+onMounted(() => loadForRoute(route.params.id))
+
+// Watch for route changes to reload data (client-side navigation)
+watch(() => route.params.id, (newId) => loadForRoute(newId))
 
 async function convertToLink() {
   if (!bookmark.value) return
