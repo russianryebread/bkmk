@@ -42,12 +42,22 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // Image content is immutable per id, so it can be cached aggressively.
+  const etag = `"${image.id}"`
+  setHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
+  setHeader(event, 'ETag', etag)
+
+  // Honor conditional requests: if the client already has this image, 304.
+  if (getHeader(event, 'if-none-match') === etag) {
+    setResponseStatus(event, 304)
+    return null
+  }
+
   // Decode base64 and return as binary
   const buffer = Buffer.from(image.data, 'base64')
 
   // Set headers
   setHeader(event, 'Content-Type', image.mimeType)
-  setHeader(event, 'Cache-Control', 'public, max-age=31536000') // 1 year cache
   setHeader(event, 'Content-Length', buffer.length.toString())
 
   return buffer
