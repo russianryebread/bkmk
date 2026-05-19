@@ -57,7 +57,7 @@
       </div>
 
       <!-- Content area -->
-      <div ref="scrollContainer" class="flex-1 overflow-y-auto p-4">
+      <div ref="scrollContainer" class="flex-1 overflow-y-auto p-0 md:p-4">
         <!-- Pull-to-refresh spinner -->
         <div v-if="refreshing" class="flex justify-center py-3">
           <svg class="animate-spin h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -75,13 +75,13 @@
         </div>
 
         <!-- Error -->
-        <div v-else-if="error && notes.length === 0" class="card p-8 text-center">
+        <div v-else-if="error && notes.length === 0" class="card m-4 p-8 text-center">
           <p class="text-red-600 dark:text-red-400 mb-4">{{ error }}</p>
           <button @click="dataStore.triggerSync()" class="btn-secondary">Try Again</button>
         </div>
 
         <!-- Empty -->
-        <div v-else-if="!loading && notes.length === 0" class="card p-12 text-center">
+        <div v-else-if="!loading && notes.length === 0" class="card m-4 p-12 text-center">
           <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -95,7 +95,7 @@
         <!-- Notes list -->
         <div v-else>
           <!-- Card view -->
-          <div v-if="viewMode === 'card'" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div v-if="viewMode === 'card'" class="grid gap-3 px-3 py-2 md:p-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <div
               v-for="note in notes"
               :key="note.id"
@@ -142,7 +142,7 @@
           </div>
 
           <!-- List view -->
-          <div v-else class="card divide-y divide-gray-200 dark:divide-gray-700">
+          <div v-else class="divide-y divide-gray-200 dark:divide-gray-700 md:border md:border-gray-200 md:dark:border-gray-700 md:rounded-xl md:bg-white md:dark:bg-gray-800 md:overflow-hidden">
             <div
               v-for="note in notes"
               :key="note.id"

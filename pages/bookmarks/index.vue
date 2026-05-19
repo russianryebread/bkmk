@@ -58,7 +58,7 @@
       </div>
 
       <!-- Content area -->
-      <div ref="scrollContainer" class="flex-1 overflow-y-auto p-4">
+      <div ref="scrollContainer" class="flex-1 overflow-y-auto p-0 md:p-4">
         <!-- Pull-to-refresh spinner -->
         <div v-if="refreshing" class="flex justify-center py-3">
           <svg class="animate-spin h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -76,13 +76,13 @@
         </div>
 
         <!-- Error -->
-        <div v-else-if="error && bookmarks.length === 0" class="card p-8 text-center">
+        <div v-else-if="error && bookmarks.length === 0" class="card m-4 p-8 text-center">
           <p class="text-red-600 dark:text-red-400 mb-4">{{ error }}</p>
           <button @click="dataStore.triggerSync()" class="btn-secondary">Try Again</button>
         </div>
 
         <!-- Empty -->
-        <div v-else-if="!loading && bookmarks.length === 0" class="card p-12 text-center">
+        <div v-else-if="!loading && bookmarks.length === 0" class="card m-4 p-12 text-center">
           <svg v-if="currentView === 'inbox'" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
           </svg>
@@ -101,7 +101,7 @@
         <!-- Bookmark list/grid -->
         <div v-else>
           <!-- Card view -->
-          <div v-if="viewMode === 'card'" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div v-if="viewMode === 'card'" class="grid gap-3 px-3 py-2 md:p-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <BookmarkCard
               v-for="bookmark in bookmarks"
               :key="bookmark.id"
@@ -112,7 +112,7 @@
           </div>
 
           <!-- List view -->
-          <div v-else class="card divide-y divide-gray-200 dark:divide-gray-700">
+          <div v-else class="divide-y divide-gray-200 dark:divide-gray-700 md:border md:border-gray-200 md:dark:border-gray-700 md:rounded-xl md:bg-white md:dark:bg-gray-800 md:overflow-hidden">
             <BookmarkListItem
               v-for="bookmark in bookmarks"
               :key="bookmark.id"
