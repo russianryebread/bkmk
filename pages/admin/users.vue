@@ -124,10 +124,6 @@
 <script setup lang="ts">
 import { formatDateShort } from '~/utils/date'
 
-definePageMeta({
-  middleware: []
-})
-
 interface User {
   id: string
   email: string
@@ -138,7 +134,13 @@ interface User {
   lastLogin: string | null
 }
 
-const { user: currentUser } = useAuth()
+const { user: currentUser, isAdmin } = useAuth()
+
+// Client-side guard: the server enforces admin via requireRole, but redirect
+// non-admins here too so they never see the (empty) admin UI flash.
+if (!isAdmin.value) {
+  await navigateTo('/')
+}
 
 const users = ref<User[]>([])
 const loading = ref(true)
@@ -203,6 +205,8 @@ async function deleteUser(userId: string) {
 }
 
 onMounted(() => {
-  fetchUsers()
+  if (isAdmin.value) {
+    fetchUsers()
+  }
 })
 </script>
