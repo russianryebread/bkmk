@@ -78,8 +78,8 @@
                       {{ result.source_domain }}
                     </span>
                   </div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate" v-html="result.title"></p>
-                  <p v-if="result.description" class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" v-html="result.description"></p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ result.title }}</p>
+                  <p v-if="result.description" class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ result.description }}</p>
                 </div>
 
                 <!-- Tags for bookmarks -->

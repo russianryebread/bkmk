@@ -132,8 +132,8 @@
                   Unread
                 </span>
               </div>
-              <h3 class="font-medium text-gray-900 dark:text-white line-clamp-1" v-html="result.title"></h3>
-              <p v-if="result.description" class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mt-1" v-html="result.description"></p>
+              <h3 class="font-medium text-gray-900 dark:text-white line-clamp-1">{{ result.title }}</h3>
+              <p v-if="result.description" class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mt-1">{{ result.description }}</p>
               <div v-if="result.type === 'bookmark'" class="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
                 <span>{{ result.source_domain }}</span>
                 <span v-if="result.tags && result.tags.length > 0" class="flex gap-1">
