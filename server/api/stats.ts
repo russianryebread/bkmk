@@ -14,7 +14,14 @@ export default defineEventHandler(async (event) => {
 
     return { totalBookmarks, unreadBookmarks, totalNotes, totalTags }
   } catch (error: any) {
+    // Always log the real error server-side; only expose detail in dev.
     console.error('Stats API error:', error)
-    throw createError({ statusCode: 500, message: 'Failed to fetch stats: ' + (error?.message || 'Unknown error') })
+    const isProd = process.env.NODE_ENV === 'production'
+    throw createError({
+      statusCode: 500,
+      message: isProd
+        ? 'Failed to fetch stats'
+        : 'Failed to fetch stats: ' + (error?.message || 'Unknown error'),
+    })
   }
 })
