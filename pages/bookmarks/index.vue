@@ -67,6 +67,11 @@
           </svg>
         </div>
 
+        <!-- The list is driven by client-side IndexedDB data. Rendering it
+             during SSR would show the empty state, then hydration would reuse
+             that .card node for the list (the "outer card" bug). Client-only
+             rendering keeps SSR and client in sync. -->
+        <ClientOnly>
         <!-- Loading -->
         <div v-if="loading && bookmarks.length === 0" class="flex justify-center py-16">
           <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -135,6 +140,16 @@
             All caught up
           </div>
         </div>
+
+        <template #fallback>
+          <div class="flex justify-center py-16">
+            <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          </div>
+        </template>
+        </ClientOnly>
       </div>
     </div>
 
