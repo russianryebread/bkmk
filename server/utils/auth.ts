@@ -109,7 +109,7 @@ export function setAuthCookie(event: H3Event, token: string): void {
   setCookie(event, COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: TOKEN_EXPIRY / 1000,
     path: '/'
   })
