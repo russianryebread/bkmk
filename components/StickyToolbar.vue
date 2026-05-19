@@ -7,13 +7,13 @@
         isScrolled ? 'bg-white dark:bg-gray-800 rounded-xl' : '',
       ]"
     >
-      <!-- Left slot (usually back button) -->
-      <div v-if="$slots.left || showBack" class="flex-shrink-0">
+      <!-- Left slot (usually back button) + optional title -->
+      <div v-if="$slots.left || showBack || title" class="flex items-center gap-2 min-w-0 flex-1">
         <slot name="left">
           <button
             v-if="showBack"
             @click="handleBack"
-            class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all"
+            class="flex-shrink-0 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all"
             :title="backLabel"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,10 +21,13 @@
             </svg>
           </button>
         </slot>
+        <h1 v-if="title" class="font-bold text-gray-900 dark:text-white truncate">
+          {{ title }}
+        </h1>
       </div>
 
       <!-- Center buttons -->
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 flex-shrink-0">
         <slot>
           <ActionButton
             v-for="(action, index) in actions"
@@ -50,12 +53,14 @@ const props = withDefaults(defineProps<{
   showBack?: boolean
   backLabel?: string
   backTo?: string
+  title?: string
   actions?: Action[]
   compact?: boolean
 }>(), {
   showBack: false,
   backLabel: 'Go back',
   backTo: undefined,
+  title: undefined,
   actions: () => [],
   compact: false,
 })

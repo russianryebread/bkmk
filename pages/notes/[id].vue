@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-[calc(var(--dvh)-100px)] md:min-h-[calc(var(--dvh)-156px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
-      :actions="toolbarActions" />
+      :title="deriveTitle(note?.content)" :actions="toolbarActions" />
 
     <!-- Simple back button for new/editing mode -->
     <div v-else class="flex mb-4">
@@ -40,13 +40,6 @@
 
     <!-- Note View/Edit -->
     <div v-else-if="note || isNew" class="flex-1 flex flex-col">
-
-      <!-- Title - derived from first line of content -->
-      <div class="mb-4">
-        <h1 v-if="!isNew && !editing" class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-          {{ deriveTitle(note?.content) }}
-        </h1>
-      </div>
 
       <!-- Metadata and tags (view mode - existing note) -->
       <template v-if="!isNew && !editing">
@@ -124,7 +117,6 @@ const { render } = useMarkdown()
 
 const {
   getTagColor,
-  fetchTags,
   createTag,
 } = useTagSystem()
 
@@ -192,9 +184,6 @@ async function loadNote() {
   if (note.value) {
     initFromNote()
   }
-
-  // Refresh tags in the background so the editor's typeahead has fresh data.
-  fetchTags(false).catch(() => {})
 }
 
 function startEditing() {
@@ -245,7 +234,6 @@ async function saveNote() {
       }
 
       editing.value = false
-      fetchTags(true) // Refresh tags after save (server may have created new ones)
     }
   } catch (e) {
     console.error('Failed to save note:', e)
