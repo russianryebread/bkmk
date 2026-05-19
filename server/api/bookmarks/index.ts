@@ -132,7 +132,7 @@ export default defineEventHandler(async (event) => {
       const bookmarkMap = buildBookmarkMap(rawBookmarks)
       return {
         bookmarks: Array.from(bookmarkMap.values()),
-        pagination: buildPagination(pageNum, limitNum, countResult.total),
+        pagination: buildPagination(pageNum, limitNum, countResult?.total ?? 0),
       }
     }
 
@@ -160,7 +160,7 @@ export default defineEventHandler(async (event) => {
       const bookmarkMap = buildBookmarkMap(rawBookmarks)
       return {
         bookmarks: Array.from(bookmarkMap.values()),
-        pagination: buildPagination(pageNum, limitNum, countResult.total),
+        pagination: buildPagination(pageNum, limitNum, countResult?.total ?? 0),
       }
     }
 
@@ -183,7 +183,7 @@ export default defineEventHandler(async (event) => {
     const bookmarkMap = buildBookmarkMap(rawBookmarks)
     return {
       bookmarks: Array.from(bookmarkMap.values()),
-      pagination: buildPagination(pageNum, limitNum, countResult.total),
+      pagination: buildPagination(pageNum, limitNum, countResult?.total ?? 0),
     }
   }
 

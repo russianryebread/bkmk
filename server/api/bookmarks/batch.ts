@@ -104,6 +104,9 @@ export default defineEventHandler(async (event) => {
       };
 
       const [inserted] = await tx.insert(bookmarks).values(newBookmark).returning();
+      if (!inserted) {
+        throw createError({ statusCode: 500, message: "Failed to create bookmark" });
+      }
 
       if (tagIds.length > 0) {
         await tx.insert(bookmarkTags).values(
@@ -171,6 +174,9 @@ export default defineEventHandler(async (event) => {
         .set(updatedFields)
         .where(and(eq(bookmarks.id, bookmark.id), eq(bookmarks.userId, currentUser.id)))
         .returning();
+      if (!updatedBookmark) {
+        return;
+      }
 
       let tagNames: string[] | undefined;
 

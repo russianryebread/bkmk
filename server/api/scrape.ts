@@ -56,7 +56,7 @@ function extractYouTubeId(videoUrl: string): string | null {
   ]
   for (const pattern of patterns) {
     const match = videoUrl.match(pattern)
-    if (match) return match[1]
+    if (match) return match[1] ?? null
   }
   return null
 }
@@ -64,7 +64,7 @@ function extractYouTubeId(videoUrl: string): string | null {
 // Helper function to extract Vimeo video ID
 function extractVimeoId(videoUrl: string): string | null {
   const match = videoUrl.match(/vimeo\.com\/(\d+)/)
-  return match ? match[1] : null
+  return match ? match[1] ?? null : null
 }
 
 export default defineEventHandler(async (event) => {
@@ -213,6 +213,9 @@ export default defineEventHandler(async (event) => {
         updatedAt: now,
       })
       .returning()
+    if (!bookmark) {
+      throw createError({ statusCode: 500, message: 'Failed to create bookmark' })
+    }
 
     // Update sync metadata
     await db
@@ -278,6 +281,9 @@ export default defineEventHandler(async (event) => {
         updatedAt: now,
       })
       .returning()
+    if (!bookmark) {
+      throw createError({ statusCode: 500, message: 'Failed to create bookmark' })
+    }
 
     // Update sync metadata
     await db
@@ -323,6 +329,9 @@ export default defineEventHandler(async (event) => {
       updatedAt: now,
     })
     .returning()
+  if (!bookmark) {
+    throw createError({ statusCode: 500, message: 'Failed to create bookmark' })
+  }
 
   // Process images - use originalHtml which has the real image URLs (before cheerio modified them)
   const imageUrls = extractImageUrls(scraped.originalHtml || '', url)
@@ -339,15 +348,18 @@ export default defineEventHandler(async (event) => {
   const processedImages: (Awaited<ReturnType<typeof processAndStoreImage>>)[] = []
   let nextImageIndex = 0
 
+  const bookmarkId = bookmark.id
   async function imageWorker() {
     while (true) {
       const index = nextImageIndex++
       if (index >= imagesToProcess.length) return
+      const imgUrl = imagesToProcess[index]
+      if (!imgUrl) continue
       try {
-        processedImages[index] = await processAndStoreImage(imagesToProcess[index], bookmark.id)
+        processedImages[index] = await processAndStoreImage(imgUrl, bookmarkId)
       } catch (e) {
         // A failed image must never abort the scrape.
-        console.error('[Scrape] Image processing failed:', imagesToProcess[index], e)
+        console.error('[Scrape] Image processing failed:', imgUrl, e)
         processedImages[index] = null
       }
     }
@@ -418,6 +430,10 @@ export default defineEventHandler(async (event) => {
     })
     .from(schema.bookmarks)
     .where(eq(schema.bookmarks.id, bookmark.id))
+
+  if (!fullBookmark) {
+    throw createError({ statusCode: 500, message: 'Failed to load bookmark' })
+  }
 
   // Get tags for this bookmark
   const bookmarkTags = await db

@@ -74,11 +74,11 @@ export default defineEventHandler(async (event) => {
           .where(eq(notesTags.noteId, notes.id))
       )
 
-      const [{ count }] = await db
+      const countResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(notes)
         .where(and(...baseConditions, untaggedCondition))
-      total = Number(count)
+      total = Number(countResult[0]?.count ?? 0)
 
       fetchedNotes = await db
         .select()
@@ -109,11 +109,11 @@ export default defineEventHandler(async (event) => {
         return { notes: [], pagination: { page: pageNum, limit: limitNum, total: 0, totalPages: 0 } }
       }
 
-      const [{ count }] = await db
+      const countResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(notes)
         .where(and(...baseConditions, inArray(notes.id, noteIds)))
-      total = Number(count)
+      total = Number(countResult[0]?.count ?? 0)
 
       fetchedNotes = await db
         .select()
@@ -123,11 +123,11 @@ export default defineEventHandler(async (event) => {
         .limit(limitNum)
         .offset(offset)
     } else {
-      const [{ count }] = await db
+      const countResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(notes)
         .where(and(...baseConditions))
-      total = Number(count)
+      total = Number(countResult[0]?.count ?? 0)
 
       fetchedNotes = await db
         .select()
@@ -176,6 +176,10 @@ export default defineEventHandler(async (event) => {
       .insert(notes)
       .values({ id: crypto.randomUUID(), userId: currentUser.id, content, isFavorite: isFavorite ? 1 : 0 })
       .returning()
+
+    if (!note) {
+      throw createError({ statusCode: 500, message: 'Failed to create note' })
+    }
 
     for (const tagId of tagIds) {
       await db.insert(notesTags).values({ id: crypto.randomUUID(), noteId: note.id, tagId }).onConflictDoNothing()

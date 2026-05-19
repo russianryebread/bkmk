@@ -52,6 +52,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const bm = rows[0]
+    if (!bm) {
+      throw createError({ statusCode: 404, message: 'Bookmark not found' })
+    }
     const result = {
       id: bm.id,
       title: bm.title,

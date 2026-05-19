@@ -98,7 +98,7 @@ export default defineEventHandler(async (event) => {
   const providerName = routeParams.provider || 'google'
   
   const config = useRuntimeConfig()
-  const provider = getProviderConfig(providerName, config)
+  const provider = getProviderConfig(providerName, config as unknown as Record<string, string>)
 
   const query = getQuery(event)
   const code = query.code as string
@@ -253,6 +253,10 @@ export default defineEventHandler(async (event) => {
     .from(users)
     .where(eq(users.id, userId))
     .limit(1)
+
+  if (!user) {
+    throw createError({ statusCode: 500, message: 'Failed to load user' })
+  }
 
   // Create token and set cookie
   const token = createToken({

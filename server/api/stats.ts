@@ -7,12 +7,17 @@ export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event)
   
   try {
-    const [{ count: totalBookmarks }] = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks).where(eq(schema.bookmarks.userId, currentUser.id))
-    const [{ count: unreadBookmarks }] = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks).where(and(eq(schema.bookmarks.userId, currentUser.id), eq(schema.bookmarks.isRead, 0)))
-    const [{ count: totalNotes }] = await db.select({ count: sql<number>`count(*)` }).from(schema.notes).where(eq(schema.notes.userId, currentUser.id))
-    const [{ count: totalTags }] = await db.select({ count: sql<number>`count(*)` }).from(schema.tags).where(eq(schema.tags.userId, currentUser.id))
+    const totalBookmarksResult = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks).where(eq(schema.bookmarks.userId, currentUser.id))
+    const unreadBookmarksResult = await db.select({ count: sql<number>`count(*)` }).from(schema.bookmarks).where(and(eq(schema.bookmarks.userId, currentUser.id), eq(schema.bookmarks.isRead, 0)))
+    const totalNotesResult = await db.select({ count: sql<number>`count(*)` }).from(schema.notes).where(eq(schema.notes.userId, currentUser.id))
+    const totalTagsResult = await db.select({ count: sql<number>`count(*)` }).from(schema.tags).where(eq(schema.tags.userId, currentUser.id))
 
-    return { totalBookmarks, unreadBookmarks, totalNotes, totalTags }
+    return {
+      totalBookmarks: Number(totalBookmarksResult[0]?.count ?? 0),
+      unreadBookmarks: Number(unreadBookmarksResult[0]?.count ?? 0),
+      totalNotes: Number(totalNotesResult[0]?.count ?? 0),
+      totalTags: Number(totalTagsResult[0]?.count ?? 0),
+    }
   } catch (error: any) {
     // Always log the real error server-side; only expose detail in dev.
     console.error('Stats API error:', error)

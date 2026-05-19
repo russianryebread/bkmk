@@ -30,14 +30,15 @@ export async function processAndStoreImage(
       .where(eq(schema.images.originalUrl, imageUrl))
       .limit(1)
 
-    if (existing.length > 0) {
+    const row = existing[0]
+    if (row) {
       return {
-        id: existing[0].id,
-        originalUrl: existing[0].originalUrl,
-        mimeType: existing[0].mimeType,
-        width: existing[0].width,
-        height: existing[0].height,
-        sizeBytes: existing[0].sizeBytes,
+        id: row.id,
+        originalUrl: row.originalUrl,
+        mimeType: row.mimeType,
+        width: row.width,
+        height: row.height,
+        sizeBytes: row.sizeBytes,
       }
     }
 
