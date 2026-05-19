@@ -155,7 +155,14 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
     const { url, sourceDomain } = body
 
-    let domain = sourceDomain
+    if (typeof url !== 'string' || !url.trim()) {
+      throw createError({ statusCode: 400, message: 'url is required' })
+    }
+    if (typeof body?.title !== 'string' || !body.title.trim()) {
+      throw createError({ statusCode: 400, message: 'title is required' })
+    }
+
+    let domain = typeof sourceDomain === 'string' ? sourceDomain : undefined
     if (!domain && url) {
       try {
         domain = new URL(url).hostname
@@ -163,11 +170,26 @@ export default defineEventHandler(async (event) => {
     }
 
     const now = new Date().toISOString()
+    // Explicit whitelist of client-insertable columns. id/userId/timestamps/
+    // deletedAt are always server-controlled and never taken from the body.
     const newBookmark = {
-      ...body,
       id: crypto.randomUUID(),
       userId: currentUser.id,
-      sourceDomain: domain,
+      title: body.title,
+      url: body.url,
+      description: body.description ?? null,
+      originalHtml: body.originalHtml ?? null,
+      cleanedMarkdown: body.cleanedMarkdown ?? null,
+      readingTimeMinutes: body.readingTimeMinutes ?? null,
+      savedAt: body.savedAt ?? now,
+      lastAccessedAt: null,
+      isFavorite: body.isFavorite ? 1 : 0,
+      sortOrder: body.sortOrder ?? null,
+      thumbnailImagePath: body.thumbnailImagePath ?? null,
+      isRead: body.isRead ? 1 : 0,
+      readAt: body.isRead ? now : null,
+      sourceDomain: domain ?? null,
+      wordCount: body.wordCount ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
