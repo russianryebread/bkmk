@@ -92,6 +92,13 @@
       "when": 1779222598650,
       "tag": "0012_numerous_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779222783160,
+      "tag": "0013_purple_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

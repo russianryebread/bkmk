@@ -94,7 +94,7 @@ export async function processAndStoreImage(
     // Generate unique ID
     const id = crypto.randomUUID()
 
-    // Store in database with base64 encoded data
+    // Store the raw image bytes (bytea column).
     await db.insert(schema.images).values({
       id,
       bookmarkId,
@@ -103,7 +103,7 @@ export async function processAndStoreImage(
       width: outputMeta.width || null,
       height: outputMeta.height || null,
       sizeBytes: outputBuffer.length,
-      data: outputBuffer.toString('base64'),
+      data: outputBuffer,
     })
 
     return {

@@ -5,8 +5,17 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  customType,
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+
+// Binary column type for raw image bytes. Storing images as `bytea` avoids the
+// ~33% size inflation and TOAST overhead of base64 text.
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea'
+  },
+})
 
 // Users Table
 export const users = pgTable('users', {
@@ -164,7 +173,7 @@ export const images = pgTable('images', {
   width: integer('width'),
   height: integer('height'),
   sizeBytes: integer('size_bytes').notNull(),
-  data: text('data').notNull(), // Base64 encoded image data
+  data: bytea('data').notNull(), // Raw image bytes
   createdAt: timestamp('created_at', { mode: 'string' }).defaultNow(),
 }, (table) => [
   index('idx_images_bookmark').on(table.bookmarkId),

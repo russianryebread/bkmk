@@ -41,8 +41,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Image not found' })
   }
 
-  // Decode base64 and return as binary
-  const buffer = Buffer.from(image.data, 'base64')
+  // `data` is a bytea column — already raw binary.
+  const buffer = Buffer.from(image.data)
 
   // Set headers
   setHeader(event, 'Content-Type', image.mimeType)
