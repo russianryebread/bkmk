@@ -275,7 +275,7 @@ async function fetchStats() {
 
     stats.value = {
       totalBookmarks: bookmarks.length,
-      unreadBookmarks: bookmarks.filter(b => !b.is_read).length,
+      unreadBookmarks: bookmarks.filter(b => !b.isRead).length,
       totalNotes: notes.length,
       totalTags: tags.length,
     }
@@ -349,7 +349,7 @@ function handleSearch() {
         .filter(b =>
           b.title?.toLowerCase().includes(query) ||
           b.description?.toLowerCase().includes(query) ||
-          b.source_domain?.toLowerCase().includes(query) ||
+          b.sourceDomain?.toLowerCase().includes(query) ||
           b.tags?.some(t => t.toLowerCase().includes(query))
         )
         .slice(0, 10)
@@ -358,11 +358,11 @@ function handleSearch() {
           type: 'bookmark' as const,
           title: b.title,
           description: b.description,
-          source_domain: b.source_domain,
+          source_domain: b.sourceDomain,
           tags: b.tags,
-          is_read: b.is_read,
+          is_read: b.isRead,
           url: b.url,
-          updated_at: b.updated_at,
+          updated_at: b.updatedAt,
         }))
 
       // Filter notes locally
@@ -451,12 +451,14 @@ function handleKeydown(e: KeyboardEvent) {
       selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
       scrollToSelected()
       break
-    case 'Enter':
+    case 'Enter': {
       e.preventDefault()
-      if (searchResults.value[selectedIndex.value]) {
-        openResult(searchResults.value[selectedIndex.value])
+      const selected = searchResults.value[selectedIndex.value]
+      if (selected) {
+        openResult(selected)
       }
       break
+    }
     case 'Escape':
       e.preventDefault()
       clearSearch()

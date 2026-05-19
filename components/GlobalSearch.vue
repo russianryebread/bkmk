@@ -153,6 +153,7 @@
 
 <script setup lang="ts">
 import { useTagSystem } from '~/composables/useTagSystem'
+import { deriveTitle } from '~/composables/idb'
 
 interface SearchResult {
   id: string
@@ -221,7 +222,7 @@ async function performSearch() {
       .filter(b =>
         b.title?.toLowerCase().includes(query) ||
         b.description?.toLowerCase().includes(query) ||
-        b.source_domain?.toLowerCase().includes(query) ||
+        b.sourceDomain?.toLowerCase().includes(query) ||
         b.tags?.some(t => t.toLowerCase().includes(query))
       )
       .slice(0, 5)
@@ -230,14 +231,14 @@ async function performSearch() {
         type: 'bookmark' as const,
         title: b.title,
         description: b.description,
-        source_domain: b.source_domain,
+        source_domain: b.sourceDomain,
         tags: b.tags,
       }))
 
     // Filter notes
     const noteResults: SearchResult[] = notes
       .filter(n =>
-        n.title?.toLowerCase().includes(query) ||
+        deriveTitle(n.content).toLowerCase().includes(query) ||
         n.content?.toLowerCase().includes(query) ||
         n.tags?.some(t => t.toLowerCase().includes(query))
       )
@@ -245,7 +246,7 @@ async function performSearch() {
       .map(n => ({
         id: n.id,
         type: 'note' as const,
-        title: n.title,
+        title: deriveTitle(n.content),
         description: n.content ? n.content.substring(0, 100) + (n.content.length > 100 ? '...' : '') : null,
       }))
 
