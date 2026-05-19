@@ -3,29 +3,45 @@
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
       :title="deriveTitle(note?.content ?? '')" :actions="toolbarActions" />
 
-    <!-- Simple back button for new/editing mode -->
-    <div v-else class="flex mb-4">
-      <div class="flex-1">
-        <button @click="cancelEditing"
-          class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
-          :title="isNew ? 'Back to notes' : 'Cancel'">
-          <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      </div>
+    <!-- Editor mode top bar: back button + auto-save status -->
+    <div v-else class="flex items-center mb-4">
+      <button @click="exitEditor"
+        class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all action-button"
+        :title="isNew ? 'Back to notes' : 'Done editing'">
+        <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
 
-      <div class="flex gap-4">
-        <button @click="saveNote"
-          class="text-green-500 disabled:text-gray-500 p-2 rounded-xl flex items-center justify-center action-button"
-          :disabled="saving || (!isNew && editing && !hasChanges) || (!isNew && !editorContent.trim())">
-          <span v-if="saving"
-            class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
-          <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-        </button>
-      </div>
+      <div class="flex-1" />
+
+      <!-- Auto-save status indicator. Click to force-save immediately. -->
+      <button @click="flushSave"
+        class="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        :title="saveTitle">
+        <!-- pending -->
+        <svg v-if="saveStatus === 'pending'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <!-- saving -->
+        <svg v-else-if="saveStatus === 'saving'" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <!-- saved -->
+        <svg v-else-if="saveStatus === 'saved'" class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <!-- error -->
+        <svg v-else-if="saveStatus === 'error'" class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+        </svg>
+        <!-- idle: pencil hint -->
+        <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+        <span class="hidden sm:inline">{{ saveLabel }}</span>
+      </button>
     </div>
 
     <!-- Loading -->
@@ -103,6 +119,7 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import type { Action } from '~/utils/types'
 import type { Note } from '~/composables/idb'
 import { deriveTitle } from '~/composables/idb'
@@ -110,9 +127,16 @@ import { formatDate } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
 import { useViewportHeight } from '~/composables/useViewportHeight'
 
+// Keep a single component instance across /notes/new → /notes/<uuid> so the
+// editor doesn't unmount when auto-save promotes a draft to a real note via
+// router.replace. (By default Nuxt keys the page by route path, which would
+// remount it and drop in-progress typing.)
+definePageMeta({ key: 'notes-detail' })
+
 const route = useRoute()
 const router = useRouter()
 const dataStore = useDataStore()
+const { isOnline } = storeToRefs(dataStore)
 const { render } = useMarkdown()
 
 const {
@@ -130,7 +154,39 @@ const loading = ref(true)
 const editing = ref(false)
 const editorContent = ref('')
 const editorTags = ref<string[]>([])
-const saving = ref(false)
+
+// ==================== AUTO-SAVE ====================
+// Debounced auto-save: edits land in the IndexedDB store immediately via
+// dataStore.{create,update}Note, which queues them for sync. Works offline.
+type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+const saveStatus = ref<SaveStatus>('idle')
+const SAVE_DEBOUNCE_MS = 2000
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+let savedFadeTimer: ReturnType<typeof setTimeout> | null = null
+// Set right before router.replace from a freshly-created note so the
+// route-id watcher doesn't reinitialize the editor and clobber typing.
+let skipNextRouteLoad = false
+
+const saveLabel = computed(() => {
+  switch (saveStatus.value) {
+    case 'pending': return 'Unsaved'
+    case 'saving': return 'Saving…'
+    case 'saved': return isOnline.value ? 'Saved' : 'Saved offline'
+    case 'error': return 'Save failed'
+    default: return 'Auto-save'
+  }
+})
+const saveTitle = computed(() => {
+  switch (saveStatus.value) {
+    case 'pending': return 'Unsaved changes — click to save now'
+    case 'saving': return 'Saving…'
+    case 'saved': return isOnline.value
+      ? 'All changes saved'
+      : 'Saved locally — will sync when online'
+    case 'error': return 'Save failed — click to retry'
+    default: return 'Changes auto-save as you type'
+  }
+})
 
 // Determine mode - use isNew computed property
 const isNew = computed(() => route.params.id === 'new')
@@ -191,54 +247,84 @@ function startEditing() {
   initFromNote()
 }
 
-function cancelEditing() {
-  if (hasChanges.value) {
-    if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
-      return
-    }
+// Leave the editor. Any debounced edits are flushed first so we never lose
+// what the user just typed — no "discard changes" prompt needed.
+async function exitEditor() {
+  await flushSave()
+  if (isNew.value) {
+    // New note with nothing typed → back to list.
+    router.push('/notes')
+    return
   }
   editing.value = false
   initFromNote()
 }
 
-// Unified save logic - handles both create and update
-async function saveNote() {
-  if (!editorContent.value.trim()) return
+// Debounce: arm a single timer; subsequent keystrokes push it out.
+function scheduleAutoSave() {
+  if (!hasChanges.value) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  saveStatus.value = 'pending'
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    void autoSave()
+  }, SAVE_DEBOUNCE_MS)
+}
 
-  saving.value = true
+// Save immediately, bypassing the debounce. Used by the indicator click and
+// by flushSave() on cancel / route leave / tab hide.
+async function autoSave() {
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
+  if (savedFadeTimer) { clearTimeout(savedFadeTimer); savedFadeTimer = null }
+  // Don't create empty new notes.
+  if (isNew.value && !editorContent.value.trim()) {
+    saveStatus.value = 'idle'
+    return
+  }
+  if (!hasChanges.value && !isNew.value) return
 
+  saveStatus.value = 'saving'
   try {
     if (isNew.value) {
-      // Create new note
-      const noteToSave = await dataStore.createNote({
+      const created = await dataStore.createNote({
         content: editorContent.value,
-        tags: [ ...editorTags.value ],
+        tags: [...editorTags.value],
       })
-
-      if (noteToSave) {
-        router.replace(`/notes/${noteToSave.id}`)
+      if (created) {
+        note.value = created
+        skipNextRouteLoad = true
+        await router.replace(`/notes/${created.id}`)
       }
     } else if (note.value) {
-      // Update existing note
       await dataStore.updateNote(note.value.id, {
         content: editorContent.value,
-        tags: [ ...editorTags.value ],
+        tags: [...editorTags.value],
       })
-
-      // Update local note
       note.value = {
         ...note.value,
         content: editorContent.value,
-        tags: [ ...editorTags.value ],
+        tags: [...editorTags.value],
         updatedAt: new Date().toISOString(),
       }
-
-      editing.value = false
     }
+    saveStatus.value = 'saved'
+    savedFadeTimer = setTimeout(() => {
+      if (saveStatus.value === 'saved') saveStatus.value = 'idle'
+    }, 2000)
+    // Push to the server promptly — auto-save's 2s typing debounce naturally
+    // limits the sync rate, and we don't want the background sync's 60s
+    // throttle to delay the user's typed changes from reaching the server.
+    if (isOnline.value) void dataStore.triggerSync()
   } catch (e) {
-    console.error('Failed to save note:', e)
-  } finally {
-    saving.value = false
+    console.error('Auto-save failed:', e)
+    saveStatus.value = 'error'
+  }
+}
+
+// Flush any pending save now (no-op if nothing pending).
+async function flushSave() {
+  if (saveStatus.value === 'pending') {
+    await autoSave()
   }
 }
 
@@ -272,8 +358,43 @@ async function loadForRoute(id: string | string[] | undefined) {
 // render show the loading branch; the keyed branch swap then happens on mount.
 onMounted(() => loadForRoute(route.params.id))
 
-// Watch for route changes to reload data (client-side navigation between notes)
-watch(() => route.params.id, (newId) => loadForRoute(newId))
+// Watch for route changes to reload data (client-side navigation between notes).
+// Skip once after a fresh create — router.replace from autoSave changes the id
+// from 'new' to a real UUID, and we don't want to reload (and clobber the
+// editor) when we already have the note in hand.
+watch(() => route.params.id, (newId) => {
+  if (skipNextRouteLoad) {
+    skipNextRouteLoad = false
+    return
+  }
+  loadForRoute(newId)
+})
+
+// Trigger debounced auto-save whenever the editor content or tags change in
+// edit / create mode.
+watch([editorContent, editorTags], () => {
+  if (!editing.value && !isNew.value) return
+  scheduleAutoSave()
+}, { deep: true })
+
+// Flush pending changes when the tab is hidden / the page unmounts so we
+// never lose what the user just typed.
+function handleVisibility() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    void flushSave()
+  }
+}
+onMounted(() => {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibility)
+  }
+})
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleVisibility)
+  }
+  void flushSave()
+})
 
 // Toolbar actions for the sticky toolbar
 const toolbarActions = computed<Action[]>(() => [
@@ -298,9 +419,7 @@ const toolbarActions = computed<Action[]>(() => [
 
 useViewportHeight()
 
-onBeforeRouteLeave((to, from) => {
-  if (editing.value && hasChanges.value) {
-    return confirm('You have unsaved changes. Are you sure you want to leave?')
-  }
+onBeforeRouteLeave(async () => {
+  await flushSave()
 })
 </script>
