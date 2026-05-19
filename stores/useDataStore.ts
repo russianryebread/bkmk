@@ -591,6 +591,19 @@ export const useDataStore = defineStore("data", () => {
     }
   }
 
+  // Persist a server-fresh bookmark into local state + IndexedDB without
+  // queueing a sync. Used to cache full detail content (cleanedMarkdown) so it
+  // stays available offline and renders instantly on the next visit.
+  async function cacheBookmark(bookmark: Bookmark): Promise<void> {
+    const index = bookmarks.value.findIndex((b) => b.id === bookmark.id);
+    if (index === -1) {
+      bookmarks.value.push(bookmark);
+    } else {
+      bookmarks.value[index] = { ...bookmarks.value[index], ...bookmark };
+    }
+    await idb.saveBookmark(bookmark);
+  }
+
   async function toggleBookmarkFavorite(id: string): Promise<boolean> {
     const bookmark = bookmarks.value.find((b) => b.id === id);
     if (!bookmark) return false;
@@ -912,6 +925,7 @@ export const useDataStore = defineStore("data", () => {
     updateBookmark,
     deleteBookmark,
     convertBookmarkToLink,
+    cacheBookmark,
     toggleBookmarkFavorite,
     markBookmarkRead,
 

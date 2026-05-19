@@ -194,8 +194,8 @@ function initFromBookmark() {
   }
 }
 
-// Show local store data immediately, then fetch full content (cleanedMarkdown
-// isn't carried by the list-pull endpoint, so we always need a detail fetch).
+// Show the locally cached bookmark immediately (it carries cleanedMarkdown, so
+// it renders fully offline), then refresh from the server in the background.
 async function loadBookmark() {
   loading.value = true
   const id = route.params.id as string
@@ -211,6 +211,8 @@ async function loadBookmark() {
     const fresh = await $fetch<Bookmark>(`/api/bookmarks/${id}`)
     bookmark.value = fresh
     initFromBookmark()
+    // Persist the freshest content so it stays available offline.
+    await dataStore.cacheBookmark(fresh)
   } catch {
     if (!local) bookmark.value = null
   } finally {

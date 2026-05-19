@@ -52,6 +52,7 @@ export default defineEventHandler(async (event) => {
         title: bookmarks.title,
         url: bookmarks.url,
         description: bookmarks.description,
+        cleanedMarkdown: bookmarks.cleanedMarkdown,
         readingTimeMinutes: bookmarks.readingTimeMinutes,
         savedAt: bookmarks.savedAt,
         lastAccessedAt: bookmarks.lastAccessedAt,
