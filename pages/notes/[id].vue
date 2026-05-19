@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-4xl mx-auto min-h-[calc(var(--dvh)-100px)] md:min-h-[calc(var(--dvh)-156px)] flex flex-col">
+  <div class="min-h-[calc(var(--dvh)-100px)] md:min-h-[calc(var(--dvh)-156px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
       :actions="toolbarActions" />
 
