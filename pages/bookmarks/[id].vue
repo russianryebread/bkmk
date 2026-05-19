@@ -40,7 +40,7 @@
     <!-- Bookmark View/Edit -->
     <div v-if="bookmark || isNew" key="content" class="flex-1 flex flex-col">
       <!-- Metadata and tags (view mode - existing bookmark) -->
-      <template v-if="!isNew && !editing">
+      <template v-if="!isNew && !editing && bookmark">
         <!-- Title -->
         <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
           {{ bookmark.title }}
