@@ -45,19 +45,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
     await init()
   }
 
-  // Offline mode: Check if we have cached auth state
+  // Offline mode: allow access to the app shell. Real auth is re-validated
+  // by init()/fetchUser() once the client is back online.
   if (!isOnline) {
-    // For offline access, check localStorage for auth token
-    if (import.meta.client) {
-      const cachedToken = localStorage.getItem('auth_token')
-      if (cachedToken) {
-        // We have a cached session, allow access
-        // The auth state will be re-validated when online
-        return
-      }
-    }
-    // No cached session and offline - show offline page or login
-    // For PWA, we want to allow access to app shell
     return
   }
 
