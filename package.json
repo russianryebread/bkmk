@@ -25,6 +25,7 @@
     "cheerio": "^1.0.0",
     "drizzle-orm": "^0.45.1",
     "fuse.js": "^7.0.0",
+    "isomorphic-dompurify": "^2.16.0",
     "jsdom": "^25.0.0",
     "markdown-it": "^14.0.0",
     "nuxt": "^4.0.0",
