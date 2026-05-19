@@ -3,6 +3,7 @@ import { scrapeUrl, extractDomain } from '~/server/utils/scraper'
 import { eq, and, isNull } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 import { UrlCleaner } from '~/server/utils/url-cleaner'
+import { assertSafeUrl } from '~/server/utils/ssrf'
 import {
   processAndStoreImage,
   extractImageUrls,
@@ -111,6 +112,18 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 400,
       message: 'Invalid URL format',
+    })
+  }
+
+  // SSRF guard: reject URLs that resolve to internal/private addresses up
+  // front, so a blocked URL returns an explicit error instead of being
+  // swallowed into a plain-link fallback bookmark.
+  try {
+    await assertSafeUrl(cleanUrl)
+  } catch {
+    throw createError({
+      statusCode: 400,
+      message: 'This URL cannot be fetched',
     })
   }
 
