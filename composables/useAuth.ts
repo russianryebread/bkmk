@@ -36,9 +36,12 @@ export const useAuth = () => {
     return null
   }
 
-  // Initialize from stored auth if available
-  const storedUser = import.meta.client ? getStoredAuth() : null
-  const user = useState<AuthUser | null>('auth-user', () => storedUser)
+  // Auth state is populated on the server by middleware/auth.ts (via the auth
+  // cookie + getCurrentUser) and on the client by init() in onMounted (from
+  // localStorage + /api/auth/me). Starting with null on BOTH SSR and the
+  // client first render keeps hydration aligned — the localStorage fallback
+  // is applied after mount, not during setup, so it can never desync from SSR.
+  const user = useState<AuthUser | null>('auth-user', () => null)
   const isAuthenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.role === 'admin')
   const hasPassword = computed(() => user.value?.hasPassword ?? false)

@@ -1,6 +1,25 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const { isAuthenticated, init, isLoading, user } = useAuth()
+  const { isAuthenticated, init, isLoading } = useAuth()
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/docs']
+
+  // On the server, validate the auth cookie and seed the shared auth state
+  // BEFORE any other check so that:
+  //   - public-route redirects (e.g. /login → /) see the right value, and
+  //   - SSR renders the same authed/unauthed UI as the client first paint
+  //     (avoiding hydration mismatches in the layout / OfflineIndicator).
+  if (import.meta.server) {
+    const event = useRequestEvent()
+    if (event) {
+      const { getCurrentUser } = await import('~/server/utils/auth')
+      const serverUser = await getCurrentUser(event)
+      if (serverUser) {
+        // useState with the same key shares the ref with the composable.
+        const userState = useState<typeof serverUser | null>('auth-user', () => null)
+        userState.value = serverUser
+        useState<boolean>('auth-loading', () => true).value = false
+      }
+    }
+  }
 
   // Allow public routes
   if (publicRoutes.includes(to.path)) {
@@ -13,30 +32,17 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Check if we're online
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true
-  
-  // On server, we need to check auth from cookies directly
-  if (import.meta.server) {
-    // Check if this might be a PWA offline request
-    // For PWA, the service worker handles routing before we get here
-    
-    const event = useRequestEvent()
-    if (event) {
-      const { getCurrentUser } = await import('~/server/utils/auth')
-      const serverUser = await getCurrentUser(event)
 
-      if (serverUser) {
-        // User is authenticated, allow the request through
-        // Don't try to update the readonly client state refs
-        // The client-side init() will handle syncing auth state
-        return
+  if (import.meta.server) {
+    // If SSR didn't find a valid session, redirect to login.
+    // (PWA offline requests carrying the service-worker header are allowed
+    // through so the SW can serve the app shell.)
+    if (!isAuthenticated.value) {
+      const event = useRequestEvent()
+      const swHeader = event?.node.req.headers['service-worker']
+      if (!swHeader) {
+        return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
       }
-    }
-    
-    // Not authenticated on server, redirect to login
-    // BUT allow offline PWA requests through - service worker will handle them
-    const header = event?.node.req.headers['service-worker']
-    if (!header) {
-      return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
     }
   }
 
