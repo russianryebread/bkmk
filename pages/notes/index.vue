@@ -1,15 +1,20 @@
 <template>
   <div class="flex h-full min-h-[calc(100vh-64px)]">
-    <!-- Tag Sidebar -->
-    <TagSidebar
-      mode="note"
-      :current-view="currentView"
-      :active-tag="activeTag"
-      :mobile-open="sidebarOpen"
-      :total-count="totalCount"
-      @update:mobile-open="sidebarOpen = $event"
-      @change="handleSidebarChange"
-    />
+    <!-- Tag Sidebar (client-only: tags + counts come from the IndexedDB store) -->
+    <ClientOnly>
+      <TagSidebar
+        mode="note"
+        :current-view="currentView"
+        :active-tag="activeTag"
+        :mobile-open="sidebarOpen"
+        :total-count="totalCount"
+        @update:mobile-open="sidebarOpen = $event"
+        @change="handleSidebarChange"
+      />
+      <template #fallback>
+        <aside class="hidden md:block w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700" />
+      </template>
+    </ClientOnly>
 
     <!-- Main content -->
     <div class="flex-1 min-w-0 flex flex-col">
