@@ -6,6 +6,7 @@ import TurndownService from 'turndown'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import { assertSafeUrl } from '~/server/utils/ssrf'
 
 export interface ScrapedContent {
   title: string
@@ -70,7 +71,10 @@ async function downloadImage(imageUrl: string): Promise<{ localPath: string; suc
     if (fs.existsSync(localPath)) {
       return { localPath, success: true }
     }
-    
+
+    // SSRF guard: reject URLs that resolve to internal/private addresses.
+    await assertSafeUrl(imageUrl)
+
     const response = await axios.get(imageUrl, {
       timeout: 15000,
       responseType: 'arraybuffer',
@@ -78,6 +82,8 @@ async function downloadImage(imageUrl: string): Promise<{ localPath: string; suc
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
         'Referer': new URL(imageUrl).origin,
       },
+      // NOTE: redirects are still followed; redirect targets are NOT
+      // re-validated against the SSRF rules — only the initial URL is checked.
       maxRedirects: 3,
     })
     
@@ -200,6 +206,9 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
       throw new Error('Invalid URL protocol')
     }
 
+    // SSRF guard: reject URLs that resolve to internal/private addresses.
+    await assertSafeUrl(url)
+
     // Fetch the page
     const response = await axios.get(url, {
       timeout: 30000,
@@ -208,6 +217,8 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
       },
+      // NOTE: redirects are still followed; redirect targets are NOT
+      // re-validated against the SSRF rules — only the initial URL is checked.
       maxRedirects: 5,
     })
 

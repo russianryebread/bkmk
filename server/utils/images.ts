@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 import { db, schema } from '~/server/database'
 import { eq } from 'drizzle-orm'
+import { assertSafeUrl } from '~/server/utils/ssrf'
 
 const MAX_WIDTH = 1200
 const QUALITY = 80
@@ -39,6 +40,11 @@ export async function processAndStoreImage(
         sizeBytes: existing[0].sizeBytes,
       }
     }
+
+    // SSRF guard: reject URLs that resolve to internal/private addresses.
+    // NOTE: redirects followed by fetch are NOT re-validated — only the
+    // initial URL is checked here.
+    await assertSafeUrl(imageUrl)
 
     // Download the image
     const response = await fetch(imageUrl, {
