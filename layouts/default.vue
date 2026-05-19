@@ -258,12 +258,18 @@ async function handleLogout() {
 }
 
 // Close dropdown when clicking outside
+function handleDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.relative')) {
+    menuOpen.value = false
+  }
+}
+
 onMounted(() => {
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('.relative')) {
-      menuOpen.value = false
-    }
-  })
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
