@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "~/server/database";
 import { notes, notesTags } from "~/server/database/schema";
 import { requireAuth } from "~/server/utils/auth";
-import { resolveTagIds } from "~/server/utils/tags";
+import { resolveTagIdsBatch } from "~/server/utils/tags";
 
 type BatchPayload = {
   create?: any[];
@@ -32,10 +32,17 @@ export default defineEventHandler(async (event) => {
 
   const now = new Date().toISOString();
 
+  // Resolve every tag name referenced across the whole batch in a single pass
+  // (one DB round-trip) rather than once per item.
+  const resolveTags = await resolveTagIdsBatch(currentUser.id, [
+    ...create.map((c) => c?.tags ?? []),
+    ...update.map((u) => u?.tags),
+  ]);
+
   // Batch create
   for (const c of create) {
     await db.transaction(async (tx) => {
-      const { ids: tagIds } = await resolveTagIds(currentUser.id, c.tags || []);
+      const { ids: tagIds } = resolveTags(c.tags || []);
 
       const [inserted] = await tx
         .insert(notes)
@@ -92,7 +99,7 @@ export default defineEventHandler(async (event) => {
         .returning();
 
       if (Array.isArray(u.tags)) {
-        const { ids: tagIds } = await resolveTagIds(currentUser.id, u.tags);
+        const { ids: tagIds } = resolveTags(u.tags);
 
         await tx.delete(notesTags).where(eq(notesTags.noteId, u.id));
 

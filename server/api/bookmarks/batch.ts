@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "~/server/database";
 import { bookmarks, bookmarkTags } from "~/server/database/schema";
 import { requireAuth } from "~/server/utils/auth";
-import { resolveTagIds } from "~/server/utils/tags";
+import { resolveTagIdsBatch } from "~/server/utils/tags";
 
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event);
@@ -26,10 +26,17 @@ export default defineEventHandler(async (event) => {
     deleted: [],
   };
 
+  // Resolve every tag name referenced across the whole batch in a single pass
+  // (one DB round-trip) rather than once per item.
+  const resolveTags = await resolveTagIdsBatch(currentUser.id, [
+    ...create.map((b: any) => b?.tags ?? []),
+    ...update.map((b: any) => b?.tags),
+  ]);
+
   // Batch create
   for (const bookmark of create) {
     await db.transaction(async (tx) => {
-      const { ids: tagIds, names: tagNames } = await resolveTagIds(currentUser.id, bookmark.tags ?? []);
+      const { ids: tagIds, names: tagNames } = resolveTags(bookmark.tags ?? []);
 
       let domain = bookmark.sourceDomain ?? bookmark.source_domain ?? null;
       if (!domain && bookmark.url) {
@@ -135,7 +142,7 @@ export default defineEventHandler(async (event) => {
       let tagNames: string[] | undefined;
 
       if (Array.isArray(bookmark.tags)) {
-        const resolved = await resolveTagIds(currentUser.id, bookmark.tags);
+        const resolved = resolveTags(bookmark.tags);
         tagNames = resolved.names;
 
         await tx.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmark.id));
