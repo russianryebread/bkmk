@@ -4,14 +4,10 @@ import { getRouterParam } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
-  // Try to get auth - make it optional to not break existing references
-  let currentUser = null
-  try {
-    currentUser = await requireAuth(event)
-  } catch {
-    // Allow unauthenticated access for now
-  }
-  
+  // Authentication is mandatory. Browsers send the auth cookie automatically
+  // on <img> requests, so this does not break image rendering.
+  const currentUser = await requireAuth(event)
+
   const id = getRouterParam(event, 'id')
 
   if (!id) {
@@ -21,8 +17,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Get image from database
-  let query = db
+  // Get image from database, verifying ownership via the parent bookmark.
+  const [image] = await db
     .select({
       id: schema.images.id,
       mimeType: schema.images.mimeType,
@@ -30,30 +26,14 @@ export default defineEventHandler(async (event) => {
       originalUrl: schema.images.originalUrl,
     })
     .from(schema.images)
-    .where(eq(schema.images.id, id))
-    .limit(1)
-
-  // If authenticated, verify ownership via bookmark
-  if (currentUser) {
-    query = db
-      .select({
-        id: schema.images.id,
-        mimeType: schema.images.mimeType,
-        data: schema.images.data,
-        originalUrl: schema.images.originalUrl,
-      })
-      .from(schema.images)
-      .innerJoin(schema.bookmarks, eq(schema.images.bookmarkId, schema.bookmarks.id))
-      .where(
-        and(
-          eq(schema.images.id, id),
-          eq(schema.bookmarks.userId, currentUser.id)
-        )
+    .innerJoin(schema.bookmarks, eq(schema.images.bookmarkId, schema.bookmarks.id))
+    .where(
+      and(
+        eq(schema.images.id, id),
+        eq(schema.bookmarks.userId, currentUser.id)
       )
-      .limit(1)
-  }
-
-  const [image] = await query
+    )
+    .limit(1)
 
   if (!image) {
     throw createError({
