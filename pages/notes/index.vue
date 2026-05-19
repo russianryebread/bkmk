@@ -276,7 +276,7 @@ const filteredNotes = computed<Note[]>(() => {
   return [...results].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
 })
 
-const { visible: notes, hasMore, loadingMore, sentinelRef } = usePaginatedList<Note>({
+const { visible: notes, hasMore, loadingMore, loadMore, sentinelRef } = usePaginatedList<Note>({
   items: filteredNotes,
   resetTriggers: [currentView, activeTag, debouncedSearch],
 })

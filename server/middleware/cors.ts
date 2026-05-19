@@ -30,7 +30,7 @@ export default defineEventHandler((event) => {
       setResponseHeader(event, 'Access-Control-Allow-Methods', CORS_METHODS.join(', '))
       setResponseHeader(event, 'Access-Control-Allow-Headers', CORS_HEADERS.join(', '))
       setResponseHeader(event, 'Access-Control-Allow-Credentials', 'true')
-      setResponseHeader(event, 'Access-Control-Max-Age', '86400')
+      setResponseHeader(event, 'Access-Control-Max-Age', 86400)
       setResponseHeader(event, 'Vary', 'Origin')
     }
 

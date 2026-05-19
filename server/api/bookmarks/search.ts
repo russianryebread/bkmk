@@ -60,12 +60,12 @@ export default defineEventHandler(async (event) => {
     // Group by bookmark and aggregate tags
     const bookmarkMap = new Map<string, any>()
     for (const row of rawResults) {
-      const bookmarkId = row.id
+      const bookmarkId = row.bookmarks.id
       if (!bookmarkMap.has(bookmarkId)) {
-        bookmarkMap.set(bookmarkId, row)
+        bookmarkMap.set(bookmarkId, { ...row.bookmarks, tags: [] as string[] })
       }
-      if (row.tagName) {
-        bookmarkMap.get(bookmarkId).tags.push(row.tagName)
+      if (row.tags?.name) {
+        bookmarkMap.get(bookmarkId).tags.push(row.tags.name)
       }
     }
 
@@ -98,12 +98,12 @@ export default defineEventHandler(async (event) => {
     // Group by bookmark and aggregate tags
     const bookmarkMap = new Map<string, any>()
     for (const row of rawResults) {
-      const bookmarkId = row.id
+      const bookmarkId = row.bookmarks.id
       if (!bookmarkMap.has(bookmarkId)) {
-        bookmarkMap.set(bookmarkId, row)
+        bookmarkMap.set(bookmarkId, { ...row.bookmarks, tags: [] as string[] })
       }
-      if (row.tagName) {
-        bookmarkMap.get(bookmarkId).tags.push(row.tagName)
+      if (row.tags?.name) {
+        bookmarkMap.get(bookmarkId).tags.push(row.tags.name)
       }
     }
 

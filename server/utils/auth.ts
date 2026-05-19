@@ -77,7 +77,7 @@ function parseToken(token: string): TokenPayload | null {
     if (parts.length !== 2) {
       return null
     }
-    const [encodedPayload, signature] = parts
+    const [encodedPayload, signature] = parts as [string, string]
 
     // Verify signature with a constant-time comparison
     const expectedSignature = signPayload(encodedPayload)
@@ -335,15 +335,21 @@ export async function login(email: string, password: string): Promise<{ user: Au
   }
   
   // Verify password
+  if (!user.passwordHash) {
+    throw createError({
+      statusCode: 401,
+      message: 'Invalid email or password'
+    })
+  }
   const valid = await verifyPassword(password, user.passwordHash)
-  
+
   if (!valid) {
     throw createError({
       statusCode: 401,
       message: 'Invalid email or password'
     })
   }
-  
+
   // Create token
   const token = createToken({
     userId: user.id,
@@ -504,6 +510,12 @@ export async function changePassword(userId: string, currentPassword: string, ne
     })
   }
   
+  if (!user.passwordHash) {
+    throw createError({
+      statusCode: 400,
+      message: 'Account has no password set'
+    })
+  }
   // Verify current password
   const valid = await verifyPassword(currentPassword, user.passwordHash)
   

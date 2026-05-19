@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   // Set headers
   setHeader(event, 'Content-Type', image.mimeType)
   setHeader(event, 'Cache-Control', 'public, max-age=31536000') // 1 year cache
-  setHeader(event, 'Content-Length', buffer.length.toString())
+  setHeader(event, 'Content-Length', buffer.length)
 
   return buffer
 })

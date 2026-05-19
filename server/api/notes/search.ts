@@ -1,5 +1,5 @@
 import { db, schema } from '~/server/database'
-import { like, or, desc, and, eq, is, isNull } from 'drizzle-orm'
+import { ilike, desc, and, eq, isNull } from 'drizzle-orm'
 import { requireAuth } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
@@ -16,7 +16,6 @@ export default defineEventHandler(async (event) => {
   const notes = await db
     .select({
       id: schema.notes.id,
-      title: schema.notes.title,
       content: schema.notes.content,
       isFavorite: schema.notes.isFavorite,
       createdAt: schema.notes.createdAt,
@@ -27,10 +26,7 @@ export default defineEventHandler(async (event) => {
       and(
         eq(schema.notes.userId, currentUser.id),
         isNull(schema.notes.deletedAt),
-        or(
-          like(schema.notes.title, `%${searchTerm}%`),
-          like(schema.notes.content, `%${searchTerm}%`)
-        )
+        ilike(schema.notes.content, `%${searchTerm}%`)
       )
     )
     .orderBy(desc(schema.notes.updatedAt))

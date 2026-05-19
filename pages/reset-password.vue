@@ -114,7 +114,7 @@ const success = ref('')
 const loading = ref(false)
 
 const passwordMismatch = computed(() => {
-  return password.value && confirmPassword.value && password.value !== confirmPassword.value
+  return !!(password.value && confirmPassword.value && password.value !== confirmPassword.value)
 })
 
 // Redirect if no token - only run on client to avoid SSR issues

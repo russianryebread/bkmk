@@ -52,7 +52,7 @@ function getImageExtension(url: string): string {
     const pathname = urlObj.pathname
     const match = pathname.match(/\.(jpe?g|png|gif|webp|svg|ico|bmp)(\?|$)/i)
     if (match) {
-      return match[0].split('?')[0].toLowerCase()
+      return (match[0].split('?')[0] ?? '').toLowerCase()
     }
   } catch {
     // ignore

@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
 
   // Set headers
   setHeader(event, 'Content-Type', image.mimeType)
-  setHeader(event, 'Content-Length', buffer.length.toString())
+  setHeader(event, 'Content-Length', buffer.length)
 
   return buffer
 })

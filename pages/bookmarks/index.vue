@@ -248,7 +248,7 @@ const filteredBookmarks = computed<Bookmark[]>(() => {
   return dataStore.searchBookmarks(debouncedSearch.value, filters)
 })
 
-const { visible: bookmarks, hasMore, loadingMore, sentinelRef } = usePaginatedList<Bookmark>({
+const { visible: bookmarks, hasMore, loadingMore, loadMore, sentinelRef } = usePaginatedList<Bookmark>({
   items: filteredBookmarks,
   resetTriggers: [currentView, activeTag, debouncedSearch],
 })

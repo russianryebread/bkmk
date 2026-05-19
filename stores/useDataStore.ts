@@ -842,8 +842,8 @@ export const useDataStore = defineStore("data", () => {
     const sort = filters.sort || "saved_at";
     const order = filters.order || "desc";
     results.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sort] || "";
-      const bVal = (b as Record<string, unknown>)[sort] || "";
+      const aVal = (a as unknown as Record<string, unknown>)[sort] || "";
+      const bVal = (b as unknown as Record<string, unknown>)[sort] || "";
       if (typeof aVal === "boolean") return order === "desc" ? (bVal ? 1 : -1) : aVal ? 1 : -1;
       return order === "desc" ? (bVal > aVal ? 1 : bVal < aVal ? -1 : 0) : aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
     });
@@ -911,8 +911,8 @@ export const useDataStore = defineStore("data", () => {
     const sort = filters.sort || "updatedAt";
     const order = filters.order || "desc";
     results.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sort] || "";
-      const bVal = (b as Record<string, unknown>)[sort] || "";
+      const aVal = (a as unknown as Record<string, unknown>)[sort] || "";
+      const bVal = (b as unknown as Record<string, unknown>)[sort] || "";
       if (typeof aVal === "boolean") return order === "desc" ? (bVal ? 1 : -1) : aVal ? 1 : -1;
       return order === "desc" ? (bVal > aVal ? 1 : bVal < aVal ? -1 : 0) : aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
     });

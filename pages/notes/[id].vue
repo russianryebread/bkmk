@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-[calc(var(--dvh)-100px)] md:min-h-[calc(var(--dvh)-156px)] flex flex-col">
     <StickyToolbar v-if="!isNew && !editing" show-back back-label="Back to notes" back-to="/notes"
-      :title="deriveTitle(note?.content)" :actions="toolbarActions" />
+      :title="deriveTitle(note?.content ?? '')" :actions="toolbarActions" />
 
     <!-- Simple back button for new/editing mode -->
     <div v-else class="flex mb-4">
@@ -70,7 +70,7 @@
         <div class="flex-1 min-h-0 h-full">
           <textarea v-model="editorContent" placeholder="Write your markdown here..."
             class="w-full min-h-[calc(var(--dvh)-256px)] md:min-h-[calc(var(--dvh)-266px)] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
-            autofocus enterkeyhint="default" inputmode="text"></textarea>
+            autofocus enterkeyhint="enter" inputmode="text"></textarea>
         </div>
 
         <!-- Footer -->

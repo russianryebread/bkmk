@@ -83,8 +83,8 @@ const count = computed(() => {
 })
 
 const colorBg = computed(() => {
-  if (!props.node.color) return null
-  return tagColorsMap[props.node.color]?.bg || null
+  if (!props.node.color) return undefined
+  return tagColorsMap[props.node.color]?.bg ?? undefined
 })
 
 function handleClick() {

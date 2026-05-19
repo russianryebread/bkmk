@@ -107,7 +107,7 @@ const success = ref('')
 const loading = ref(false)
 
 const passwordMismatch = computed(() => {
-  return newPassword.value && confirmPassword.value && newPassword.value !== confirmPassword.value
+  return !!(newPassword.value && confirmPassword.value && newPassword.value !== confirmPassword.value)
 })
 
 async function handleSubmit() {

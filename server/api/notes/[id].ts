@@ -96,7 +96,6 @@ async function writeSyncMetadata(entityId: string, isDeleted: 0 | 1 = 0) {
 // ---------------------------------------------------------------------------
 
 interface PutBody {
-    title?: string
     content?: string
     isFavorite?: boolean
     sortOrder?: number
@@ -117,12 +116,6 @@ function validatePutBody(raw: unknown): PutBody {
 
     const body = raw as Record<string, unknown>
 
-    if (body.title !== undefined && typeof body.title !== 'string') {
-        throw createError({
-            statusCode: 400,
-            message: 'title must be a string',
-        })
-    }
     if (body.content !== undefined && typeof body.content !== 'string') {
         throw createError({
             statusCode: 400,
@@ -189,6 +182,7 @@ export default defineEventHandler(async (event) => {
         // client can fetch the current version and merge.
         if (
             body.updatedAt &&
+            existingNote.updatedAt &&
             new Date(body.updatedAt) < new Date(existingNote.updatedAt)
         ) {
             throw createError({
@@ -205,7 +199,6 @@ export default defineEventHandler(async (event) => {
         const updates: Partial<typeof schema.notes.$inferInsert> = {
             updatedAt: ts,
         }
-        if (body.title !== undefined) updates.title = body.title
         if (body.content !== undefined) updates.content = body.content
         if (body.isFavorite !== undefined)
             updates.isFavorite = body.isFavorite ? 1 : 0
@@ -229,6 +222,10 @@ export default defineEventHandler(async (event) => {
         await writeSyncMetadata(id).catch((e) =>
             console.warn('[notes/[id]] Failed to write sync metadata:', e),
         )
+
+        if (!note) {
+            throw createError({ statusCode: 404, message: 'Note not found' })
+        }
 
         const tags = await getNoteTags(id)
 

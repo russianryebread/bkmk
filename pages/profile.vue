@@ -167,7 +167,7 @@ const version = ref('unknown')
 const userInitials = computed(() => {
   if (!user.value?.email) return '?'
   const email = user.value.email
-  const namePart = email.split('@')[0]
+  const namePart = email.split('@')[0] ?? ''
   return namePart.slice(0, 2).toUpperCase()
 })
 
