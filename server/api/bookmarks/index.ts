@@ -5,6 +5,30 @@ import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 import { tagNameEquals } from '~/server/utils/tags'
 
+// Input length limits for bookmark fields.
+const MAX_TITLE_LENGTH = 1_000
+const MAX_URL_LENGTH = 2_048
+const MAX_DESCRIPTION_LENGTH = 10_000
+const MAX_CLEANED_MARKDOWN_LENGTH = 5_000_000
+
+function assertBookmarkLengths(body: any) {
+  if (typeof body?.title === 'string' && body.title.length > MAX_TITLE_LENGTH) {
+    throw createError({ statusCode: 400, message: `title exceeds ${MAX_TITLE_LENGTH} characters` })
+  }
+  if (typeof body?.url === 'string' && body.url.length > MAX_URL_LENGTH) {
+    throw createError({ statusCode: 400, message: `url exceeds ${MAX_URL_LENGTH} characters` })
+  }
+  if (typeof body?.description === 'string' && body.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw createError({ statusCode: 400, message: `description exceeds ${MAX_DESCRIPTION_LENGTH} characters` })
+  }
+  if (
+    typeof body?.cleanedMarkdown === 'string' &&
+    body.cleanedMarkdown.length > MAX_CLEANED_MARKDOWN_LENGTH
+  ) {
+    throw createError({ statusCode: 413, message: `cleanedMarkdown exceeds ${MAX_CLEANED_MARKDOWN_LENGTH} characters` })
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event)
   const method = event.method
@@ -161,6 +185,8 @@ export default defineEventHandler(async (event) => {
     if (typeof body?.title !== 'string' || !body.title.trim()) {
       throw createError({ statusCode: 400, message: 'title is required' })
     }
+
+    assertBookmarkLengths(body)
 
     let domain = typeof sourceDomain === 'string' ? sourceDomain : undefined
     if (!domain && url) {

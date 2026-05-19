@@ -22,6 +22,9 @@ async function fetchTagsForNotes(noteIds: string[]): Promise<Map<string, string[
   return tagMap
 }
 
+// Maximum length of a note's content.
+const MAX_NOTE_CONTENT_LENGTH = 1_000_000
+
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event)
   const method = event.method
@@ -149,6 +152,9 @@ export default defineEventHandler(async (event) => {
 
     if (typeof content !== 'string') {
       throw createError({ statusCode: 400, message: 'Content is required' })
+    }
+    if (content.length > MAX_NOTE_CONTENT_LENGTH) {
+      throw createError({ statusCode: 413, message: `content exceeds ${MAX_NOTE_CONTENT_LENGTH} characters` })
     }
 
     const tagsArray: string[] = Array.isArray(tagNames) ? tagNames : []

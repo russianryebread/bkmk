@@ -4,6 +4,28 @@ import { bookmarks, bookmarkTags } from "~/server/database/schema";
 import { requireAuth } from "~/server/utils/auth";
 import { resolveTagIdsBatch } from "~/server/utils/tags";
 
+// Caps on a single batch request.
+const MAX_BATCH_ITEMS = 500;
+const MAX_TITLE_LENGTH = 1_000;
+const MAX_URL_LENGTH = 2_048;
+const MAX_DESCRIPTION_LENGTH = 10_000;
+const MAX_CLEANED_MARKDOWN_LENGTH = 5_000_000;
+
+function assertBookmarkLengths(b: any) {
+  if (typeof b?.title === "string" && b.title.length > MAX_TITLE_LENGTH) {
+    throw createError({ statusCode: 400, message: `title exceeds ${MAX_TITLE_LENGTH} characters` });
+  }
+  if (typeof b?.url === "string" && b.url.length > MAX_URL_LENGTH) {
+    throw createError({ statusCode: 400, message: `url exceeds ${MAX_URL_LENGTH} characters` });
+  }
+  if (typeof b?.description === "string" && b.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw createError({ statusCode: 400, message: `description exceeds ${MAX_DESCRIPTION_LENGTH} characters` });
+  }
+  if (typeof b?.cleanedMarkdown === "string" && b.cleanedMarkdown.length > MAX_CLEANED_MARKDOWN_LENGTH) {
+    throw createError({ statusCode: 413, message: `cleanedMarkdown exceeds ${MAX_CLEANED_MARKDOWN_LENGTH} characters` });
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event);
 
@@ -13,6 +35,17 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event);
   const { create = [], update = [], del = [] } = body ?? {};
+
+  if (
+    create.length + update.length + del.length > MAX_BATCH_ITEMS
+  ) {
+    throw createError({
+      statusCode: 413,
+      message: `Batch exceeds ${MAX_BATCH_ITEMS} items`,
+    });
+  }
+
+  for (const b of [...create, ...update]) assertBookmarkLengths(b);
 
   const now = new Date().toISOString();
 

@@ -10,6 +10,10 @@ type BatchPayload = {
   del?: string[];
 };
 
+// Caps on a single batch request.
+const MAX_BATCH_ITEMS = 500;
+const MAX_NOTE_CONTENT_LENGTH = 1_000_000;
+
 export default defineEventHandler(async (event) => {
   const currentUser = await requireAuth(event);
 
@@ -19,6 +23,22 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody<BatchPayload>(event);
   const { create = [], update = [], del = [] } = body;
+
+  if (create.length + update.length + del.length > MAX_BATCH_ITEMS) {
+    throw createError({
+      statusCode: 413,
+      message: `Batch exceeds ${MAX_BATCH_ITEMS} items`,
+    });
+  }
+
+  for (const n of [...create, ...update]) {
+    if (typeof n?.content === "string" && n.content.length > MAX_NOTE_CONTENT_LENGTH) {
+      throw createError({
+        statusCode: 413,
+        message: `content exceeds ${MAX_NOTE_CONTENT_LENGTH} characters`,
+      });
+    }
+  }
 
   const results: {
     created: any[];
