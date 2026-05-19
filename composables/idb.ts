@@ -11,7 +11,7 @@ const SETTINGS_STORE = 'settings'
 // Helper to derive title from content (first line, trimmed, max 100 chars)
 export function deriveTitle(content: string): string {
   if (!content) return 'Untitled'
-  let firstLine = content.split('\n')[0].trim()
+  let firstLine = (content.split('\n')[0] ?? '').trim()
   firstLine = stripMarkdown(firstLine)
   if (!firstLine) return 'Untitled'
   return firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine
@@ -173,10 +173,10 @@ export function useIdb() {
           console.log('[IDB] Migrating to version 3: Adding soft delete support')
 
           // Update bookmarks store with deleted_at field
-          const bookmarksStore = txn.objectStore(BOOKMARKS_STORE)
+          const bookmarksStore = txn!.objectStore(BOOKMARKS_STORE)
           const bookmarksCursor = bookmarksStore.openCursor()
           bookmarksCursor.onsuccess = (e) => {
-            const cursor = e.target.result
+            const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
             if (cursor) {
               const value = cursor.value
               value.deletedAt = null
@@ -186,10 +186,10 @@ export function useIdb() {
           }
 
           // Update notes store with deletedAt field
-          const notesStore = txn.objectStore(NOTES_STORE)
+          const notesStore = txn!.objectStore(NOTES_STORE)
           const notesCursor = notesStore.openCursor()
           notesCursor.onsuccess = (e) => {
-            const cursor = e.target.result
+            const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
             if (cursor) {
               const value = cursor.value
               value.deletedAt = null
