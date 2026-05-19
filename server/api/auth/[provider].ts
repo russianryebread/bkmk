@@ -1,7 +1,12 @@
 import { eq, and } from 'drizzle-orm'
+import { getCookie, setCookie, deleteCookie } from 'h3'
 import { db } from '~/server/database'
 import { users, userAccounts } from '~/server/database/schema'
 import { setAuthCookie, createToken, touchLastLogin } from '~/server/utils/auth'
+
+// Cookie used to validate the OAuth `state` param across the authorize/callback
+// round-trip, protecting against OAuth CSRF (login-CSRF / account-injection).
+const OAUTH_STATE_COOKIE = 'oauth_state'
 
 interface OAuthProviderConfig {
   name: string
@@ -105,18 +110,42 @@ export default defineEventHandler(async (event) => {
     // Redirect to OAuth - first time flow
     // Use custom redirect_uri if provided, otherwise use web callback
     const redirectUri = customRedirectUri || `${getRequestURL(event).origin}/api/auth/${providerName}`
+
+    // Generate an anti-CSRF state value and persist it in a short-lived,
+    // httpOnly cookie so the callback can verify it.
+    const state = crypto.randomUUID()
+    setCookie(event, OAUTH_STATE_COOKIE, state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60, // 10 minutes
+      path: '/'
+    })
+
     const authUrl = new URL(provider.authUrl)
     authUrl.searchParams.set('client_id', provider.clientId)
     authUrl.searchParams.set('redirect_uri', redirectUri)
     authUrl.searchParams.set('response_type', 'code')
     authUrl.searchParams.set('scope', provider.scopes.join(' '))
-    authUrl.searchParams.set('state', crypto.randomUUID())
+    authUrl.searchParams.set('state', state)
 
     if (providerName === 'apple') {
       authUrl.searchParams.set('response_mode', 'form_post')
     }
 
     return sendRedirect(event, authUrl.toString())
+  }
+
+  // Callback flow - validate the anti-CSRF state before doing anything else
+  const returnedState = query.state as string | undefined
+  const expectedState = getCookie(event, OAUTH_STATE_COOKIE)
+  // The state cookie is single-use; clear it regardless of outcome
+  deleteCookie(event, OAUTH_STATE_COOKIE, { path: '/' })
+  if (!returnedState || !expectedState || returnedState !== expectedState) {
+    throw createError({
+      statusCode: 400,
+      message: 'Invalid OAuth state'
+    })
   }
 
   // Callback flow - exchange code for tokens
