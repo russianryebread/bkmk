@@ -17,6 +17,13 @@ interface SyncQueueItem {
 
 export type SyncStatus = "idle" | "syncing" | "success" | "error" | "offline";
 
+// Background syncs are throttled to at most once per this interval. An explicit
+// pull-to-refresh / triggerSync passes force=true to bypass it.
+const SYNC_THROTTLE_MS = 60_000;
+// Holds a pending deferred sync scheduled while throttled, so queued changes
+// still flush once the throttle window elapses.
+let deferredSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useDataStore = defineStore("data", () => {
   const idb = useIdb();
 
@@ -84,7 +91,7 @@ export const useDataStore = defineStore("data", () => {
     console.log("[DataStore] Online");
     isOnline.value = true;
     syncStatus.value = "idle";
-    syncWithServer();
+    syncWithServer(true);
   }
 
   function handleOffline() {
@@ -114,13 +121,36 @@ export const useDataStore = defineStore("data", () => {
   }
 
   // ==================== SERVER SYNC ====================
-  async function syncWithServer(): Promise<boolean> {
+  async function syncWithServer(force = false): Promise<boolean> {
     // Prevent concurrent sync attempts that cause race conditions
     if (syncInProgress) {
       console.log("[DataStore] Sync already in progress, skipping");
       return false;
     }
     if (!isOnline.value || syncing.value) return false;
+
+    // Throttle background syncs to at most once per SYNC_THROTTLE_MS.
+    if (!force && lastSyncTime.value) {
+      const elapsed = Date.now() - lastSyncTime.value.getTime();
+      if (elapsed < SYNC_THROTTLE_MS) {
+        console.log("[DataStore] Sync throttled");
+        // Ensure queued changes still flush eventually.
+        if (pendingChanges.value > 0 && deferredSyncTimer === null) {
+          const remainingMs = SYNC_THROTTLE_MS - elapsed;
+          deferredSyncTimer = setTimeout(() => {
+            deferredSyncTimer = null;
+            syncWithServer();
+          }, remainingMs);
+        }
+        return false;
+      }
+    }
+
+    // A real sync is proceeding — cancel any pending deferred sync.
+    if (deferredSyncTimer) {
+      clearTimeout(deferredSyncTimer);
+      deferredSyncTimer = null;
+    }
 
     console.log("[DataStore] Syncing with server...");
     syncInProgress = true;
@@ -855,7 +885,7 @@ export const useDataStore = defineStore("data", () => {
 
   // ==================== MANUAL SYNC TRIGGER ====================
   async function triggerSync(): Promise<boolean> {
-    return syncWithServer();
+    return syncWithServer(true);
   }
 
   return {
