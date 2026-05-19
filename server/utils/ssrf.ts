@@ -19,7 +19,7 @@ function isBlockedIPv4(ip: string): boolean {
     // Not a well-formed IPv4 string; treat as unsafe.
     return true
   }
-  const [a, b] = parts
+  const [a, b] = parts as [number, number, number, number]
 
   if (a === 0) return true // 0.0.0.0/8
   if (a === 127) return true // 127.0.0.0/8 loopback
@@ -39,21 +39,21 @@ function isBlockedIPv4(ip: string): boolean {
  * unwrapped and checked against the IPv4 rules.
  */
 function isBlockedIPv6(ip: string): boolean {
-  const addr = ip.toLowerCase().split('%')[0] // strip zone id
+  const addr = ip.toLowerCase().split('%')[0] ?? '' // strip zone id
 
   if (addr === '::1' || addr === '::') return true
 
   // IPv4-mapped / IPv4-compatible addresses, e.g. ::ffff:127.0.0.1
   const mapped = addr.match(/(?:::ffff:|::)((?:\d{1,3}\.){3}\d{1,3})$/)
   if (mapped) {
-    return isBlockedIPv4(mapped[1])
+    return isBlockedIPv4(mapped[1]!)
   }
 
   // IPv4-mapped expressed in hex, e.g. ::ffff:7f00:0001
   const hexMapped = addr.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
   if (hexMapped) {
-    const hi = parseInt(hexMapped[1], 16)
-    const lo = parseInt(hexMapped[2], 16)
+    const hi = parseInt(hexMapped[1]!, 16)
+    const lo = parseInt(hexMapped[2]!, 16)
     const v4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
     return isBlockedIPv4(v4)
   }

@@ -677,7 +677,7 @@ export async function revokeApiToken(userId: string, tokenId: string): Promise<b
       eq(apiTokens.userId, userId)
     ))
   
-  return result.rowCount > 0
+  return result.count > 0
 }
 
 // Reissue a token (revoke old and create new)

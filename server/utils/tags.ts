@@ -30,7 +30,9 @@ export async function resolveTagIds(
     .from(tags)
     .where(and(eq(tags.userId, userId), inArray(sql`lower(${tags.name})`, trimmedLower)))
 
-  const existingByLower = new Map(existing.map((t) => [t.nameLower, t]))
+  const existingByLower = new Map<string, { id: string; name: string }>(
+    existing.map((t) => [t.nameLower, { id: t.id, name: t.name }]),
+  )
 
   const missing = trimmed.filter((n) => !existingByLower.has(n.toLowerCase()))
   if (missing.length > 0) {

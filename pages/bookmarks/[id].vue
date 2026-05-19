@@ -296,7 +296,7 @@ async function deleteBookmarkConfirm() {
   }
 }
 
-async function loadForRoute(id: string | string[]) {
+async function loadForRoute(id: string | string[] | undefined) {
   if (id === 'new') {
     initNewBookmark()
     loading.value = false

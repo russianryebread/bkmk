@@ -257,7 +257,7 @@ async function deleteNoteConfirm() {
   }
 }
 
-async function loadForRoute(id: string | string[]) {
+async function loadForRoute(id: string | string[] | undefined) {
   if (id === 'new') {
     initNewNote()
     loading.value = false

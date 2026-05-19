@@ -14,7 +14,7 @@ const md = new MarkdownIt({
 const PURIFY_OPTIONS = {
   ADD_TAGS: ['img'],
   ADD_ATTR: ['target', 'rel'],
-} as const
+}
 
 // Convert relative image paths to absolute paths pointing to our images API
 function convertImagePaths(html: string): string {
