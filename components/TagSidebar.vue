@@ -95,11 +95,8 @@
         </div>
       </div>
 
-      <!-- Loading state -->
-      <div v-if="loadingTags" class="px-4 py-2 text-sm text-gray-400">Loading tags...</div>
-
       <!-- Tag tree -->
-      <div v-else-if="tagTree.length > 0">
+      <div v-if="tagTree.length > 0">
         <TagSidebarNode
           v-for="node in tagTree"
           :key="node.id"
@@ -132,8 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import type { TagNode, Tag } from '~/composables/idb'
-import { tagColorsMap } from '~/utils/tagColors'
+import type { TagNode } from '~/composables/idb'
 
 const props = withDefaults(defineProps<{
   mode: 'bookmark' | 'note'
@@ -153,13 +149,20 @@ const emit = defineEmits<{
   'change': [view: string, tag: string]
 }>()
 
-const loadingTags = ref(false)
-const tagTree = ref<TagNode[]>([])
 const showNewTagInput = ref(false)
 const newTagName = ref('')
 const newTagInputRef = ref<HTMLInputElement | null>(null)
 
-const { fetchTags, createTag: createTagFn, buildTree } = useTagSystem()
+const { tags, createTag: createTagFn, buildTree } = useTagSystem()
+
+// Tags live in the Pinia store (hydrated from IndexedDB at boot, kept fresh by
+// the regular sync), so the tree is derived reactively — no per-mount fetch.
+const tagTree = computed<TagNode[]>(() => {
+  const filtered = props.mode === 'bookmark'
+    ? tags.value.filter(t => t.type === 'bookmark' || t.type === 'both')
+    : tags.value.filter(t => t.type === 'note' || t.type === 'both')
+  return buildTree(filtered)
+})
 
 function isActive(view: string) {
   return props.currentView === view
@@ -167,19 +170,6 @@ function isActive(view: string) {
 
 function select(view: string, tagName?: string) {
   emit('change', view, tagName || '')
-}
-
-async function loadTags() {
-  loadingTags.value = true
-  try {
-    const tags = await fetchTags(true)
-    const filtered = props.mode === 'bookmark'
-      ? tags.filter(t => t.type === 'bookmark' || t.type === 'both')
-      : tags.filter(t => t.type === 'note' || t.type === 'both')
-    tagTree.value = buildTree(filtered)
-  } finally {
-    loadingTags.value = false
-  }
 }
 
 async function createTag() {
@@ -194,7 +184,6 @@ async function createTag() {
   if (tag) {
     newTagName.value = ''
     showNewTagInput.value = false
-    await loadTags()
   }
 }
 
@@ -209,11 +198,6 @@ watch(showNewTagInput, async (val) => {
     newTagInputRef.value?.focus()
   }
 })
-
-onMounted(loadTags)
-
-// Reload tags when they change (e.g. after tagging a bookmark)
-defineExpose({ reload: loadTags })
 </script>
 
 <style scoped>
