@@ -87,6 +87,10 @@ export const bookmarks = pgTable('bookmarks', {
   index('idx_bookmarks_is_favorite').on(table.isFavorite),
   index('idx_bookmarks_source_domain').on(table.sourceDomain),
   index('idx_bookmarks_is_read').on(table.isRead),
+  index('idx_bookmarks_deleted').on(table.deletedAt),
+  index('idx_bookmarks_user_deleted').on(table.userId, table.deletedAt),
+  index('idx_bookmarks_saved').on(table.savedAt),
+  index('idx_bookmarks_updated').on(table.updatedAt),
 ])
 
 // Tags Table
@@ -135,6 +139,9 @@ export const notes = pgTable('notes', {
   index('idx_notes_user').on(table.userId),
   index('idx_notes_created').on(table.createdAt),
   index('idx_notes_is_favorite').on(table.isFavorite),
+  index('idx_notes_deleted').on(table.deletedAt),
+  index('idx_notes_user_deleted').on(table.userId, table.deletedAt),
+  index('idx_notes_updated').on(table.updatedAt),
 ])
 
 // Notes Tags Junction Table
