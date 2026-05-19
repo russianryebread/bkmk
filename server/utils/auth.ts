@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { H3Event, getCookie, setCookie, deleteCookie, getHeader } from 'h3'
 import { db } from '~/server/database'
 import { users, apiTokens } from '~/server/database/schema'
@@ -42,26 +43,61 @@ function generateToken(): string {
 // Alias for password reset (kept for clarity)
 const generatePasswordResetToken = generateToken
 
-// Create a simple JWT-like token (base64 encoded JSON)
+// Resolve the HMAC signing secret. Throws at use time if not configured so a
+// missing secret can never silently degrade to unsigned tokens.
+function getAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET
+  if (!secret) {
+    throw new Error('AUTH_SECRET environment variable is not set. Cannot sign or verify auth tokens.')
+  }
+  return secret
+}
+
+// Compute the base64url-encoded HMAC-SHA256 signature of the encoded payload.
+function signPayload(encodedPayload: string): string {
+  return createHmac('sha256', getAuthSecret())
+    .update(encodedPayload)
+    .digest('base64url')
+}
+
+// Create a JWT-like signed token: base64url(payload).base64url(hmacSHA256(payload))
 export function createToken(payload: Omit<TokenPayload, 'exp'>): string {
   const exp = Date.now() + TOKEN_EXPIRY
   const data: TokenPayload = { ...payload, exp }
-  const json = JSON.stringify(data)
-  // Simple base64 encoding (not encryption, but signed by server)
-  return Buffer.from(json).toString('base64url')
+  const encodedPayload = Buffer.from(JSON.stringify(data)).toString('base64url')
+  const signature = signPayload(encodedPayload)
+  return `${encodedPayload}.${signature}`
 }
 
-// Parse and validate token
+// Parse and validate a signed token. Rejects tokens with a missing/invalid
+// signature (constant-time compare) and rejects expired tokens.
 function parseToken(token: string): TokenPayload | null {
   try {
-    const json = Buffer.from(token, 'base64url').toString('utf8')
+    const parts = token.split('.')
+    if (parts.length !== 2) {
+      return null
+    }
+    const [encodedPayload, signature] = parts
+
+    // Verify signature with a constant-time comparison
+    const expectedSignature = signPayload(encodedPayload)
+    const providedBuf = Buffer.from(signature, 'base64url')
+    const expectedBuf = Buffer.from(expectedSignature, 'base64url')
+    if (providedBuf.length !== expectedBuf.length) {
+      return null
+    }
+    if (!timingSafeEqual(providedBuf, expectedBuf)) {
+      return null
+    }
+
+    const json = Buffer.from(encodedPayload, 'base64url').toString('utf8')
     const payload = JSON.parse(json) as TokenPayload
-    
+
     // Check expiration
     if (payload.exp < Date.now()) {
       return null
     }
-    
+
     return payload
   } catch {
     return null
