@@ -1,6 +1,6 @@
 import { db } from '~/server/database'
 import { bookmarks, bookmarkTags, tags } from '~/server/database/schema'
-import { eq, desc, asc, sql, and, isNull, notExists } from 'drizzle-orm'
+import { eq, desc, asc, sql, and, isNull, notExists, gt } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 import { tagNameEquals } from '~/server/utils/tags'
@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
       untagged,
       search,
       includeDeleted,
+      since,
     } = query
 
     const pageNum = parseInt(page as string)
@@ -55,6 +56,17 @@ export default defineEventHandler(async (event) => {
 
     const baseConditions: any[] = [eq(bookmarks.userId, currentUser.id)]
     if (includeDeleted !== 'true') baseConditions.push(isNull(bookmarks.deletedAt))
+
+    // Incremental sync: when `since` is supplied, only return rows changed
+    // after that timestamp. Soft-deleted tombstones in the window are still
+    // included so deletions propagate to clients.
+    if (since) {
+      const sinceStr = String(since)
+      if (Number.isNaN(Date.parse(sinceStr))) {
+        throw createError({ statusCode: 400, message: 'Invalid `since` timestamp' })
+      }
+      baseConditions.push(gt(bookmarks.updatedAt, sinceStr))
+    }
 
     if (favorite === 'true') baseConditions.push(eq(bookmarks.isFavorite, 1))
     if (unread === 'true') baseConditions.push(eq(bookmarks.isRead, 0))

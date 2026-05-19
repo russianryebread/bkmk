@@ -24,6 +24,26 @@ const SYNC_THROTTLE_MS = 60_000;
 // still flush once the throttle window elapses.
 let deferredSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
+// localStorage key for the incremental-sync watermark. Persisted so the
+// `since` filter survives page reloads; cleared/absent means a full pull.
+const LAST_PULL_KEY = "bkmk:lastPullAt";
+
+function readLastPull(): string | null {
+  try {
+    return localStorage.getItem(LAST_PULL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastPull(iso: string): void {
+  try {
+    localStorage.setItem(LAST_PULL_KEY, iso);
+  } catch {
+    // ignore (private mode / quota)
+  }
+}
+
 export const useDataStore = defineStore("data", () => {
   const idb = useIdb();
 
@@ -351,10 +371,22 @@ export const useDataStore = defineStore("data", () => {
   async function pullServerData() {
     console.log("[DataStore] Pulling data from server...");
 
+    // Incremental sync: on the first ever pull there's no watermark, so we
+    // fetch everything. On subsequent pulls we pass `since` so the server
+    // returns only rows whose updatedAt is newer (including soft-deleted
+    // tombstones in that window). mergeGeneric keeps local copies of any
+    // unchanged rows the server omits.
+    const lastPull = readLastPull();
+    const sinceParam = lastPull ? `&since=${encodeURIComponent(lastPull)}` : "";
+
+    // Capture the watermark *before* issuing requests so changes that land
+    // mid-request are picked up by the next pull rather than skipped.
+    const pulledAt = new Date().toISOString();
+
     try {
       const [bookmarksRes, notesRes, tagsRes] = await Promise.allSettled([
-        $fetch<{ bookmarks: Bookmark[] }>("/api/bookmarks?limit=1000&includeDeleted=true"),
-        $fetch<{ notes: Note[] }>("/api/notes?limit=1000&includeDeleted=true"),
+        $fetch<{ bookmarks: Bookmark[] }>(`/api/bookmarks?limit=1000&includeDeleted=true${sinceParam}`),
+        $fetch<{ notes: Note[] }>(`/api/notes?limit=1000&includeDeleted=true${sinceParam}`),
         $fetch<{ tags: Tag[] }>("/api/tags"),
       ]);
 
@@ -373,6 +405,12 @@ export const useDataStore = defineStore("data", () => {
         const serverTags = tagsRes.value.tags;
         await mergeTags(serverTags);
         console.log(`[DataStore] Synced ${serverTags.length} tags`);
+      }
+
+      // Only advance the watermark if both incrementally-synced entities
+      // pulled successfully; otherwise a future pull must re-fetch the gap.
+      if (bookmarksRes.status === "fulfilled" && notesRes.status === "fulfilled") {
+        writeLastPull(pulledAt);
       }
     } catch (e) {
       console.warn("[DataStore] Partial server pull failed:", e);

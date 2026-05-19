@@ -1,6 +1,6 @@
 import { db } from '~/server/database'
 import { notes, notesTags, tags } from '~/server/database/schema'
-import { eq, desc, sql, and, isNull, inArray, notExists } from 'drizzle-orm'
+import { eq, desc, sql, and, isNull, inArray, notExists, gt } from 'drizzle-orm'
 import { getQuery } from 'h3'
 import { requireAuth } from '~/server/utils/auth'
 import { resolveTagIds, tagNameEquals } from '~/server/utils/tags'
@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
       untagged,
       favorite,
       includeDeleted,
+      since,
     } = query
 
     const pageNum = parseInt(page as string)
@@ -51,6 +52,17 @@ export default defineEventHandler(async (event) => {
     const baseConditions = [eq(notes.userId, currentUser.id)]
     if (includeDeleted !== 'true') baseConditions.push(isNull(notes.deletedAt))
     if (favorite === 'true') baseConditions.push(eq(notes.isFavorite, 1))
+
+    // Incremental sync: when `since` is supplied, only return rows changed
+    // after that timestamp. Soft-deleted tombstones in the window are still
+    // included so deletions propagate to clients.
+    if (since) {
+      const sinceStr = String(since)
+      if (Number.isNaN(Date.parse(sinceStr))) {
+        throw createError({ statusCode: 400, message: 'Invalid `since` timestamp' })
+      }
+      baseConditions.push(gt(notes.updatedAt, sinceStr))
+    }
 
     let fetchedNotes: typeof notes.$inferSelect[]
     let total: number
