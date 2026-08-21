@@ -93,6 +93,23 @@ export default defineNuxtConfig({
       ],
       // Increase max cache size
       maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+      // Stored images (article images and video posters) are immutable — they
+      // are addressed by a generated UUID and never rewritten — so CacheFirst
+      // is safe and makes them available offline.
+      runtimeCaching: [
+        {
+          urlPattern: /^.*\/api\/images\/.*/,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'bkmk-images',
+            expiration: {
+              maxEntries: 500,
+              maxAgeSeconds: 60 * 60 * 24 * 60, // 60 days
+            },
+            cacheableResponse: { statuses: [0, 200] },
+          },
+        },
+      ],
     },
     client: {
       installPrompt: true,

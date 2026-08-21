@@ -10,61 +10,46 @@ import {
   replaceImageUrlsInHtml,
   replaceImageUrlsInMarkdown,
 } from '~/server/utils/images'
+import { parseVideoUrl, type VideoRef } from '~/utils/video'
 
-// Video platform detection patterns
-const VIDEO_PATTERNS = [
-  // YouTube
-  /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)/,
-  // YouTube Shorts
-  /youtube\.com\/shorts\//,
-  // Vimeo
-  /vimeo\.com\//,
-  // Facebook videos
-  /facebook\.com\/.*\/videos\//,
-  /facebook\.com\/watch\/?\?v=/,
-  // Instagram
-  /instagram\.com\/(?:p|reel|tv)\//,
-  // TikTok
-  /tiktok\.com\//,
-  // Twitter/X videos
-  /twitter\.com\//,
-  /x\.com\//,
-  // Dailymotion
-  /dailymotion\.com\//,
-]
+// Video handling. Detection, ID extraction, and the embeddable-platform list
+// all live in utils/video.ts so the scraper and the markdown renderer can never
+// disagree about what counts as a video.
+//
+// Deliberately narrow: only platforms we can actually embed take this branch.
+// Tweets, Instagram posts, and TikToks fall through to the normal scraper,
+// which produces a real reader view where it can and a plain link bookmark
+// where it can't — both better than the placeholder this branch used to write.
 
-function isVideoUrl(url: string): boolean {
-  return VIDEO_PATTERNS.some(pattern => pattern.test(url))
+interface VideoMeta {
+  title: string | null
+  author: string | null
+  thumbnailUrl: string | null
 }
 
-function getVideoPlatform(url: string): string | null {
-  if (/youtube\.com|youtu\.be/.test(url)) return 'youtube'
-  if (/vimeo\.com/.test(url)) return 'vimeo'
-  if (/facebook\.com/.test(url)) return 'facebook'
-  if (/instagram\.com/.test(url)) return 'instagram'
-  if (/tiktok\.com/.test(url)) return 'tiktok'
-  if (/twitter\.com|x\.com/.test(url)) return 'twitter'
-  if (/dailymotion\.com/.test(url)) return 'dailymotion'
-  return null
-}
-
-// Helper function to extract YouTube video ID
-function extractYouTubeId(videoUrl: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
-  ]
-  for (const pattern of patterns) {
-    const match = videoUrl.match(pattern)
-    if (match) return match[1] ?? null
+// Fetch title / author / thumbnail from the platform's oEmbed endpoint.
+// Best-effort: a failure here still produces a usable bookmark.
+async function fetchVideoMeta(video: VideoRef): Promise<VideoMeta> {
+  const empty: VideoMeta = { title: null, author: null, thumbnailUrl: null }
+  try {
+    const response = await fetch(video.oembedUrl, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!response.ok) return empty
+    const data = (await response.json()) as {
+      title?: string
+      author_name?: string
+      thumbnail_url?: string
+    }
+    return {
+      title: data.title ?? null,
+      author: data.author_name ?? null,
+      thumbnailUrl: data.thumbnail_url ?? null,
+    }
+  } catch (e) {
+    console.log('[Scrape] oEmbed lookup failed for', video.watchUrl, e)
+    return empty
   }
-  return null
-}
-
-// Helper function to extract Vimeo video ID
-function extractVimeoId(videoUrl: string): string | null {
-  const match = videoUrl.match(/vimeo\.com\/(\d+)/)
-  return match ? match[1] ?? null : null
 }
 
 export default defineEventHandler(async (event) => {
@@ -152,62 +137,30 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // For video URLs, create a bookmark with video metadata
-  if (isVideoUrl(url)) {
-    const sourceDomain = extractDomain(url)
-    const platform = getVideoPlatform(url)
+  // Video URLs get an embeddable bookmark: oEmbed metadata plus a locally
+  // stored thumbnail. The content is a thumbnail-wrapped-in-a-link, which the
+  // markdown renderer recognizes and upgrades into a click-to-play player.
+  const video = parseVideoUrl(cleanUrl)
+  if (video) {
+    const sourceDomain = extractDomain(cleanUrl)
     const now = new Date().toISOString()
 
-    // Try to fetch video metadata from oEmbed APIs
-    let videoTitle = `${platform?.charAt(0).toUpperCase()}${platform?.slice(1)} Video`
-    let videoDescription = `Saved from ${platform}`
-
-    try {
-      if (platform === 'youtube') {
-        // Extract video ID and fetch oEmbed data
-        const youtubeId = extractYouTubeId(url)
-        if (youtubeId) {
-          const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${youtubeId}&format=json`
-          const oembedResponse = await fetch(oembedUrl)
-          if (oembedResponse.ok) {
-            const oembedData = await oembedResponse.json() as { title?: string; author_name?: string }
-            if (oembedData.title) {
-              videoTitle = oembedData.title
-              videoDescription = oembedData.author_name ? `by ${oembedData.author_name}` : ''
-            }
-          }
-        }
-      } else if (platform === 'vimeo') {
-        const vimeoId = extractVimeoId(url)
-        if (vimeoId) {
-          const oembedUrl = `https://vimeo.com/api/oembed.json?url=https://vimeo.com/${vimeoId}`
-          const oembedResponse = await fetch(oembedUrl)
-          if (oembedResponse.ok) {
-            const oembedData = await oembedResponse.json() as { title?: string; author_name?: string }
-            if (oembedData.title) {
-              videoTitle = oembedData.title
-              videoDescription = oembedData.author_name ? `by ${oembedData.author_name}` : ''
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.log('[Scrape] Could not fetch video metadata, using defaults:', e)
-    }
-
-    // For video bookmarks, set content as a markdown link that can be edited
-    const videoContent = `[Add content for ${platform} video](${cleanUrl})`
+    const meta = await fetchVideoMeta(video)
+    const title = meta.title || `${video.platform.charAt(0).toUpperCase()}${video.platform.slice(1)} video`
+    const description = meta.author ? `by ${meta.author}` : `Saved from ${video.platform}`
 
     const [bookmark] = await db
       .insert(schema.bookmarks)
       .values({
         id: crypto.randomUUID(),
         userId: currentUser.id,
-        title: videoTitle,
+        title,
         url: cleanUrl,
-        description: videoDescription || `Saved from ${platform}`,
-        cleanedMarkdown: videoContent,
-        sourceDomain: sourceDomain,
+        description,
+        // Placeholder content until the thumbnail lands below. A bare video URL
+        // on its own line is enough for the renderer to build a player.
+        cleanedMarkdown: video.watchUrl,
+        sourceDomain,
         savedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -215,6 +168,24 @@ export default defineEventHandler(async (event) => {
       .returning()
     if (!bookmark) {
       throw createError({ statusCode: 500, message: 'Failed to create bookmark' })
+    }
+
+    // Store the poster locally so it survives the platform rotating its CDN,
+    // keeps img-src at 'self', and is available offline. A failure here just
+    // means the player renders without a poster.
+    let thumbnailImagePath: string | null = null
+    let cleanedMarkdown = video.watchUrl
+    if (meta.thumbnailUrl) {
+      const stored = await processAndStoreImage(meta.thumbnailUrl, bookmark.id)
+      if (stored) {
+        thumbnailImagePath = `/api/images/${stored.id}`
+        // Square brackets would terminate the link label early.
+        cleanedMarkdown = `[![${title.replace(/[[\]]/g, '')}](${thumbnailImagePath})](${video.watchUrl})`
+        await db
+          .update(schema.bookmarks)
+          .set({ thumbnailImagePath, cleanedMarkdown })
+          .where(eq(schema.bookmarks.id, bookmark.id))
+      }
     }
 
     // Update sync metadata
@@ -229,11 +200,13 @@ export default defineEventHandler(async (event) => {
 
     return {
       ...bookmark,
+      thumbnailImagePath,
+      cleanedMarkdown,
       isFavorite: Boolean(bookmark.isFavorite),
       isRead: Boolean(bookmark.isRead),
       tags: [],
       isVideo: true,
-      platform,
+      platform: video.platform,
     }
   }
 

@@ -76,7 +76,7 @@
       <!-- View mode content (existing note, not editing) -->
       <template v-if="!isNew && !editing">
         <hr class="mb-4 border-gray-200 dark:border-gray-700" />
-        <div class="prose dark:prose-invert max-w-none reader-content" v-html="renderedMarkdown"></div>
+        <div ref="readerRef" class="prose dark:prose-invert max-w-none reader-content" v-html="renderedMarkdown"></div>
       </template>
 
       <!-- Editor mode (new or editing) -->
@@ -125,6 +125,7 @@ import { deriveTitle } from '~/composables/idb'
 import { formatDate } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
 import { useViewportHeight } from '~/composables/useViewportHeight'
+import { useVideoEmbeds } from '~/composables/useVideoEmbeds'
 
 // Keep a single component instance across /notes/new → /notes/<uuid> so the
 // editor doesn't unmount when auto-save promotes a draft to a real note via
@@ -148,6 +149,7 @@ async function handleCreateTag(name: string) {
 }
 
 // State
+const readerRef = ref<HTMLElement | null>(null)
 const note = ref<Note | null>(null)
 const loading = ref(true)
 const editing = ref(false)
@@ -417,6 +419,7 @@ const toolbarActions = computed<Action[]>(() => [
 ])
 
 useViewportHeight()
+useVideoEmbeds(readerRef)
 
 onBeforeRouteLeave(async () => {
   await flushSave()

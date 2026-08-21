@@ -66,7 +66,7 @@
 
         <hr class="my-4 border-gray-200 dark:border-gray-700" />
 
-        <div class="prose dark:prose-invert max-w-none reader-content"
+        <div ref="readerRef" class="prose dark:prose-invert max-w-none reader-content"
           :class="[fontFamily === 'serif' ? 'font-serif' : 'font-sans']"
           :style="{ fontSize: fontSize + 'px' }"
           v-html="renderedMarkdown"></div>
@@ -130,6 +130,7 @@ import type { Bookmark } from '~/composables/idb'
 import { formatDateFull } from '~/utils/date'
 import { useTagSystem } from '~/composables/useTagSystem'
 import { useViewportHeight } from '~/composables/useViewportHeight'
+import { useVideoEmbeds } from '~/composables/useVideoEmbeds'
 import { useDataStore } from '~/stores/useDataStore'
 
 const route = useRoute()
@@ -148,6 +149,7 @@ async function handleCreateTag(name: string) {
 }
 
 // State
+const readerRef = ref<HTMLElement | null>(null)
 const bookmark = ref<Bookmark | null>(null)
 const loading = ref(true)
 const editing = ref(false)
@@ -367,6 +369,7 @@ const toolbarActions = computed<Action[]>(() => {
 })
 
 useViewportHeight()
+useVideoEmbeds(readerRef)
 
 onBeforeRouteLeave((to, from) => {
   if (editing.value && hasChanges.value) {

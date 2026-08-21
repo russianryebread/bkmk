@@ -162,3 +162,53 @@
 .reader-content th {
   @apply bg-gray-100 dark:bg-gray-800 font-semibold;
 }
+
+/* ==================== VIDEO EMBEDS ==================== */
+/* Click-to-play facade. The placeholder is a link until the user clicks it;
+   useVideoEmbeds() then replaces its contents with the real player iframe. */
+
+.video-embed {
+  @apply relative my-6 w-full overflow-hidden rounded-lg bg-gray-900;
+  aspect-ratio: 16 / 9;
+}
+
+.video-embed__link {
+  @apply absolute inset-0 flex items-center justify-center no-underline;
+}
+
+.video-embed__poster {
+  /* Override .reader-content img — the poster fills the frame, no margin. */
+  @apply absolute inset-0 my-0 h-full w-full rounded-none object-cover;
+}
+
+.video-embed__poster--empty {
+  @apply bg-gradient-to-br from-gray-700 to-gray-900;
+}
+
+.video-embed__play {
+  @apply relative flex h-16 w-16 items-center justify-center rounded-full transition-transform;
+  background-color: rgb(0 0 0 / 0.6);
+}
+
+.video-embed__play::after {
+  /* Play triangle, drawn with borders so there's no icon asset to load. */
+  content: '';
+  @apply ml-1 block h-0 w-0;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  border-left: 20px solid white;
+}
+
+.video-embed__link:hover .video-embed__play {
+  @apply scale-110;
+  background-color: rgb(220 38 38 / 0.9);
+}
+
+/* The title is available to screen readers but the poster already shows it. */
+.video-embed__label {
+  @apply sr-only;
+}
+
+.video-embed__frame {
+  @apply absolute inset-0 h-full w-full border-0;
+}

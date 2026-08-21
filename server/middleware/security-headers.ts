@@ -19,6 +19,11 @@ const cspDirectives = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   `connect-src 'self'${isDev ? ' ws: http:' : ''}`,
   "font-src 'self' data:",
+  // Video players injected by useVideoEmbeds(). Keep in sync with the
+  // `embedUrl` origins in utils/video.ts — a platform added there without its
+  // origin here renders a silently blank player. Thumbnails are proxied
+  // through the images table, so `img-src` stays 'self'.
+  "frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
 ]
