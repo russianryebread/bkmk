@@ -89,8 +89,7 @@
 
         <!-- Content Area -->
         <div class="flex-1">
-          <MarkdownEditor v-model="editorContent"
-            class="min-h-[calc(var(--dvh)-320px)] md:min-h-[calc(var(--dvh)-350px)]"
+          <MarkdownEditor v-model="editorContent" class="bookmark-markdown-editor"
             placeholder="Write your markdown here..." autofocus />
         </div>
 
@@ -377,3 +376,15 @@ onBeforeRouteLeave((to, from) => {
   }
 })
 </script>
+
+<style scoped>
+.bookmark-markdown-editor {
+  --markdown-editor-min-height: max(12rem, calc(var(--dvh, 100vh) - 320px));
+}
+
+@media (min-width: 768px) {
+  .bookmark-markdown-editor {
+    --markdown-editor-min-height: max(12rem, calc(var(--dvh, 100vh) - 350px));
+  }
+}
+</style>

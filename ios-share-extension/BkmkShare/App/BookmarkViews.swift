@@ -1,5 +1,6 @@
 import SwiftUI
 import Textual
+import WebKit
 
 
 // MARK: - Bookmarks List View
@@ -11,6 +12,26 @@ struct BookmarksListView: View {
     let onDelete: (Bookmark) async -> Void
     let onToggleFavorite: (Bookmark) async -> Void
     let onEdit: (Bookmark, String, String) async -> Bool
+    @State private var searchText = ""
+    @State private var favoritesOnly = false
+    @State private var selectedTag: String?
+
+    private var availableTags: [String] {
+        Array(Set(bookmarks.flatMap { $0.tags ?? [] }))
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private var filteredBookmarks: [Bookmark] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return bookmarks.filter { bookmark in
+            if favoritesOnly && bookmark.isFavorite != true { return false }
+            if let selectedTag, !(bookmark.tags ?? []).contains(where: { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) { return false }
+            guard !query.isEmpty else { return true }
+            return [bookmark.title, bookmark.url, bookmark.description ?? "", bookmark.cleanedMarkdown ?? ""]
+                .contains { $0.localizedCaseInsensitiveContains(query) }
+                || (bookmark.tags ?? []).contains { $0.localizedCaseInsensitiveContains(query) }
+        }
+    }
     
     var body: some View {
         Group {
@@ -27,7 +48,7 @@ struct BookmarksListView: View {
                             }
                         }
                     }
-                    ForEach(bookmarks) { bookmark in
+                    ForEach(filteredBookmarks) { bookmark in
                         NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url in await onEdit(bookmark, title, url) })) {
                             BookmarkRow(bookmark: bookmark)
                         }
@@ -50,6 +71,10 @@ struct BookmarksListView: View {
                             .tint(.yellow)
                         }
                     }
+                    if filteredBookmarks.isEmpty {
+                        Text("No bookmarks match your search or filters")
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .listStyle(.plain)
                 .refreshable {
@@ -57,9 +82,11 @@ struct BookmarksListView: View {
                 }
             }
         }
+        .searchable(text: $searchText, prompt: "Search bookmarks")
         .navigationTitle("Bookmarks")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ListFilterMenu(tags: availableTags, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 Button {
                     Task { await onRefresh() }
                 } label: {
@@ -125,6 +152,9 @@ struct ReaderView: View {
     @State private var bookmark: Bookmark
     let onEdit: (String, String) async -> Bool
     @State private var isEditing = false
+    @State private var isPlayingVideo = false
+
+    private var youtubeVideo: YouTubeVideo? { YouTubeVideo(url: bookmark.url) }
 
     init(bookmark: Bookmark, onEdit: @escaping (String, String) async -> Bool) {
         _bookmark = State(initialValue: bookmark)
@@ -172,14 +202,41 @@ struct ReaderView: View {
                 }
                 
                 Divider()
+
+                if let video = youtubeVideo {
+                    if isPlayingVideo {
+                        YouTubePlayer(video: video)
+                            .aspectRatio(16 / 9, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        Button {
+                            isPlayingVideo = true
+                        } label: {
+                            Label("Play video", systemImage: "play.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 180)
+                                .foregroundColor(.white)
+                                .background(Color.black, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+                    if let url = URL(string: bookmark.url) {
+                        Link("Open on YouTube", destination: url)
+                            .font(.subheadline)
+                    }
+                }
                 
                 // Content Section
-                if let content = bookmark.cleanedMarkdown {
+                if youtubeVideo != nil, let description = bookmark.description, !description.isEmpty {
+                    Text(description)
+                        .font(.system(.body, design: .serif))
+                        .foregroundColor(.secondary)
+                } else if youtubeVideo == nil, let content = bookmark.cleanedMarkdown {
                     StructuredText(markdown: content)
                         .fontDesign(.serif)
                         .textSelection(.enabled)
                         .imageScale(.large)
-                } else {
+                } else if youtubeVideo == nil {
                     if let description = bookmark.description {
                         Text(description)
                             .font(.system(.body, design: .serif))
@@ -218,6 +275,84 @@ struct ReaderView: View {
         .sheet(isPresented: $isEditing) {
             BookmarkEditorView(bookmark: bookmark, onSave: saveBookmark)
         }
+    }
+}
+
+private struct YouTubeVideo {
+    let id: String
+
+    init?(url raw: String) {
+        guard let url = URLComponents(string: raw),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let rawHost = url.host?.lowercased() else { return nil }
+        let host = rawHost.hasPrefix("www.") ? String(rawHost.dropFirst(4)) : rawHost
+        let segments = url.path.split(separator: "/").map(String.init)
+        let candidate: String?
+        if host == "youtu.be" {
+            candidate = segments.first
+        } else if host == "youtube.com" || host.hasSuffix(".youtube.com") || host == "youtube-nocookie.com" || host.hasSuffix(".youtube-nocookie.com") {
+            if segments.first == "watch" {
+                candidate = url.queryItems?.first(where: { $0.name == "v" })?.value
+            } else if let first = segments.first, ["shorts", "embed", "v", "live"].contains(first), segments.count > 1 {
+                candidate = segments[1]
+            } else {
+                candidate = nil
+            }
+        } else {
+            candidate = nil
+        }
+        guard let candidate, candidate.range(of: #"^[A-Za-z0-9_-]{11}$"#, options: .regularExpression) != nil else { return nil }
+        id = candidate
+    }
+
+    var embedURL: URL { URL(string: "https://www.youtube-nocookie.com/embed/\(id)?playsinline=1&autoplay=1")! }
+}
+
+private struct YouTubePlayer: UIViewRepresentable {
+    let video: YouTubeVideo
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.scrollView.isScrollEnabled = false
+        view.load(URLRequest(url: video.embedURL))
+        return view
+    }
+
+    func updateUIView(_ view: WKWebView, context: Context) {}
+}
+
+struct ListFilterMenu: View {
+    let tags: [String]
+    @Binding var favoritesOnly: Bool
+    @Binding var selectedTag: String?
+
+    var body: some View {
+        Menu {
+            Button {
+                favoritesOnly.toggle()
+            } label: {
+                Label("Favorites", systemImage: favoritesOnly ? "checkmark" : "star")
+            }
+            Divider()
+            Button {
+                selectedTag = nil
+            } label: {
+                Label("All tags", systemImage: selectedTag == nil ? "checkmark" : "tag")
+            }
+            ForEach(tags, id: \.self) { tag in
+                Button {
+                    selectedTag = tag
+                } label: {
+                    Label(tag, systemImage: selectedTag == tag ? "checkmark" : "tag")
+                }
+            }
+        } label: {
+            Image(systemName: favoritesOnly || selectedTag != nil ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel("Filter list")
     }
 }
 
@@ -281,7 +416,7 @@ struct BookmarkRow: View {
                 .lineLimit(2)
             
             if let description = bookmark.description, !description.isEmpty {
-                Text(description)
+                Text(markdownPlainText(description))
                     .font(.system(.subheadline, design: .serif))
                     .foregroundColor(.secondary)
                     .lineLimit(2)

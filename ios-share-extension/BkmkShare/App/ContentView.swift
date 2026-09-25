@@ -1,5 +1,4 @@
 import SwiftUI
-import Textual
 
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
@@ -66,16 +65,38 @@ struct ContentView: View {
                 Task { await refreshBookmarks() }
             }
         }
-        
-        if let error = apiManager.errorMessage {
-            Text(error)
-                .font(.callout)
-                .foregroundColor(.white)
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color.red)
-                //.frame(maxWidth: .infinity)
-                .cornerRadius(6)
+        .safeAreaInset(edge: .bottom) {
+            if let error = apiManager.errorMessage, authManager.isLoggedIn {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.circle")
+                    Text(error)
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        apiManager.errorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .padding(8)
+                    }
+                    .accessibilityLabel("Dismiss error")
+                }
+                .foregroundColor(.primary)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(.secondary.opacity(0.25)))
+                .shadow(radius: 8, y: 3)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .task(id: error) {
+                    try? await Task.sleep(nanoseconds: 7_000_000_000)
+                    if !Task.isCancelled && apiManager.errorMessage == error {
+                        apiManager.errorMessage = nil
+                    }
+                }
+            }
         }
     }
     
@@ -130,64 +151,73 @@ struct LoginView: View {
     @State private var showPasswordLogin = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    Spacer()
-                        .frame(height: 20)
-                    
+        ScrollView {
+            VStack(spacing: 28) {
+                Spacer(minLength: 48)
+
+                VStack(spacing: 14) {
                     Image(systemName: "bookmark.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.blue)
-                    
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 72, height: 72)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+
                     Text("Bkmk")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    Text("Save bookmarks from Safari and read them anywhere")
+                        .font(.system(.largeTitle, design: .serif, weight: .bold))
+
+                    Text("Your bookmarks and notes, wherever you are.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
+                }
+
+                VStack(spacing: 12) {
                     if showPasswordLogin {
                         PasswordLoginView(email: $email, password: $password)
                     } else {
-                        VStack(spacing: 12) {
-                            OAuthButton(provider: "GitHub", icon: "person.circle", color: .black) {
-                                Task { await authManager.login(provider: "github") }
-                            }
-                            
-                            OAuthButton(provider: "Google", icon: "globe", color: .green) {
-                                Task { await authManager.login(provider: "google") }
-                            }
-                            
-                            OAuthButton(provider: "Apple", icon: "apple.logo", color: .black) {
-                                Task { await authManager.login(provider: "apple") }
-                            }
+                        OAuthButton(provider: "GitHub", icon: "person.circle") {
+                            Task { await authManager.login(provider: "github") }
+                        }
+                        OAuthButton(provider: "Google", icon: "globe") {
+                            Task { await authManager.login(provider: "google") }
+                        }
+                        OAuthButton(provider: "Apple", icon: "apple.logo") {
+                            Task { await authManager.login(provider: "apple") }
                         }
                     }
-                    
-                    Button(showPasswordLogin ? "Use OAuth instead" : "Sign in with Email") {
-                        withAnimation {
-                            showPasswordLogin.toggle()
-                        }
+
+                    Button(showPasswordLogin ? "Other sign-in options" : "Sign in with email") {
+                        authManager.errorMessage = nil
+                        withAnimation { showPasswordLogin.toggle() }
                     }
-                    .font(.subheadline)
-                    
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(.primary)
+                    .padding(.top, 10)
+
                     if let error = authManager.errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .padding(.horizontal)
+                        HStack(spacing: 8) {
+                            Text(error).frame(maxWidth: .infinity, alignment: .leading)
+                            Button {
+                                authManager.errorMessage = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .accessibilityLabel("Dismiss error")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     }
-                    
-                    Spacer()
                 }
-                .padding(.horizontal)
+                .frame(maxWidth: 360)
+
+                Spacer(minLength: 32)
             }
-            .navigationBarHidden(true)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
         }
+        .background(Color(.systemBackground))
     }
 }
 
@@ -203,12 +233,10 @@ struct PasswordLoginView: View {
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
-                .padding(.horizontal)
             
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
                 .textContentType(.password)
-                .padding(.horizontal)
             
             Button {
                 Task {
@@ -218,18 +246,17 @@ struct PasswordLoginView: View {
                 HStack {
                     if authManager.isLoading {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .tint(Color(.systemBackground))
                     }
                     Text("Sign In")
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
+                .background(Color.primary)
+                .foregroundColor(Color(.systemBackground))
                 .cornerRadius(12)
             }
-            .disabled(email.isEmpty || password.isEmpty)
-            .padding(.horizontal)
+            .disabled(email.isEmpty || password.isEmpty || authManager.isLoading)
         }
     }
 }
@@ -239,22 +266,23 @@ struct PasswordLoginView: View {
 struct OAuthButton: View {
     let provider: String
     let icon: String
-    let color: Color
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             HStack {
-                Image(systemName: icon)
+                Image(systemName: icon).frame(width: 24)
                 Text("Continue with \(provider)")
                     .fontWeight(.medium)
             }
-            .font(.system(.body, design: .serif))
+            .font(.body)
             .frame(maxWidth: .infinity)
-            .padding()
-            .background(color)
-            .foregroundColor(.white)
+            .padding(.vertical, 15)
+            .padding(.horizontal, 16)
+            .background(Color(.secondarySystemBackground))
+            .foregroundColor(.primary)
             .cornerRadius(12)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08)))
         }
     }
 }

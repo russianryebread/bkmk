@@ -83,8 +83,7 @@
       <div v-else class="md:card flex-1 flex flex-col min-h-0">
         <!-- Content Area -->
         <div class="flex-1 min-h-0 h-full">
-          <MarkdownEditor v-model="editorContent"
-            class="min-h-[calc(var(--dvh)-256px)] md:min-h-[calc(var(--dvh)-266px)]"
+          <MarkdownEditor v-model="editorContent" class="note-markdown-editor"
             placeholder="Write your markdown here..." autofocus />
         </div>
 
@@ -425,3 +424,15 @@ onBeforeRouteLeave(async () => {
   await flushSave()
 })
 </script>
+
+<style scoped>
+.note-markdown-editor {
+  --markdown-editor-min-height: max(12rem, calc(var(--dvh, 100vh) - 256px));
+}
+
+@media (min-width: 768px) {
+  .note-markdown-editor {
+    --markdown-editor-min-height: max(12rem, calc(var(--dvh, 100vh) - 266px));
+  }
+}
+</style>

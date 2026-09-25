@@ -4,6 +4,7 @@ node_modules
 .output
 src-tauri
 data
+server/database/images
 *.db
 .env
 .env.*

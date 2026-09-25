@@ -1,5 +1,6 @@
 import SwiftUI
 import Textual
+import UIKit
 
 
 // MARK: - Notes List View
@@ -10,6 +11,25 @@ struct NotesListView: View {
     let onDelete: (Note) async -> Void
     let onToggleFavorite: (Note) async -> Void
     let onEdit: (Note, String) async -> Bool
+    @State private var searchText = ""
+    @State private var favoritesOnly = false
+    @State private var selectedTag: String?
+
+    private var availableTags: [String] {
+        Array(Set(notes.flatMap { $0.tags ?? [] }))
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private var filteredNotes: [Note] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return notes.filter { note in
+            if favoritesOnly && note.isFavorite != true { return false }
+            if let selectedTag, !(note.tags ?? []).contains(where: { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) { return false }
+            guard !query.isEmpty else { return true }
+            return markdownPlainText(note.content).localizedCaseInsensitiveContains(query)
+                || (note.tags ?? []).contains { $0.localizedCaseInsensitiveContains(query) }
+        }
+    }
     
     var body: some View {
         Group {
@@ -19,7 +39,7 @@ struct NotesListView: View {
                 EmptyNotesView()
             } else {
                 List {
-                    ForEach(notes) { note in
+                    ForEach(filteredNotes) { note in
                         NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note, content) })) {
                             NoteRow(note: note)
                         }
@@ -42,6 +62,10 @@ struct NotesListView: View {
                             .tint(.yellow)
                         }
                     }
+                    if filteredNotes.isEmpty {
+                        Text("No notes match your search or filters")
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .listStyle(.plain)
                 .refreshable {
@@ -49,9 +73,11 @@ struct NotesListView: View {
                 }
             }
         }
+        .searchable(text: $searchText, prompt: "Search notes")
         .navigationTitle("Notes")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ListFilterMenu(tags: availableTags, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 Button {
                     Task { await onRefresh() }
                 } label: {
@@ -95,22 +121,13 @@ struct NoteView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(noteTitle(note.content))
-                        .font(.system(.title, design: .serif))
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                }
-                
-                Divider()
-
+            VStack(alignment: .leading, spacing: 16) {
                 StructuredText(markdown: note.content)
                     .fontDesign(.serif)
                     .textSelection(.enabled)
                     .imageScale(.large)
-                
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -119,7 +136,7 @@ struct NoteView: View {
                 Button("Edit") { isEditing = true }
             }
         }
-        .sheet(isPresented: $isEditing) {
+        .fullScreenCover(isPresented: $isEditing) {
             NoteEditorView(note: note, onSave: saveContent)
         }
     }
@@ -141,9 +158,8 @@ private struct NoteEditorView: View {
 
     var body: some View {
         NavigationStack {
-            TextEditor(text: $content)
-                .font(.system(.body, design: .serif))
-                .padding(8)
+            MarkdownTextEditor(text: $content)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle("Edit Note")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -165,20 +181,141 @@ private struct NoteEditorView: View {
     }
 }
 
+/// Keeps Markdown source editable while giving the same lightweight cues as the web editor.
+private struct MarkdownTextEditor: UIViewRepresentable {
+    @Binding var text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.font = .monospacedSystemFont(ofSize: 16, weight: .regular)
+        view.textColor = .label
+        view.backgroundColor = .systemBackground
+        view.autocorrectionType = .yes
+        view.smartDashesType = .no
+        view.smartQuotesType = .no
+        view.textContainerInset = UIEdgeInsets(top: 20, left: 16, bottom: 20, right: 16)
+        view.keyboardDismissMode = .interactive
+        view.text = text
+        context.coordinator.decorate(view)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        guard view.text != text else { return }
+        view.text = text
+        context.coordinator.decorate(view)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: MarkdownTextEditor
+        private let font = UIFont.monospacedSystemFont(ofSize: 16, weight: .regular)
+
+        init(_ parent: MarkdownTextEditor) { self.parent = parent }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            decorate(textView)
+        }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText replacement: String) -> Bool {
+            guard replacement == "\n", range.length == 0 else { return true }
+            let source = textView.text as NSString
+            let line = source.lineRange(for: NSRange(location: range.location, length: 0))
+            let prefix = source.substring(with: NSRange(location: line.location, length: range.location - line.location))
+            let pattern = #"^(\s*)([-*+]\s+|\d+[.)]\s+)(.*)$"#
+            guard let match = prefix.range(of: pattern, options: .regularExpression), match.lowerBound == prefix.startIndex else { return true }
+            let parts = prefix.matchGroups(pattern: pattern)
+            guard parts.count == 4 else { return true }
+            let indent = parts[1]
+            let marker = parts[2]
+            let item = parts[3]
+            let editRange: NSRange
+            let insertion: String
+            if item.trimmingCharacters(in: .whitespaces).isEmpty {
+                editRange = NSRange(location: line.location, length: range.location - line.location)
+                insertion = "\n" + indent
+            } else {
+                editRange = range
+                let nextMarker: String
+                if let number = Int(marker.prefix(while: { $0.isNumber })) {
+                    nextMarker = "\(number + 1). "
+                } else {
+                    nextMarker = marker
+                }
+                insertion = "\n" + indent + nextMarker
+            }
+            textView.textStorage.replaceCharacters(in: editRange, with: insertion)
+            textView.selectedRange = NSRange(location: editRange.location + (insertion as NSString).length, length: 0)
+            textViewDidChange(textView)
+            return false
+        }
+
+        func decorate(_ textView: UITextView) {
+            let selection = textView.selectedRange
+            let source = textView.text ?? ""
+            let fullRange = NSRange(location: 0, length: (source as NSString).length)
+            let storage = textView.textStorage
+            storage.beginEditing()
+            storage.setAttributes([.font: font, .foregroundColor: UIColor.label], range: fullRange)
+
+            func mark(_ pattern: String, color: UIColor? = nil, weight: UIFont.Weight? = nil) {
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else { return }
+                for match in regex.matches(in: source, range: fullRange) {
+                    var attributes: [NSAttributedString.Key: Any] = [:]
+                    if let color { attributes[.foregroundColor] = color }
+                    if let weight { attributes[.font] = UIFont.monospacedSystemFont(ofSize: 16, weight: weight) }
+                    storage.addAttributes(attributes, range: match.range)
+                }
+            }
+
+            mark(#"^\s{0,3}#{1,3}\s+.*$"#, weight: .bold)
+            mark(#"(\*\*|__)(?=\S).+?\1"#, weight: .bold)
+            mark(#"(\*|_)(?=\S).+?\1"#, color: .secondaryLabel)
+            mark(#"^\s*([-*+]|\d+[.)])\s+"#, color: .secondaryLabel)
+            mark(#"^\s{0,3}(#{1,3}\s+|>\s?)"#, color: .secondaryLabel)
+            mark(#"`[^`\n]+`"#, color: .systemIndigo)
+            storage.endEditing()
+            textView.selectedRange = selection
+            textView.typingAttributes = [.font: font, .foregroundColor: UIColor.label]
+        }
+    }
+}
+
+private extension String {
+    func matchGroups(pattern: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: self, range: NSRange(location: 0, length: (self as NSString).length)) else { return [] }
+        let string = self as NSString
+        return (0..<match.numberOfRanges).map { match.range(at: $0).location == NSNotFound ? "" : string.substring(with: match.range(at: $0)) }
+    }
+}
+
 // MARK: - Simplified Row
 struct NoteRow: View {
     let note: Note
+
+    private var plainText: String { markdownPlainText(note.content) }
+    private var lines: [String] {
+        plainText.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(noteTitle(note.content))
+            Text(noteTitle(lines.first ?? "Untitled note"))
                 .font(.system(.headline, design: .serif))
                 .lineLimit(2)
             
-            Text(note.content)
-                .font(.system(.subheadline, design: .serif))
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+            if lines.count > 1 {
+                Text(lines.dropFirst().joined(separator: " "))
+                    .font(.system(.subheadline, design: .serif))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
             
             HStack(spacing: 8) {
                 if note.isFavorite == true {
@@ -202,4 +339,26 @@ func noteTitle(_ string: String, maxChars: Int = 64, trailing: String = "…") -
         cutoff = lastSpace
     }
     return String(firstLine[..<cutoff]).trimmingCharacters(in: .whitespaces) + trailing
+}
+
+func markdownPlainText(_ markdown: String) -> String {
+    var text = markdown
+    let replacements: [(String, String)] = [
+        (#"(?s)```.*?```"#, ""),
+        (#"!\[([^\]]*)\]\([^)]*\)"#, "$1"),
+        (#"\[([^\]]+)\]\([^)]*\)"#, "$1"),
+        (#"`([^`]+)`"#, "$1"),
+        (#"(?m)^\s{0,3}#{1,6}\s+"#, ""),
+        (#"(?m)^\s{0,3}>\s?"#, ""),
+        (#"(?m)^\s*([-*+]|\d+[.)])\s+"#, ""),
+        (#"(?m)^\s*\[[ xX]\]\s*"#, ""),
+        (#"(?m)^\s*([-*_]\s*){3,}$"#, ""),
+        (#"(?m)^\s*[=-]{2,}\s*$"#, ""),
+        (#"(\*\*\*|___|\*\*|__|\*|_|~~)(?=\S)(.+?\S)\1"#, "$2"),
+        (#"<[^>]+>"#, "")
+    ]
+    for (pattern, replacement) in replacements {
+        text = text.replacingOccurrences(of: pattern, with: replacement, options: .regularExpression)
+    }
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
 }

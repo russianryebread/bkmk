@@ -5,6 +5,7 @@ services:
       - "3000:3000"
     environment:
       - POSTGRES_URL=postgresql://bkmk:bkmk123@postgres:5432/bkmk
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in .env}
     depends_on:
       postgres:
         condition: service_healthy

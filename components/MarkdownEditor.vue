@@ -76,7 +76,7 @@ function onKeydown(event: KeyboardEvent) {
 .markdown-editor {
   --editor-font-size: 14px;
   position: relative;
-  min-height: 12rem;
+  min-height: var(--markdown-editor-min-height, 12rem);
   height: 100%;
   overflow: hidden;
   color: rgb(17 24 39);

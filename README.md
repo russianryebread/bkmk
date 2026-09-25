@@ -50,6 +50,8 @@ bun run preview
 
 ## Docker
 
+For a production server, follow [the deployment guide](docs/deployment.md). The Compose example below is for local development.
+
 ### Docker Compose (Recommended for local development)
 
 ```bash

@@ -32,6 +32,20 @@ If XcodeGen is not available, manually add the package in Xcode:
 3. Select a simulator or device
 4. Build and run (Cmd+R)
 
+### Command-line simulator build
+
+`xcodebuild` requires the full Xcode installation; Apple's standalone Command Line Tools do not include the iOS SDK. Once Xcode is installed and selected, build the checked-in project without signing:
+
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+xcodebuild -project BkmkShare.xcodeproj -scheme BkmkShare \
+  -configuration Debug -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Run these from `ios-share-extension/`. A device build also needs a signing team and provisioning profile.
+
 ## Features
 
 - OAuth login (GitHub, Google, Apple)
