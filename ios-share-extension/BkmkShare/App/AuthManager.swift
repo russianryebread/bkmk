@@ -18,11 +18,20 @@ class AuthManager: NSObject, ObservableObject {
     
     func checkLoginStatus() {
         if let token = KeychainHelper.shared.getToken() {
-            // We set this to true tentatively, but fetchUserInfo will
-            // revert it if the token is actually expired/invalid.
+            // Keep the user signed in while offline; only a server 401 revokes
+            // this revocable API credential.
             isLoggedIn = true
             Task {
-                await fetchUserInfo(token: token)
+                if token.hasPrefix("bkmk_") {
+                    await fetchUserInfo(token: token)
+                } else if let durableToken = await createMobileToken(sessionToken: token) {
+                    KeychainHelper.shared.saveToken(durableToken)
+                    await fetchUserInfo(token: durableToken)
+                } else {
+                    // A prior short-lived session can be upgraded only while
+                    // still valid. Keep local cached content usable offline.
+                    await fetchUserInfo(token: token)
+                }
             }
         }
     }
@@ -61,7 +70,7 @@ class AuthManager: NSObject, ObservableObject {
             // Try to decode with token first (API request format)
             if let loginResponse = try? decoder.decode(LoginResponse.self, from: data),
                let token = loginResponse.token {
-                handleLogin(token: token)
+                await handleLogin(token: token)
             } else if let loginResponse = try? decoder.decode(LoginResponseNoToken.self, from: data) {
                 // For web response, token is not included unless we send Bearer header
                 // Send another request with Bearer to get token
@@ -89,7 +98,7 @@ class AuthManager: NSObject, ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             if let loginResponse = try? JSONDecoder().decode(LoginResponse.self, from: data),
                let token = loginResponse.token {
-                handleLogin(token: token)
+                await handleLogin(token: token)
             }
         } catch {
             print("Failed to get token: \(error)")
@@ -132,7 +141,7 @@ class AuthManager: NSObject, ObservableObject {
                         return
                     }
                     
-                    self?.handleLogin(token: token)
+                    await self?.handleLogin(token: token)
                     continuation.resume()
                 }
             }
@@ -143,12 +152,33 @@ class AuthManager: NSObject, ObservableObject {
         }
     }
     
-    private func handleLogin(token: String) {
-        KeychainHelper.shared.saveToken(token)
+    private func handleLogin(token: String) async {
+        let durableToken = token.hasPrefix("bkmk_") ? token : await createMobileToken(sessionToken: token)
+        guard let durableToken else {
+            errorMessage = "Could not set up secure app access. Please try signing in again."
+            isLoggedIn = false
+            return
+        }
+        KeychainHelper.shared.saveToken(durableToken)
         isLoggedIn = true
         
         Task {
-            await fetchUserInfo(token: token)
+            await fetchUserInfo(token: durableToken)
+        }
+    }
+
+    private func createMobileToken(sessionToken: String) async -> String? {
+        guard let url = URL(string: "\(baseURL)/auth/mobile-token") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(MobileTokenResponse.self, from: data).token
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
         }
     }
     

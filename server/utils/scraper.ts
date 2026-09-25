@@ -1,6 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import { Readability } from '@mozilla/readability'
+import { Readability, isProbablyReaderable } from '@mozilla/readability'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
 import * as fs from 'fs'
@@ -22,6 +22,7 @@ export interface ScrapedContent {
   readingTimeMinutes: number
   images: string[]
   localImagePaths: Record<string, string>
+  isReadable: boolean
 }
 
 export interface ImageDownloadResult {
@@ -102,33 +103,23 @@ function canReadabilityParse(html: string): { canParse: boolean; confidence: num
   try {
     const doc = new JSDOM(html)
     const document = doc.window.document
-    
-    // Check for basic content indicators
     const body = document.body
     if (!body) return { canParse: false, confidence: 0 }
-    
-    // Check for article-like elements
-    const articleElements = body.querySelectorAll('article, [role="main"], main, .content, .post, .entry')
-    const hasArticleElements = articleElements.length > 0
-    
-    // Check text density
-    const textLength = body.textContent?.length || 0
-    const hasEnoughText = textLength > 500
-    
-    // Check for likely article content
-    const headings = body.querySelectorAll('h1, h2, h3')
-    const hasHeadings = headings.length > 0
-    
-    // Calculate confidence score
-    let confidence = 0
-    if (hasArticleElements) confidence += 0.4
-    if (hasEnoughText) confidence += 0.3
-    if (hasHeadings) confidence += 0.3
-    
-    return {
-      canParse: confidence >= 0.4,
-      confidence,
-    }
+
+    // Readability's own candidate scoring discounts navigation and short links.
+    // Body length and a heading alone used to promote link directories to articles.
+    const likely = isProbablyReaderable(document, {
+      minContentLength: 140,
+      minScore: 20,
+    })
+    const prose = (Array.from(body.querySelectorAll('p')) as Element[])
+      .filter(p => (p.textContent?.trim().length ?? 0) >= 80)
+    const proseWords = prose.reduce((sum: number, p: Element) => sum + countWords(p.textContent || ''), 0)
+    const proseLinkWords = prose.reduce((sum: number, p: Element) =>
+      sum + (Array.from(p.querySelectorAll('a')) as Element[]).reduce((n: number, a: Element) => n + countWords(a.textContent || ''), 0), 0)
+    const linkDensity = proseWords ? proseLinkWords / proseWords : 1
+    const canParse = likely && proseWords >= 80 && linkDensity < 0.4
+    return { canParse, confidence: canParse ? Math.min(1, proseWords / 250) : 0 }
   } catch {
     return { canParse: false, confidence: 0 }
   }
@@ -235,32 +226,18 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
     const author = extractAuthor($)
     const publishedTime = $('meta[property="article:published_time"]').attr('content') || null
 
-    // Check if Readability can parse the page
+    // Only promote pages with substantial prose to reader content. Otherwise
+    // retain metadata and save a plain link, which works well for landing pages.
     const parseability = canReadabilityParse(html)
-    
-    let articleHtml: string
-    if (parseability.canParse && parseability.confidence >= 0.5) {
-      // Good candidate for Readability
-      articleHtml = extractWithReadability(html, url)
-    } else if (parseability.canParse) {
-      // Moderate confidence - try Readability but have fallback ready
-      const readabilityResult = extractWithReadability(html, url)
-      if (readabilityResult.length < 200) {
-        // Readability didn't extract much, use body content
-        articleHtml = $('body').html() || ''
-      } else {
-        articleHtml = readabilityResult
-      }
-    } else {
-      // Low confidence - use body content directly
-      articleHtml = $('body').html() || ''
-    }
+    const articleHtml = parseability.canParse ? extractWithReadability(html, url) : ''
+    const articleText = cheerio.load(articleHtml).text()
+    const isReadable = parseability.canParse && countWords(articleText) >= 80
     
     // Clean the HTML
-    articleHtml = cleanHtml(articleHtml)
+    const cleanedArticleHtml = isReadable ? cleanHtml(articleHtml) : ''
 
     // Extract images before converting to markdown
-    const images = extractImageUrls($, articleHtml)
+    const images = isReadable ? extractImageUrls($, cleanedArticleHtml) : []
     
     // Don't download images here - let the API handle it (database storage)
     const localImagePaths: Record<string, string> = {}
@@ -273,7 +250,7 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
       bulletListMarker: '-',
     })
 
-    let markdown = turndown.turndown(articleHtml)
+    const markdown = isReadable ? turndown.turndown(cleanedArticleHtml) : `[${url}](${url})`
 
     // Count words
     const wordCount = countWords(markdown)
@@ -281,7 +258,7 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
 
     return {
       title,
-      content: articleHtml,
+      content: cleanedArticleHtml,
       markdown,
       html: removeScripts(html),
       originalHtml: html, // Keep original HTML with original image URLs
@@ -289,10 +266,11 @@ export async function scrapeUrl(url: string): Promise<ScrapedContent> {
       siteName,
       author,
       publishedTime,
-      wordCount,
-      readingTimeMinutes,
+      wordCount: isReadable ? wordCount : 0,
+      readingTimeMinutes: isReadable ? readingTimeMinutes : 0,
       images: images.map(i => i.url),
       localImagePaths,
+      isReadable,
     }
   } catch (error: any) {
     throw new Error(`Failed to scrape URL: ${error.message}`)
@@ -357,9 +335,7 @@ function extractWithReadability(html: string, url: string): string {
     return article?.content || ''
   } catch (error) {
     console.error('Readability parsing failed:', error)
-    // Fallback: extract body content manually
-    const $ = cheerio.load(html)
-    return $('body').html() || ''
+    return ''
   }
 }
 

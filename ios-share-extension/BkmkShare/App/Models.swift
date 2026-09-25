@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Bookmark Model
 struct Bookmark: Codable, Identifiable, Hashable {
     let id: String
-    let title: String
-    let url: String
+    var title: String
+    var url: String
     let description: String?
     let cleanedMarkdown: String?
     let originalHtml: String?
@@ -23,27 +23,18 @@ struct Bookmark: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, url, description
-        case cleanedMarkdown = "cleaned_markdown"
-        case originalHtml = "original_html"
-        case readingTimeMinutes = "reading_time_minutes"
-        case savedAt = "saved_at"
-        case lastAccessedAt = "last_accessed_at"
-        case isFavorite = "is_favorite"
-        case isRead = "is_read"
-        case readAt = "read_at"
-        case sourceDomain = "source_domain"
-        case wordCount = "word_count"
-        case thumbnailImagePath = "thumbnail_image_path"
+        case cleanedMarkdown, originalHtml, readingTimeMinutes, savedAt
+        case lastAccessedAt, isFavorite, isRead, readAt, sourceDomain
+        case wordCount, thumbnailImagePath
         case tags
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
+        case createdAt, updatedAt
     }
 }
 
 // MARK: - Note Model
 struct Note: Codable, Identifiable, Hashable {
     let id: String
-    let content: String
+    var content: String
     var isFavorite: Bool?
     var sortOrder: Int?
     let tags: [String]?
@@ -53,12 +44,9 @@ struct Note: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, content
-        case isFavorite = "is_favorite"
-        case sortOrder = "sort_order"
+        case isFavorite, sortOrder
         case tags
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case deletedAt = "deleted_at"
+        case createdAt, updatedAt, deletedAt
     }
 }
 
@@ -113,4 +101,8 @@ struct LoginResponse: Codable {
 
 struct LoginResponseNoToken: Codable {
     let user: User
+}
+
+struct MobileTokenResponse: Codable {
+    let token: String
 }

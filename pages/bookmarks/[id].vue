@@ -89,9 +89,9 @@
 
         <!-- Content Area -->
         <div class="flex-1">
-          <textarea v-model="editorContent" placeholder="Write your markdown here..."
-            class="w-full min-h-[calc(var(--dvh)-320px)] md:min-h-[calc(var(--dvh)-350px)] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white"
-            autofocus enterkeyhint="enter" inputmode="text"></textarea>
+          <MarkdownEditor v-model="editorContent"
+            class="min-h-[calc(var(--dvh)-320px)] md:min-h-[calc(var(--dvh)-350px)]"
+            placeholder="Write your markdown here..." autofocus />
         </div>
 
         <!-- Footer -->

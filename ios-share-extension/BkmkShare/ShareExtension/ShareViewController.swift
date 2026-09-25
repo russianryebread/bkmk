@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
     
-    private let apiBaseURL = AppConfig.apiBaseURL
     
     private lazy var containerView: UIView = {
         let view = UIView()
@@ -38,6 +37,7 @@ class ShareViewController: UIViewController {
         let label = UILabel()
         label.font = .systemFont(ofSize: 15)
         label.textAlignment = .center
+        label.numberOfLines = 0
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -154,53 +154,13 @@ class ShareViewController: UIViewController {
             showError("No URL to save")
             return
         }
-        
-        statusLabel.text = "Saving..."
-        activityIndicator.startAnimating()
-        
-        guard let token = KeychainHelper.shared.getToken() else {
-            showError("Please configure API token in the Bkmk Share app first")
-            return
+        statusLabel.text = "Saving on this device…"
+        let queued = SharedURLQueue.enqueue(urlString)
+        if queued != nil {
+            showSuccess("Saved for sync")
+        } else {
+            showError("Could not save this URL. Use an http or https link.")
         }
-        
-        guard let url = URL(string: "\(apiBaseURL)/scrape") else {
-            showError("Invalid API URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        let body: [String: Any] = ["url": urlString]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            DispatchQueue.main.async {
-                self?.activityIndicator.stopAnimating()
-                
-                if let error = error {
-                    self?.showError("Network error: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    self?.showError("Invalid response")
-                    return
-                }
-                
-                if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
-                    self?.showSuccess("Saved!")
-                } else if httpResponse.statusCode == 401 {
-                    self?.showError("Invalid API token. Please update in the app.")
-                } else if httpResponse.statusCode == 409 {
-                    self?.showError("Already saved!")
-                } else {
-                    self?.showError("Server error: \(httpResponse.statusCode)")
-                }
-            }
-        }.resume()
     }
     
     private func showSuccess(_ message: String) {

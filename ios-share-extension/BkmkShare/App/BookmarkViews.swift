@@ -5,21 +5,30 @@ import Textual
 // MARK: - Bookmarks List View
 struct BookmarksListView: View {
     let bookmarks: [Bookmark]
+    let pendingSharedURLs: [PendingSharedURL]
     let isLoading: Bool
     let onRefresh: () async -> Void
     let onDelete: (Bookmark) async -> Void
     let onToggleFavorite: (Bookmark) async -> Void
+    let onEdit: (Bookmark, String, String) async -> Bool
     
     var body: some View {
         Group {
             if isLoading && bookmarks.isEmpty {
                 ProgressView("Loading...")
-            } else if bookmarks.isEmpty {
+            } else if bookmarks.isEmpty && pendingSharedURLs.isEmpty {
                 EmptyBookmarksView()
             } else {
                 List {
+                    if !pendingSharedURLs.isEmpty {
+                        Section("Waiting to sync") {
+                            ForEach(pendingSharedURLs) { item in
+                                PendingSharedURLRow(item: item)
+                            }
+                        }
+                    }
                     ForEach(bookmarks) { bookmark in
-                        NavigationLink(destination: ReaderView(bookmark: bookmark)) {
+                        NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url in await onEdit(bookmark, title, url) })) {
                             BookmarkRow(bookmark: bookmark)
                         }
                         .swipeActions(edge: .trailing) {
@@ -61,6 +70,36 @@ struct BookmarksListView: View {
     }
 }
 
+private struct PendingSharedURLRow: View {
+    let item: PendingSharedURL
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(URL(string: item.url)?.host ?? item.url)
+                    .font(.system(.subheadline, design: .serif))
+                    .lineLimit(1)
+                Text(item.url)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                Text("Saved on this device · will sync online")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer(minLength: 0)
+            if let url = URL(string: item.url) {
+                Link(destination: url) {
+                    Image(systemName: "arrow.up.right.square")
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 struct EmptyBookmarksView: View {
     var body: some View {
         VStack(spacing: 16) {
@@ -83,7 +122,23 @@ struct EmptyBookmarksView: View {
 
 // MARK: - Reader View
 struct ReaderView: View {
-    let bookmark: Bookmark
+    @State private var bookmark: Bookmark
+    let onEdit: (String, String) async -> Bool
+    @State private var isEditing = false
+
+    init(bookmark: Bookmark, onEdit: @escaping (String, String) async -> Bool) {
+        _bookmark = State(initialValue: bookmark)
+        self.onEdit = onEdit
+    }
+
+    private func saveBookmark(title: String, url: String) async -> Bool {
+        let saved = await onEdit(title, url)
+        if saved {
+            bookmark.title = title
+            bookmark.url = url
+        }
+        return saved
+    }
     
     var body: some View {
         ScrollView {
@@ -154,10 +209,63 @@ struct ReaderView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                if let url = URL(string: bookmark.url) {
-                    ShareLink(item: url)
+                HStack {
+                    Button("Edit") { isEditing = true }
+                    if let url = URL(string: bookmark.url) { ShareLink(item: url) }
                 }
             }
+        }
+        .sheet(isPresented: $isEditing) {
+            BookmarkEditorView(bookmark: bookmark, onSave: saveBookmark)
+        }
+    }
+}
+
+private struct BookmarkEditorView: View {
+    let onSave: (String, String) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var url: String
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    private var isValidWebURL: Bool {
+        guard let components = URLComponents(string: url),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = components.host, !host.isEmpty else { return false }
+        return true
+    }
+
+    init(bookmark: Bookmark, onSave: @escaping (String, String) async -> Bool) {
+        self.onSave = onSave
+        _title = State(initialValue: bookmark.title)
+        _url = State(initialValue: bookmark.url)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Title", text: $title)
+                TextField("URL", text: $url).textInputAutocapitalization(.never).keyboardType(.URL)
+            }
+            .navigationTitle("Edit URL")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "Saving…" : "Save") {
+                        Task {
+                            isSaving = true
+                            if await onSave(title, url) { dismiss() }
+                            else { errorMessage = "Could not save URL. Check the URL and try again when online." }
+                            isSaving = false
+                        }
+                    }.disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isValidWebURL)
+                }
+            }
+            .alert("Save failed", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: { Text(errorMessage ?? "") }
         }
     }
 }

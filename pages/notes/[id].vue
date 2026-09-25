@@ -83,9 +83,9 @@
       <div v-else class="md:card flex-1 flex flex-col min-h-0">
         <!-- Content Area -->
         <div class="flex-1 min-h-0 h-full">
-          <textarea v-model="editorContent" placeholder="Write your markdown here..."
-            class="w-full min-h-[calc(var(--dvh)-256px)] md:min-h-[calc(var(--dvh)-266px)] resize-none bg-transparent border-none focus:outline-none font-mono text-sm text-gray-900 dark:text-white p-4"
-            autofocus enterkeyhint="enter" inputmode="text"></textarea>
+          <MarkdownEditor v-model="editorContent"
+            class="min-h-[calc(var(--dvh)-256px)] md:min-h-[calc(var(--dvh)-266px)]"
+            placeholder="Write your markdown here..." autofocus />
         </div>
 
         <!-- Footer -->

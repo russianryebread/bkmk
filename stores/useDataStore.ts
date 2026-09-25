@@ -24,26 +24,6 @@ const SYNC_THROTTLE_MS = 60_000;
 // still flush once the throttle window elapses.
 let deferredSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
-// localStorage key for the incremental-sync watermark. Persisted so the
-// `since` filter survives page reloads; cleared/absent means a full pull.
-const LAST_PULL_KEY = "bkmk:lastPullAt";
-
-function readLastPull(): string | null {
-  try {
-    return localStorage.getItem(LAST_PULL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeLastPull(iso: string): void {
-  try {
-    localStorage.setItem(LAST_PULL_KEY, iso);
-  } catch {
-    // ignore (private mode / quota)
-  }
-}
-
 export const useDataStore = defineStore("data", () => {
   const idb = useIdb();
 
@@ -96,9 +76,10 @@ export const useDataStore = defineStore("data", () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Fetch latest from server and update IndexedDB
+    // The local snapshot is already usable. Reconcile with the server in the
+    // background; a failed/offline pull never blocks startup.
     if (isOnline.value) {
-      syncWithServer();
+      void syncWithServer();
     }
   }
 
@@ -180,10 +161,14 @@ export const useDataStore = defineStore("data", () => {
 
     try {
       // 1. Push local changes via batch API
-      await pushLocalChanges();
+      const pushed = await pushLocalChanges();
 
       // 2. Pull server data
       await pullServerData();
+
+      if (!pushed.allSucceeded) {
+        throw new Error("Some local changes are still waiting to sync");
+      }
 
       lastSyncTime.value = new Date();
       syncStatus.value = "success";
@@ -235,7 +220,7 @@ export const useDataStore = defineStore("data", () => {
 
     try {
       await batchFn(creates, updates, deletes);
-      for (const item of items) await idb.removeFromSyncQueue(item.id);
+      for (const item of items) await idb.removeSyncQueueItemIfUnchanged(item);
       return true;
     } catch (e) {
       console.warn(`[DataStore] Batch push failed for ${label}, falling back to individual pushes`, e);
@@ -245,11 +230,12 @@ export const useDataStore = defineStore("data", () => {
     for (const item of items) {
       try {
         await pushChange(item);
-        await idb.removeFromSyncQueue(item.id);
+        await idb.removeSyncQueueItemIfUnchanged(item);
       } catch (err) {
         allOk = false;
+        const expected = { ...item };
         item.retries++;
-        await idb.updateSyncQueueItem(item);
+        await idb.updateSyncQueueItemIfUnchanged(item, expected);
         console.warn(`[DataStore] Item kept in queue (retries=${item.retries}):`, item.entity, item.action, item.id);
       }
     }
@@ -371,32 +357,20 @@ export const useDataStore = defineStore("data", () => {
   async function pullServerData() {
     console.log("[DataStore] Pulling data from server...");
 
-    // Incremental sync: on the first ever pull there's no watermark, so we
-    // fetch everything. On subsequent pulls we pass `since` so the server
-    // returns only rows whose updatedAt is newer (including soft-deleted
-    // tombstones in that window). mergeGeneric keeps local copies of any
-    // unchanged rows the server omits.
-    const lastPull = readLastPull();
-    const sinceParam = lastPull ? `&since=${encodeURIComponent(lastPull)}` : "";
-
-    // Capture the watermark *before* issuing requests so changes that land
-    // mid-request are picked up by the next pull rather than skipped.
-    const pulledAt = new Date().toISOString();
-
     try {
       const [bookmarksRes, notesRes, tagsRes] = await Promise.allSettled([
-        $fetch<{ bookmarks: Bookmark[] }>(`/api/bookmarks?limit=1000&includeDeleted=true${sinceParam}`),
-        $fetch<{ notes: Note[] }>(`/api/notes?limit=1000&includeDeleted=true${sinceParam}`),
+        fetchAllPages<Bookmark>("/api/bookmarks", "bookmarks"),
+        fetchAllPages<Note>("/api/notes", "notes"),
         $fetch<{ tags: Tag[] }>("/api/tags"),
       ]);
 
-      if (bookmarksRes.status === "fulfilled" && bookmarksRes.value.bookmarks) {
-        const serverBookmarks = bookmarksRes.value.bookmarks;
+      if (bookmarksRes.status === "fulfilled") {
+        const serverBookmarks = bookmarksRes.value;
         await mergeBookmarks(serverBookmarks);
         console.log(`[DataStore] Synced ${serverBookmarks.length} bookmarks`);
       }
-      if (notesRes.status === "fulfilled" && notesRes.value.notes) {
-        const serverNotes = notesRes.value.notes;
+      if (notesRes.status === "fulfilled") {
+        const serverNotes = notesRes.value;
         await mergeNotes(serverNotes);
         console.log(`[DataStore] Synced ${serverNotes.length} notes`);
       }
@@ -407,14 +381,33 @@ export const useDataStore = defineStore("data", () => {
         console.log(`[DataStore] Synced ${serverTags.length} tags`);
       }
 
-      // Only advance the watermark if both incrementally-synced entities
-      // pulled successfully; otherwise a future pull must re-fetch the gap.
-      if (bookmarksRes.status === "fulfilled" && notesRes.status === "fulfilled") {
-        writeLastPull(pulledAt);
+      if ([bookmarksRes, notesRes, tagsRes].some(result => result.status === "rejected")) {
+        throw new Error("Could not finish downloading server changes");
       }
+
     } catch (e) {
-      console.warn("[DataStore] Partial server pull failed:", e);
+      console.warn("[DataStore] Server pull failed:", e);
+      throw e;
     }
+  }
+
+  // Fetch a complete snapshot. A single `limit=1000` request silently omitted
+  // later rows, while incremental watermarks were shared across accounts and
+  // could permanently skip writes that landed during a pull. Full pagination
+  // keeps counts stable and makes the server snapshot unambiguous.
+  async function fetchAllPages<T>(path: string, key: "bookmarks" | "notes"): Promise<T[]> {
+    type PageResponse = Partial<Record<"bookmarks" | "notes", T[]>> & { pagination?: { totalPages?: number } };
+    const fetchPage = (page: number) => $fetch<PageResponse>(
+      `${path}?limit=1000&includeDeleted=true&page=${page}`,
+    );
+    const first = await fetchPage(1);
+    const items = [...(first[key] || [])];
+    const totalPages = Math.max(1, first.pagination?.totalPages || 1);
+    for (let page = 2; page <= totalPages; page++) {
+      const result = await fetchPage(page);
+      items.push(...(result[key] || []));
+    }
+    return items;
   }
 
   type HasId = { id: string }
@@ -431,10 +424,14 @@ export const useDataStore = defineStore("data", () => {
     // optional: predicate identifying tombstones — items so flagged are excluded from merged
     // and their ids are reported in toDelete so callers can purge them locally
     isDeleted?: (item: T) => boolean
+    // On a complete server snapshot, preserve local-only rows only when a
+    // queued write explains why they have not reached the server yet.
+    preserveLocalIds?: Set<string>
+    omitIds?: Set<string>
   }
 
   function mergeGeneric<T extends HasId>(opts: MergeOptions<T>): { merged: T[]; toSave: T[]; toDelete: string[] } {
-    const { localList, serverList, tsFor, preferServer = true, shouldSave, isDeleted } = opts
+    const { localList, serverList, tsFor, preferServer = true, shouldSave, isDeleted, preserveLocalIds, omitIds } = opts
 
     const localMap = new Map(localList.map(i => [i.id, i]))
     const mergedMap = new Map<string, T>()
@@ -443,6 +440,10 @@ export const useDataStore = defineStore("data", () => {
 
     // Handle ids present on the server: choose newer between server and local
     for (const server of serverList) {
+      if (omitIds?.has(server.id)) {
+        toDelete.push(server.id)
+        continue
+      }
       const local = localMap.get(server.id)
       let chosen: T
       let pairLocal: T | undefined
@@ -453,7 +454,8 @@ export const useDataStore = defineStore("data", () => {
         pairLocal = local
         const serverTs = tsFor(server)
         const localTs = tsFor(local)
-        if (serverTs > localTs) chosen = { ...server }
+        if (preserveLocalIds?.has(server.id)) chosen = { ...local }
+        else if (serverTs > localTs) chosen = { ...server }
         else if (localTs > serverTs) chosen = { ...local }
         else chosen = preferServer ? { ...server } : { ...local }
       }
@@ -468,6 +470,10 @@ export const useDataStore = defineStore("data", () => {
     // Add local-only items
     for (const local of localList) {
       if (!mergedMap.has(local.id) && !toDelete.includes(local.id)) {
+        if (preserveLocalIds && !preserveLocalIds.has(local.id)) {
+          toDelete.push(local.id)
+          continue
+        }
         if (isDeleted && isDeleted(local)) {
           toDelete.push(local.id)
           continue
@@ -482,12 +488,17 @@ export const useDataStore = defineStore("data", () => {
   }
 
   async function mergeBookmarks(serverBookmarks: Bookmark[]) {
+    const queue = await idb.getSyncQueue()
+    const preserveLocalIds = new Set(queue.filter(q => q.entity === "bookmark" && q.action !== "delete").map(q => q.id))
+    const omitIds = new Set(queue.filter(q => q.entity === "bookmark" && q.action === "delete").map(q => q.id))
     const { merged, toSave, toDelete } = mergeGeneric<Bookmark>({
       localList: bookmarks.value,
       serverList: serverBookmarks,
       tsFor: b => Date.parse(b.updatedAt),
       preferServer: true,
       isDeleted: b => b.deletedAt != null,
+      preserveLocalIds,
+      omitIds,
       shouldSave: (finalItem, localItem, serverItem) => {
         return !!serverItem || !!(localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
       }
@@ -499,12 +510,17 @@ export const useDataStore = defineStore("data", () => {
   }
 
   async function mergeNotes(serverNotes: Note[]) {
+    const queue = await idb.getSyncQueue()
+    const preserveLocalIds = new Set(queue.filter(q => q.entity === "note" && q.action !== "delete").map(q => q.id))
+    const omitIds = new Set(queue.filter(q => q.entity === "note" && q.action === "delete").map(q => q.id))
     const { merged, toSave, toDelete } = mergeGeneric<Note>({
       localList: notes.value,
       serverList: serverNotes,
       tsFor: n => Date.parse(n.updatedAt),
       preferServer: true,
       isDeleted: n => n.deletedAt != null,
+      preserveLocalIds,
+      omitIds,
       shouldSave: (finalItem, localItem, serverItem) => {
         return !!serverItem || !!(localItem && Date.parse(localItem.updatedAt) > Date.parse(finalItem.updatedAt))
       }
@@ -521,17 +537,23 @@ export const useDataStore = defineStore("data", () => {
     // from being silently clobbered by the next pull before the queue has flushed. Once the
     // server schema gains `tags.updated_at`, switch this back to `preferServer: true` and merge
     // on `updatedAt`.
-    const { merged, toSave } = mergeGeneric<Tag>({
+    const queue = await idb.getSyncQueue()
+    const preserveLocalIds = new Set(queue.filter(q => q.entity === "tag" && q.action !== "delete").map(q => q.id))
+    const omitIds = new Set(queue.filter(q => q.entity === "tag" && q.action === "delete").map(q => q.id))
+    const { merged, toSave, toDelete } = mergeGeneric<Tag>({
       localList: tags.value,
       serverList: serverTags,
       tsFor: t => Date.parse(t.createdAt),
       preferServer: false,
+      preserveLocalIds,
+      omitIds,
       shouldSave: (finalItem, localItem, serverItem) => {
         return !!serverItem || !!(localItem && Date.parse(localItem.createdAt) > Date.parse(finalItem.createdAt))
       }
     })
 
     if (toSave.length > 0) await idb.saveTags(toSave)
+    for (const id of toDelete) await idb.deleteTag(id)
     tags.value = merged
   }
 
@@ -542,11 +564,26 @@ export const useDataStore = defineStore("data", () => {
     id: string,
     data?: unknown,
   ) {
+    const existing = (await idb.getSyncQueue()).find(item => item.id === id && item.entity === entity);
+    if (existing?.action === "create" && action === "delete" && !syncInProgress) {
+      await idb.removeSyncQueueItemIfUnchanged(existing);
+      await refreshPendingCount();
+      return;
+    }
+
+    let effectiveAction = action;
+    let effectiveData = data;
+    if (existing?.action === "create" && action === "update") {
+      effectiveAction = "create";
+      effectiveData = { ...(existing.data as object), ...(data as object) };
+    } else if (existing?.action === "update" && action === "update") {
+      effectiveData = { ...(existing.data as object), ...(data as object) };
+    }
     const item = {
       id,
-      action,
+      action: effectiveAction,
       entity,
-      data: data || `${entity}-${action}-${id}-${Date.now()}`,
+      data: effectiveData || `${entity}-${effectiveAction}-${id}-${Date.now()}`,
       timestamp: Date.now(),
     };
 
@@ -561,16 +598,69 @@ export const useDataStore = defineStore("data", () => {
 
   // ==================== BOOKMARK OPERATIONS ====================
   async function createBookmark(url: string): Promise<Bookmark | null> {
-    const response = await $fetch<Bookmark>("/api/scrape", {
-      method: "POST",
-      body: { url },
-    });
+    const normalizedUrl = url.trim();
+    if (!normalizedUrl) return null;
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(normalizedUrl);
+      if (!/^https?:$/.test(parsedUrl.protocol)) return null;
+    } catch {
+      return null;
+    }
+    const now = new Date().toISOString();
+    const bookmark: Bookmark = {
+      id: crypto.randomUUID(),
+      title: parsedUrl.hostname,
+      url: parsedUrl.toString(),
+      description: null,
+      cleanedMarkdown: null,
+      readingTimeMinutes: null,
+      savedAt: now,
+      isFavorite: false,
+      thumbnailImagePath: null,
+      isRead: false,
+      readAt: null,
+      sourceDomain: parsedUrl.hostname,
+      wordCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      tags: [],
+    };
 
-    // Add to local state and IndexedDB immediately
-    bookmarks.value.push(response);
-    await idb.saveBookmark(response);
+    // Persist first so adding a URL works without a network connection. The
+    // batch endpoint preserves this id, making retries safe and idempotent.
+    bookmarks.value.unshift(bookmark);
+    await idb.saveBookmark(bookmark);
 
-    return response;
+    // Keep the existing rich scrape experience when connected. The temporary
+    // local item is visible immediately; only fall back to queued sync if the
+    // scrape request itself cannot reach the server.
+    if (isOnline.value) {
+      try {
+        const scraped = await $fetch<Bookmark>("/api/scrape", {
+          method: "POST",
+          body: { url: bookmark.url },
+        });
+        bookmarks.value = bookmarks.value.map(item => item.id === bookmark.id ? scraped : item);
+        await idb.deleteBookmark(bookmark.id);
+        await idb.saveBookmark(scraped);
+        return scraped;
+      } catch (error: any) {
+        // A rejected URL or a known duplicate is not an offline condition.
+        // Roll back the provisional local item so it does not return on reload.
+        const status = error?.statusCode ?? error?.status;
+        if (status === 400 || status === 409 || status === 413) {
+          bookmarks.value = bookmarks.value.filter(item => item.id !== bookmark.id);
+          await idb.deleteBookmark(bookmark.id);
+          throw error;
+        }
+        console.warn("[DataStore] Scrape unavailable; keeping URL queued for sync", error);
+      }
+    }
+
+    await queueChange("bookmark", "create", bookmark.id, bookmark);
+    return bookmark;
   }
 
   async function updateBookmark(id: string, updates: Partial<Bookmark>): Promise<boolean> {

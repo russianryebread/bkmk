@@ -4,6 +4,7 @@ import Textual
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
     @StateObject private var apiManager = APIManager.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     // Track which tab is currently selected
     @State private var selectedTab = 0
@@ -17,10 +18,12 @@ struct ContentView: View {
                     NavigationStack {
                         BookmarksListView(
                             bookmarks: apiManager.bookmarks,
+                            pendingSharedURLs: apiManager.pendingSharedURLs,
                             isLoading: apiManager.isLoading,
                             onRefresh: { await refreshBookmarks() },
                             onDelete: { bookmark in await deleteBookmark(bookmark) },
-                            onToggleFavorite: { bookmark in await favoriteBookmark(bookmark) }
+                            onToggleFavorite: { bookmark in await favoriteBookmark(bookmark) },
+                            onEdit: { bookmark, title, url in await editBookmark(bookmark, title: title, url: url) }
                         )
                         .navigationTitle("Bookmarks")
                     }
@@ -36,7 +39,8 @@ struct ContentView: View {
                             isLoading: apiManager.isLoading,
                             onRefresh: { await refreshNotes() },
                             onDelete: { note in await deleteNote(note) },
-                            onToggleFavorite: { note in await favoriteNote(note) }
+                            onToggleFavorite: { note in await favoriteNote(note) },
+                            onEdit: { note, content in await editNote(note, content: content) }
                         )
                         .navigationTitle("Notes")
                     }
@@ -53,6 +57,13 @@ struct ContentView: View {
             if authManager.isLoggedIn {
                 await refreshBookmarks()
                 await refreshNotes()
+            }
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            apiManager.refreshPendingSharedURLs()
+            if authManager.isLoggedIn {
+                Task { await refreshBookmarks() }
             }
         }
         
@@ -98,6 +109,16 @@ struct ContentView: View {
     private func favoriteNote(_ note: Note) async {
         guard let token = authManager.getToken() else { return }
         _ = await apiManager.favoriteNote(id: note.id, token: token)
+    }
+
+    private func editBookmark(_ bookmark: Bookmark, title: String, url: String) async -> Bool {
+        guard let token = authManager.getToken() else { return false }
+        return await apiManager.updateBookmark(id: bookmark.id, title: title, url: url, token: token)
+    }
+
+    private func editNote(_ note: Note, content: String) async -> Bool {
+        guard let token = authManager.getToken() else { return false }
+        return await apiManager.updateNote(id: note.id, content: content, token: token)
     }
 }
 

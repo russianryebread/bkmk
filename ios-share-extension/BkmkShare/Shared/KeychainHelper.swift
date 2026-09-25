@@ -5,8 +5,10 @@ import Security
 /// Uses shared access group for app + extension
 class KeychainHelper {
     static let shared = KeychainHelper()
-    
-    private let accessGroup = "$(AppIdentifierPrefix)com.bkmk.share"
+
+    // A registered App Group is itself a shared Keychain group on iOS.
+    // Keeping this identifier also lets existing sessions upgrade in place.
+    private let keychainAccessGroup = AppConfig.appGroupIdentifier
     
     private init() {}
     
@@ -17,16 +19,13 @@ class KeychainHelper {
         // Delete existing token first
         deleteToken()
         
-        // Create access group for sharing between app and extension
-        let accessGroup = "group.com.bkmk.share"
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
             kSecAttrAccount as String: "api_token",
-            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrAccessGroup as String: keychainAccessGroup,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
         
         let status = SecItemAdd(query as CFDictionary, nil)
@@ -37,13 +36,11 @@ class KeychainHelper {
     
     /// Get token from Keychain
     func getToken() -> String? {
-        let accessGroup = "group.com.bkmk.share"
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
             kSecAttrAccount as String: "api_token",
-            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrAccessGroup as String: keychainAccessGroup,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -62,13 +59,11 @@ class KeychainHelper {
     
     /// Delete token from Keychain
     func deleteToken() {
-        let accessGroup = "group.com.bkmk.share"
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: AppConfig.keychainService,
             kSecAttrAccount as String: "api_token",
-            kSecAttrAccessGroup as String: accessGroup
+            kSecAttrAccessGroup as String: keychainAccessGroup
         ]
         
         SecItemDelete(query as CFDictionary)

@@ -410,6 +410,31 @@ export function useIdb() {
     })
   }
 
+  // Remove a queued operation only if it is still the exact operation that
+  // was sent. A local edit can replace the queue row while a request is in
+  // flight; deleting by id alone loses that newer edit.
+  async function removeSyncQueueItemIfUnchanged(item: SyncQueueItem): Promise<boolean> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
+      const store = tx.objectStore(SYNC_QUEUE_STORE)
+      const request = store.get(item.id)
+      let removed = false
+      request.onsuccess = () => {
+        const current = request.result as SyncQueueItem | undefined
+        if (
+          current && current.timestamp === item.timestamp && current.action === item.action &&
+          current.entity === item.entity && JSON.stringify(current.data) === JSON.stringify(item.data)
+        ) {
+          store.delete(item.id)
+          removed = true
+        }
+      }
+      tx.oncomplete = () => resolve(removed)
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+
   async function updateSyncQueueItem(item: SyncQueueItem): Promise<void> {
     const db = await openDatabase()
     return new Promise((resolve, reject) => {
@@ -419,6 +444,28 @@ export function useIdb() {
 
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function updateSyncQueueItemIfUnchanged(item: SyncQueueItem, expected: SyncQueueItem): Promise<boolean> {
+    const db = await openDatabase()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SYNC_QUEUE_STORE, 'readwrite')
+      const store = tx.objectStore(SYNC_QUEUE_STORE)
+      const request = store.get(expected.id)
+      let updated = false
+      request.onsuccess = () => {
+        const current = request.result as SyncQueueItem | undefined
+        if (
+          current && current.timestamp === expected.timestamp && current.action === expected.action &&
+          current.entity === expected.entity && JSON.stringify(current.data) === JSON.stringify(expected.data)
+        ) {
+          store.put(toPlain(item))
+          updated = true
+        }
+      }
+      tx.oncomplete = () => resolve(updated)
+      tx.onerror = () => reject(tx.error)
     })
   }
 
@@ -445,6 +492,8 @@ export function useIdb() {
     addToSyncQueue,
     getSyncQueue,
     removeFromSyncQueue,
+    removeSyncQueueItemIfUnchanged,
     updateSyncQueueItem,
+    updateSyncQueueItemIfUnchanged,
   }
 }

@@ -9,6 +9,7 @@ struct NotesListView: View {
     let onRefresh: () async -> Void
     let onDelete: (Note) async -> Void
     let onToggleFavorite: (Note) async -> Void
+    let onEdit: (Note, String) async -> Bool
     
     var body: some View {
         Group {
@@ -19,7 +20,7 @@ struct NotesListView: View {
             } else {
                 List {
                     ForEach(notes) { note in
-                        NavigationLink(destination: NoteView(note: note)) {
+                        NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note, content) })) {
                             NoteRow(note: note)
                         }
                         .swipeActions(edge: .trailing) {
@@ -77,7 +78,20 @@ struct EmptyNotesView: View {
 
 // MARK: - Reader View
 struct NoteView: View {
-    let note: Note
+    @State private var note: Note
+    let onEdit: (String) async -> Bool
+    @State private var isEditing = false
+
+    init(note: Note, onEdit: @escaping (String) async -> Bool) {
+        _note = State(initialValue: note)
+        self.onEdit = onEdit
+    }
+
+    private func saveContent(_ content: String) async -> Bool {
+        let saved = await onEdit(content)
+        if saved { note.content = content }
+        return saved
+    }
     
     var body: some View {
         ScrollView {
@@ -100,6 +114,54 @@ struct NoteView: View {
             .padding(24)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Edit") { isEditing = true }
+            }
+        }
+        .sheet(isPresented: $isEditing) {
+            NoteEditorView(note: note, onSave: saveContent)
+        }
+    }
+}
+
+private struct NoteEditorView: View {
+    let note: Note
+    let onSave: (String) async -> Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var content: String
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    init(note: Note, onSave: @escaping (String) async -> Bool) {
+        self.note = note
+        self.onSave = onSave
+        _content = State(initialValue: note.content)
+    }
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $content)
+                .font(.system(.body, design: .serif))
+                .padding(8)
+                .navigationTitle("Edit Note")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(isSaving ? "Saving…" : "Save") {
+                            Task {
+                                isSaving = true
+                                if await onSave(content) { dismiss() }
+                                else { errorMessage = "Could not save note. Try again when online." }
+                                isSaving = false
+                            }
+                        }.disabled(isSaving || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .alert("Save failed", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+                    Button("OK", role: .cancel) { errorMessage = nil }
+                } message: { Text(errorMessage ?? "") }
+        }
     }
 }
 

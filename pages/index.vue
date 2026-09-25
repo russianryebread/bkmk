@@ -77,6 +77,13 @@
             </svg>
           </button>
         </div>
+        <button
+          v-if="canAddUrl"
+          class="btn-primary mt-3"
+          :disabled="addingUrl"
+          @click="addSearchedUrl"
+        >{{ addingUrl ? 'Adding...' : 'Add URL' }}</button>
+        <p v-if="addUrlError" role="alert" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ addUrlError }}</p>
 
         <!-- Keyboard hints -->
         <div class="flex gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -167,9 +174,6 @@
         </svg>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-1">No results found</h3>
         <p class="text-gray-500 dark:text-gray-400 mb-4">Try a different search term</p>
-        <button v-if="isUrl(searchQuery)" @click="scrapeUrl" class="btn-primary">
-          Add this URL as bookmark
-        </button>
       </div>
 
       <!-- Quick Links -->
@@ -219,25 +223,27 @@
 <script setup lang="ts">
 import { formatDate } from '~/utils/date'
 import { deriveTitle } from '~/composables/idb'
+import { useDataStore } from '~/stores/useDataStore'
 
 const router = useRouter()
+const dataStore = useDataStore()
 const { getTagColor, fetchTags } = useTagSystem()
-const { getAllBookmarks } = useIdb()
-const { getAllNotes } = useIdb()
-const { getAllTags } = useIdb()
+const { getAllBookmarks, getAllNotes } = useIdb()
 
-// Stats
-const stats = ref({
-  totalBookmarks: 0,
-  unreadBookmarks: 0,
-  totalNotes: 0,
-  totalTags: 0,
-})
+// All dashboard counts come from the same local state as the lists.
+const stats = computed(() => ({
+  totalBookmarks: dataStore.bookmarks.filter(b => !b.deletedAt).length,
+  unreadBookmarks: dataStore.bookmarks.filter(b => !b.deletedAt && !b.isRead).length,
+  totalNotes: dataStore.notes.filter(n => !n.deletedAt).length,
+  totalTags: dataStore.tags.length,
+}))
 
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const selectedIndex = ref(0)
 const searching = ref(false)
+const addingUrl = ref(false)
+const addUrlError = ref('')
 
 // Search results (combined bookmarks and notes)
 interface SearchResult {
@@ -255,64 +261,36 @@ interface SearchResult {
 const searchResults = ref<SearchResult[]>([])
 
 // Check if query is a URL
-function isUrl(query: string): boolean {
+function parseUrl(query: string): string | null {
   try {
     const url = new URL(query)
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null
   } catch {
-    return false
+    return null
   }
 }
 
-// Fetch stats from IndexedDB (local-first)
-async function fetchStats() {
-  try {
-    const [bookmarks, notes, tags] = await Promise.all([
-      getAllBookmarks(),
-      getAllNotes(),
-      getAllTags(),
-    ])
+const searchedUrl = computed(() => parseUrl(searchQuery.value.trim()))
+const canAddUrl = computed(() => Boolean(
+  searchedUrl.value && !dataStore.bookmarks.some(bookmark =>
+    !bookmark.deletedAt && bookmark.url === searchedUrl.value
+  )
+))
 
-    stats.value = {
-      totalBookmarks: bookmarks.length,
-      unreadBookmarks: bookmarks.filter(b => !b.isRead).length,
-      totalNotes: notes.length,
-      totalTags: tags.length,
-    }
-
-    // Also try to refresh from server in background
-    refreshStatsFromServer()
-  } catch (e) {
-    console.error('Failed to fetch stats:', e)
-  }
-}
-
-// Refresh stats from server (background, non-blocking)
-async function refreshStatsFromServer(): Promise<void> {
-  try {
-    const response = await $fetch<typeof stats.value>('/api/stats')
-    stats.value = response
-    console.log('[Dashboard] Stats refreshed from server')
-  } catch (e) {
-    // Silently fail - we have local stats
-  }
-}
-
-// Scrape URL from search
-async function scrapeUrl() {
-  const query = searchQuery.value.trim()
-  if (!isUrl(query)) return
+// Save the exact URL in the search box with one click.
+async function addSearchedUrl() {
+  const url = searchedUrl.value
+  if (!url || !canAddUrl.value || addingUrl.value) return
 
   try {
-    searching.value = true
-    const response = await $fetch<{ id: string }>('/api/scrape', {
-      method: 'POST',
-      body: { url: query },
-    })
-    router.push(`/bookmarks/${response.id}`)
-  } catch (e) {
-    console.error('Failed to scrape URL:', e)
-    searching.value = false
+    addingUrl.value = true
+    addUrlError.value = ''
+    const bookmark = await dataStore.createBookmark(url)
+    if (bookmark) router.push(`/bookmarks/${bookmark.id}`)
+  } catch (e: any) {
+    addUrlError.value = e.data?.message || e.message || 'Failed to add URL'
+  } finally {
+    addingUrl.value = false
   }
 }
 
@@ -384,8 +362,6 @@ function handleSearch() {
       // Interleave results (bookmarks first, then notes)
       searchResults.value = [...bookmarkResults, ...noteResults]
 
-      // Also refresh from server in background for completeness
-      refreshSearchFromServer(query)
     } catch (e) {
       console.error('Search failed:', e)
       searchResults.value = []
@@ -395,50 +371,18 @@ function handleSearch() {
   }, 150) // Faster debounce since we're local
 }
 
-// Refresh search from server (background, non-blocking)
-async function refreshSearchFromServer(query: string): Promise<void> {
-  try {
-    const encodedQuery = encodeURIComponent(query)
-
-    const [bookmarkResponse, notesResponse] = await Promise.all([
-      $fetch<{ bookmarks: any[] }>(`/api/bookmarks/search?q=${encodedQuery}&limit=10`),
-      $fetch<{ notes: any[] }>(`/api/notes/search?q=${encodedQuery}&limit=10`)
-    ])
-
-    // Transform and combine results
-    const bookmarkResults: SearchResult[] = bookmarkResponse.bookmarks.map(b => ({
-      id: b.id,
-      type: 'bookmark' as const,
-      title: b.title,
-      description: b.description,
-      source_domain: b.source_domain,
-      tags: b.tags,
-      is_read: b.is_read,
-      url: b.url,
-      updated_at: b.updated_at,
-    }))
-
-    const noteResults: SearchResult[] = notesResponse.notes.map(n => ({
-      id: n.id,
-      type: 'note' as const,
-      title: n.content ? n.content.split('\n')[0].trim().substring(0, 100) || 'Untitled' : 'Untitled',
-      description: n.content ? n.content.substring(0, 150) + (n.content.length > 150 ? '...' : '') : null,
-      updated_at: n.updated_at,
-    }))
-
-    // Update results if server has more/different results
-    const combinedResults = [...bookmarkResults, ...noteResults]
-    if (combinedResults.length > 0) {
-      searchResults.value = combinedResults
-    }
-  } catch (e) {
-    // Silently fail - we have local results
-  }
-}
-
 // Keyboard navigation
 function handleKeydown(e: KeyboardEvent) {
-  if (!searchResults.value.length) return
+  if (!searchResults.value.length) {
+    if (e.key === 'Enter' && canAddUrl.value) {
+      e.preventDefault()
+      void addSearchedUrl()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      clearSearch()
+    }
+    return
+  }
 
   switch (e.key) {
     case 'ArrowDown':
@@ -498,7 +442,6 @@ function openResult(result: SearchResult) {
 
 // Global keyboard shortcut to focus search
 onMounted(() => {
-  fetchStats()
   fetchTags()
 
   // Auto-focus search on page load

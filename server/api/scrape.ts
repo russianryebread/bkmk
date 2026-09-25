@@ -294,9 +294,9 @@ export default defineEventHandler(async (event) => {
       description: scraped.description,
       // originalHtml: scraped.html, // Let's not store the original HTML.
       cleanedMarkdown: scraped.markdown,
-      readingTimeMinutes: scraped.readingTimeMinutes,
+      readingTimeMinutes: scraped.isReadable ? scraped.readingTimeMinutes : null,
       sourceDomain: sourceDomain,
-      wordCount: scraped.wordCount,
+      wordCount: scraped.isReadable ? scraped.wordCount : null,
       savedAt: now,
       createdAt: now,
       updatedAt: now,
@@ -307,7 +307,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Process images - use originalHtml which has the real image URLs (before cheerio modified them)
-  const imageUrls = extractImageUrls(scraped.originalHtml || '', url)
+  const imageUrls = scraped.isReadable ? extractImageUrls(scraped.originalHtml || '', url) : []
   const imageMap = new Map<string, string>() // originalUrl -> localId
 
   console.log('[Scrape] Found', imageUrls.length, 'images to process')
