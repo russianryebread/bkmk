@@ -11,10 +11,11 @@ struct BookmarksListView: View {
     let onRefresh: () async -> Void
     let onDelete: (Bookmark) async -> Void
     let onToggleFavorite: (Bookmark) async -> Void
-    let onEdit: (Bookmark, String, String) async -> Bool
+    let onEdit: (Bookmark, String, String, String) async -> Bool
     @State private var searchText = ""
     @State private var favoritesOnly = false
     @State private var selectedTag: String?
+    @State private var bookmarkToDelete: Bookmark?
 
     private var availableTags: [String] {
         Array(Set(bookmarks.flatMap { $0.tags ?? [] }))
@@ -34,55 +35,92 @@ struct BookmarksListView: View {
     }
     
     var body: some View {
-        Group {
-            if isLoading && bookmarks.isEmpty {
-                ProgressView("Loading...")
-            } else if bookmarks.isEmpty && pendingSharedURLs.isEmpty {
-                EmptyBookmarksView()
-            } else {
-                List {
-                    if !pendingSharedURLs.isEmpty {
-                        Section("Waiting to sync") {
-                            ForEach(pendingSharedURLs) { item in
-                                PendingSharedURLRow(item: item)
-                            }
-                        }
-                    }
-                    ForEach(filteredBookmarks) { bookmark in
-                        NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url in await onEdit(bookmark, title, url) })) {
-                            BookmarkRow(bookmark: bookmark)
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await onDelete(bookmark) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button {
-                                Task { await onToggleFavorite(bookmark) }
-                            } label: {
-                                Label(
-                                    bookmark.isFavorite == true ? "Unfavorite" : "Favorite",
-                                    systemImage: bookmark.isFavorite == true ? "star.slash" : "star"
-                                )
-                            }
-                            .tint(.yellow)
-                        }
-                    }
-                    if filteredBookmarks.isEmpty {
-                        Text("No bookmarks match your search or filters")
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search bookmarks", text: $searchText)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityLabel("Clear search")
                 }
-                .listStyle(.plain)
-                .refreshable {
-                    await onRefresh()
+            }
+            .padding(10)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            if !searchText.isEmpty || favoritesOnly || selectedTag != nil {
+                HStack {
+                    if favoritesOnly { Text("Favorites") }
+                    if let selectedTag { Text(selectedTag) }
+                    Spacer()
+                    Button("Clear filters") {
+                        searchText = ""
+                        favoritesOnly = false
+                        selectedTag = nil
+                    }
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+            }
+
+            Group {
+                if isLoading && bookmarks.isEmpty {
+                    ProgressView("Loading...")
+                } else if bookmarks.isEmpty && pendingSharedURLs.isEmpty {
+                    EmptyBookmarksView()
+                } else {
+                    List {
+                        if !pendingSharedURLs.isEmpty {
+                            Section("Waiting to sync") {
+                                ForEach(pendingSharedURLs) { item in
+                                    PendingSharedURLRow(item: item)
+                                }
+                            }
+                        }
+                        ForEach(filteredBookmarks) { bookmark in
+                            NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url, description in await onEdit(bookmark, title, url, description) })) {
+                                BookmarkRow(bookmark: bookmark)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    bookmarkToDelete = bookmark
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    Task { await onToggleFavorite(bookmark) }
+                                } label: {
+                                    Label(
+                                        bookmark.isFavorite == true ? "Unfavorite" : "Favorite",
+                                        systemImage: bookmark.isFavorite == true ? "star.slash" : "star"
+                                    )
+                                }
+                                .tint(.yellow)
+                            }
+                        }
+                        if filteredBookmarks.isEmpty {
+                            Text("No bookmarks match your search or filters")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .refreshable {
+                        await onRefresh()
+                    }
                 }
             }
         }
-        .searchable(text: $searchText, prompt: "Search bookmarks")
         .navigationTitle("Bookmarks")
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -93,6 +131,19 @@ struct BookmarksListView: View {
                     Image(systemName: "arrow.clockwise")
                 }
             }
+        }
+        .alert("Delete bookmark?", isPresented: Binding(
+            get: { bookmarkToDelete != nil },
+            set: { if !$0 { bookmarkToDelete = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                guard let bookmark = bookmarkToDelete else { return }
+                bookmarkToDelete = nil
+                Task { await onDelete(bookmark) }
+            }
+            Button("Cancel", role: .cancel) { bookmarkToDelete = nil }
+        } message: {
+            Text("This bookmark will be deleted and synced when online.")
         }
     }
 }
@@ -150,22 +201,23 @@ struct EmptyBookmarksView: View {
 // MARK: - Reader View
 struct ReaderView: View {
     @State private var bookmark: Bookmark
-    let onEdit: (String, String) async -> Bool
+    let onEdit: (String, String, String) async -> Bool
     @State private var isEditing = false
     @State private var isPlayingVideo = false
 
     private var youtubeVideo: YouTubeVideo? { YouTubeVideo(url: bookmark.url) }
 
-    init(bookmark: Bookmark, onEdit: @escaping (String, String) async -> Bool) {
+    init(bookmark: Bookmark, onEdit: @escaping (String, String, String) async -> Bool) {
         _bookmark = State(initialValue: bookmark)
         self.onEdit = onEdit
     }
 
-    private func saveBookmark(title: String, url: String) async -> Bool {
-        let saved = await onEdit(title, url)
+    private func saveBookmark(title: String, url: String, description: String) async -> Bool {
+        let saved = await onEdit(title, url, description)
         if saved {
             bookmark.title = title
             bookmark.url = url
+            bookmark.description = description
         }
         return saved
     }
@@ -227,22 +279,14 @@ struct ReaderView: View {
                 }
                 
                 // Content Section
-                if youtubeVideo != nil, let description = bookmark.description, !description.isEmpty {
+                if let description = bookmark.description, !description.isEmpty {
                     Text(description)
                         .font(.system(.body, design: .serif))
                         .foregroundColor(.secondary)
-                } else if youtubeVideo == nil, let content = bookmark.cleanedMarkdown {
-                    StructuredText(markdown: content)
-                        .fontDesign(.serif)
-                        .textSelection(.enabled)
-                        .imageScale(.large)
+                }
+                if youtubeVideo == nil, let content = bookmark.cleanedMarkdown {
+                    MarkdownReader(markdown: content)
                 } else if youtubeVideo == nil {
-                    if let description = bookmark.description {
-                        Text(description)
-                            .font(.system(.body, design: .serif))
-                            .lineSpacing(6)
-                    }
-                    
                     Divider()
                     
                     HStack {
@@ -357,10 +401,11 @@ struct ListFilterMenu: View {
 }
 
 private struct BookmarkEditorView: View {
-    let onSave: (String, String) async -> Bool
+    let onSave: (String, String, String) async -> Bool
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
     @State private var url: String
+    @State private var description: String
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -372,10 +417,11 @@ private struct BookmarkEditorView: View {
         return true
     }
 
-    init(bookmark: Bookmark, onSave: @escaping (String, String) async -> Bool) {
+    init(bookmark: Bookmark, onSave: @escaping (String, String, String) async -> Bool) {
         self.onSave = onSave
         _title = State(initialValue: bookmark.title)
         _url = State(initialValue: bookmark.url)
+        _description = State(initialValue: bookmark.description ?? "")
     }
 
     var body: some View {
@@ -383,16 +429,20 @@ private struct BookmarkEditorView: View {
             Form {
                 TextField("Title", text: $title)
                 TextField("URL", text: $url).textInputAutocapitalization(.never).keyboardType(.URL)
+                Section("Description") {
+                    TextEditor(text: $description)
+                        .frame(minHeight: 120)
+                }
             }
-            .navigationTitle("Edit URL")
+            .navigationTitle("Edit Bookmark")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? "Saving…" : "Save") {
                         Task {
                             isSaving = true
-                            if await onSave(title, url) { dismiss() }
-                            else { errorMessage = "Could not save URL. Check the URL and try again when online." }
+                            if await onSave(title, url, description) { dismiss() }
+                            else { errorMessage = "Could not save bookmark. Check the URL and try again when online." }
                             isSaving = false
                         }
                     }.disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isValidWebURL)

@@ -2,6 +2,67 @@ import SwiftUI
 import Textual
 import UIKit
 
+struct MarkdownReader: View {
+    @EnvironmentObject private var authManager: AuthManager
+    let markdown: String
+
+    private var baseURL: URL {
+        URL(string: AppConfig.apiBaseURL)!.deletingLastPathComponent()
+    }
+
+    var body: some View {
+        StructuredText(markdown: markdown, baseURL: baseURL)
+            .textual.imageAttachmentLoader(AuthenticatedImageLoader(baseURL: baseURL, token: authManager.getToken()))
+            .fontDesign(.serif)
+            .textSelection(.enabled)
+            .imageScale(.large)
+    }
+}
+
+private struct AuthenticatedImageLoader: AttachmentLoader {
+    let baseURL: URL
+    let token: String?
+
+    func attachment(for url: URL, text: String, environment: ColorEnvironmentValues) async throws -> NativeImageAttachment {
+        guard let imageURL = URL(string: url.absoluteString, relativeTo: baseURL)?.absoluteURL,
+              ["http", "https"].contains(imageURL.scheme?.lowercased() ?? "") else {
+            throw URLError(.unsupportedURL)
+        }
+        var request = URLRequest(url: imageURL)
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+        if imageURL.host?.lowercased() == baseURL.host?.lowercased(),
+           imageURL.path.hasPrefix("/api/images/"), let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let response = response as? HTTPURLResponse, !(200...299).contains(response.statusCode) {
+            throw URLError(.badServerResponse)
+        }
+        guard let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        return NativeImageAttachment(data: data, text: text, imageSize: image.size)
+    }
+}
+
+private struct NativeImageAttachment: Textual.Attachment {
+    let data: Data
+    let text: String
+    let imageSize: CGSize
+
+    var description: String { text }
+
+    var body: some View {
+        Image(uiImage: UIImage(data: data) ?? UIImage())
+            .resizable()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, in environment: TextEnvironmentValues) -> CGSize {
+        let width = min(proposal.width ?? imageSize.width, imageSize.width)
+        return CGSize(width: width, height: width * imageSize.height / imageSize.width)
+    }
+}
+
 
 // MARK: - Notes List View
 struct NotesListView: View {
@@ -14,6 +75,7 @@ struct NotesListView: View {
     @State private var searchText = ""
     @State private var favoritesOnly = false
     @State private var selectedTag: String?
+    @State private var noteToDelete: Note?
 
     private var availableTags: [String] {
         Array(Set(notes.flatMap { $0.tags ?? [] }))
@@ -45,7 +107,7 @@ struct NotesListView: View {
                         }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
-                                Task { await onDelete(note) }
+                                noteToDelete = note
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -85,6 +147,19 @@ struct NotesListView: View {
                 }
             }
         }
+        .alert("Delete note?", isPresented: Binding(
+            get: { noteToDelete != nil },
+            set: { if !$0 { noteToDelete = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                guard let note = noteToDelete else { return }
+                noteToDelete = nil
+                Task { await onDelete(note) }
+            }
+            Button("Cancel", role: .cancel) { noteToDelete = nil }
+        } message: {
+            Text("This note will be deleted and synced when online.")
+        }
     }
 }
 
@@ -122,10 +197,7 @@ struct NoteView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                StructuredText(markdown: note.content)
-                    .fontDesign(.serif)
-                    .textSelection(.enabled)
-                    .imageScale(.large)
+                MarkdownReader(markdown: note.content)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)

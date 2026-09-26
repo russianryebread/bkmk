@@ -22,7 +22,7 @@ struct ContentView: View {
                             onRefresh: { await refreshBookmarks() },
                             onDelete: { bookmark in await deleteBookmark(bookmark) },
                             onToggleFavorite: { bookmark in await favoriteBookmark(bookmark) },
-                            onEdit: { bookmark, title, url in await editBookmark(bookmark, title: title, url: url) }
+                            onEdit: { bookmark, title, url, description in await editBookmark(bookmark, title: title, url: url, description: description) }
                         )
                         .navigationTitle("Bookmarks")
                     }
@@ -132,9 +132,9 @@ struct ContentView: View {
         _ = await apiManager.favoriteNote(id: note.id, token: token)
     }
 
-    private func editBookmark(_ bookmark: Bookmark, title: String, url: String) async -> Bool {
+    private func editBookmark(_ bookmark: Bookmark, title: String, url: String, description: String) async -> Bool {
         guard let token = authManager.getToken() else { return false }
-        return await apiManager.updateBookmark(id: bookmark.id, title: title, url: url, token: token)
+        return await apiManager.updateBookmark(id: bookmark.id, title: title, url: url, description: description, token: token)
     }
 
     private func editNote(_ note: Note, content: String) async -> Bool {

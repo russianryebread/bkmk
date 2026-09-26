@@ -12,6 +12,7 @@ private struct PendingNativeEdit: Codable {
     var content: String?
     var title: String?
     var url: String?
+    var description: String? = nil
     var isFavorite: Bool?
 }
 
@@ -89,6 +90,7 @@ class APIManager: ObservableObject {
                 content: edit.content ?? existing.content,
                 title: edit.title ?? existing.title,
                 url: edit.url ?? existing.url,
+                description: edit.description ?? existing.description,
                 isFavorite: edit.isFavorite ?? existing.isFavorite
             )
         } else {
@@ -113,6 +115,7 @@ class APIManager: ObservableObject {
                     var values: [String: Any] = [:]
                     if let title = edit.title { values["title"] = title }
                     if let url = edit.url { values["url"] = url }
+                    if let description = edit.description { values["description"] = description }
                     if let isFavorite = edit.isFavorite { values["isFavorite"] = isFavorite }
                     body = values
                 }
@@ -141,6 +144,7 @@ class APIManager: ObservableObject {
                 else {
                     if let title = edit.title { bookmarks[index].title = title }
                     if let url = edit.url { bookmarks[index].url = url }
+                    if let description = edit.description { bookmarks[index].description = description }
                     if let isFavorite = edit.isFavorite { bookmarks[index].isFavorite = isFavorite }
                 }
             } else if edit.kind == "note", let index = notes.firstIndex(where: { $0.id == edit.id }) {
@@ -229,11 +233,12 @@ class APIManager: ObservableObject {
         return true
     }
 
-    func updateBookmark(id: String, title: String, url: String, token: String) async -> Bool {
+    func updateBookmark(id: String, title: String, url: String, description: String, token: String) async -> Bool {
         guard let index = bookmarks.firstIndex(where: { $0.id == id }) else { return false }
         bookmarks[index].title = title
         bookmarks[index].url = url
-        queueEdit(PendingNativeEdit(id: id, kind: "bookmark", operation: "edit", content: nil, title: title, url: url, isFavorite: nil))
+        bookmarks[index].description = description
+        queueEdit(PendingNativeEdit(id: id, kind: "bookmark", operation: "edit", content: nil, title: title, url: url, description: description, isFavorite: nil))
         saveToDisk()
         await flushPendingEdits(token: token)
         return true

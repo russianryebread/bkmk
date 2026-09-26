@@ -5,7 +5,7 @@ struct Bookmark: Codable, Identifiable, Hashable {
     let id: String
     var title: String
     var url: String
-    let description: String?
+    var description: String?
     let cleanedMarkdown: String?
     let originalHtml: String?
     let readingTimeMinutes: Int?
