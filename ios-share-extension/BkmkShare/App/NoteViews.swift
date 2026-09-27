@@ -65,6 +65,13 @@ private struct NativeImageAttachment: Textual.Attachment {
 
 
 // MARK: - Notes List View
+private struct NotesTitleTopPreference: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
 struct NotesListView: View {
     let notes: [Note]
     let isLoading: Bool
@@ -78,8 +85,21 @@ struct NotesListView: View {
     @State private var selectedTag: String?
     @State private var noteToDelete: Note?
     @State private var showingCreate = false
-    @State private var searchTransitionProgress: CGFloat = 0
+    @State private var searchTop: CGFloat?
+    @State private var viewportTop: CGFloat?
+    @State private var titleTop: CGFloat?
     @State private var hasMeasuredSearch = false
+    @State private var isRefreshing = false
+
+    private var searchTransitionProgress: CGFloat {
+        guard let searchTop, let viewportTop else { return hasMeasuredSearch ? 1 : 0 }
+        return LibrarySearchTransition.progress(searchTop: searchTop, viewportTop: viewportTop)
+    }
+
+    private var pullDistance: CGFloat {
+        guard let titleTop, let viewportTop else { return 0 }
+        return max(0, titleTop - viewportTop)
+    }
 
     private var availableTags: [String] {
         Array(Set(notes.flatMap { $0.tags ?? [] }))
@@ -100,14 +120,14 @@ struct NotesListView: View {
     var body: some View {
         List {
             LibraryTitleRow(title: "Notes", onRefresh: onRefresh)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: NotesTitleTopPreference.self, value: geometry.frame(in: .global).minY)
+                })
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
                 .listRowSeparator(.hidden)
 
             LibrarySearchHeader(title: "Search notes", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: LibrarySearchTopPreference.self, value: geometry.frame(in: .named("libraryScroll")).minY)
-                })
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
                 .listRowSeparator(.hidden)
@@ -150,18 +170,49 @@ struct NotesListView: View {
             }
         }
         .listStyle(.plain)
-        .coordinateSpace(name: "libraryScroll")
-        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
-            if let top {
-                hasMeasuredSearch = true
-                searchTransitionProgress = LibrarySearchTransition.progress(for: top)
-            } else if hasMeasuredSearch {
-                searchTransitionProgress = 1
-            }
-        }
         .scrollContentBackground(.hidden)
         .background(Color(.systemBackground))
-        .refreshable { await onRefresh() }
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: LibraryViewportTopPreference.self, value: geometry.frame(in: .global).minY)
+        })
+        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
+            if top != nil { hasMeasuredSearch = true }
+            searchTop = top
+        }
+        .onPreferenceChange(LibraryViewportTopPreference.self) { top in
+            viewportTop = top
+        }
+        .onPreferenceChange(NotesTitleTopPreference.self) { top in
+            titleTop = top
+        }
+        .refreshable {
+            isRefreshing = true
+            await onRefresh()
+            isRefreshing = false
+        }
+        .overlay(alignment: .top) {
+            if pullDistance > 2 || isRefreshing {
+                let ready = pullDistance >= 80
+                HStack(spacing: 10) {
+                    if isRefreshing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "arrow.down")
+                            .rotationEffect(.degrees(ready ? 180 : 0))
+                            .animation(.easeInOut(duration: 0.2), value: ready)
+                    }
+                    Text(isRefreshing ? "Refreshing…" : ready ? "Release to refresh" : "Pull to refresh")
+                        .font(.subheadline.weight(.medium))
+                }
+                .foregroundColor(.white)
+                .opacity(isRefreshing ? 1 : min(1, max(0, (pullDistance - 18) / 28)))
+                .frame(maxWidth: .infinity)
+                .frame(height: max(pullDistance, isRefreshing ? 60 : 0))
+                .background(LibraryAppearance.blue)
+                .clipped()
+                .allowsHitTesting(false)
+            }
+        }
         .navigationTitle("Bkmk")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(LibraryAppearance.blue, for: .navigationBar)

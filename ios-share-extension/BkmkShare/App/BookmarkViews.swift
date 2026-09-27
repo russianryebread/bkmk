@@ -13,9 +13,16 @@ struct LibrarySearchTopPreference: PreferenceKey {
     }
 }
 
+struct LibraryViewportTopPreference: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
 enum LibrarySearchTransition {
-    static func progress(for top: CGFloat) -> CGFloat {
-        min(1, max(0, -top / 44))
+    static func progress(searchTop: CGFloat, viewportTop: CGFloat) -> CGFloat {
+        min(1, max(0, (viewportTop - searchTop) / 44))
     }
 }
 
@@ -58,6 +65,9 @@ struct LibrarySearchHeader: View {
 
     var body: some View {
         LibrarySearchField(title: title, tags: tags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: false)
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: LibrarySearchTopPreference.self, value: geometry.frame(in: .global).minY)
+            })
             .opacity(1 - transitionProgress)
             .allowsHitTesting(transitionProgress < 0.5)
             .accessibilityHidden(transitionProgress >= 0.5)
@@ -180,8 +190,14 @@ struct BookmarksListView: View {
     @State private var selectedTag: String?
     @State private var bookmarkToDelete: Bookmark?
     @State private var showingCreate = false
-    @State private var searchTransitionProgress: CGFloat = 0
+    @State private var searchTop: CGFloat?
+    @State private var viewportTop: CGFloat?
     @State private var hasMeasuredSearch = false
+
+    private var searchTransitionProgress: CGFloat {
+        guard let searchTop, let viewportTop else { return hasMeasuredSearch ? 1 : 0 }
+        return LibrarySearchTransition.progress(searchTop: searchTop, viewportTop: viewportTop)
+    }
 
     private var availableTags: [String] {
         Array(Set(bookmarks.flatMap { $0.tags ?? [] }))
@@ -208,9 +224,6 @@ struct BookmarksListView: View {
                 .listRowSeparator(.hidden)
 
             LibrarySearchHeader(title: "Search bookmarks", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: LibrarySearchTopPreference.self, value: geometry.frame(in: .named("libraryScroll")).minY)
-                })
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
                 .listRowSeparator(.hidden)
@@ -258,17 +271,18 @@ struct BookmarksListView: View {
             }
         }
         .listStyle(.plain)
-        .coordinateSpace(name: "libraryScroll")
-        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
-            if let top {
-                hasMeasuredSearch = true
-                searchTransitionProgress = LibrarySearchTransition.progress(for: top)
-            } else if hasMeasuredSearch {
-                searchTransitionProgress = 1
-            }
-        }
         .scrollContentBackground(.hidden)
         .background(Color(.systemBackground))
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: LibraryViewportTopPreference.self, value: geometry.frame(in: .global).minY)
+        })
+        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
+            if top != nil { hasMeasuredSearch = true }
+            searchTop = top
+        }
+        .onPreferenceChange(LibraryViewportTopPreference.self) { top in
+            viewportTop = top
+        }
         .refreshable { await onRefresh() }
         .navigationTitle("Bkmk")
         .navigationBarTitleDisplayMode(.inline)
