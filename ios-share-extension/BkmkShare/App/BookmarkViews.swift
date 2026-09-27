@@ -6,10 +6,16 @@ enum LibraryAppearance {
     static let blue = Color(red: 0.14, green: 0.38, blue: 0.85)
 }
 
-struct LibrarySearchBottomPreference: PreferenceKey {
+struct LibrarySearchTopPreference: PreferenceKey {
     static var defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         if let next = nextValue() { value = next }
+    }
+}
+
+enum LibrarySearchTransition {
+    static func progress(for top: CGFloat) -> CGFloat {
+        min(1, max(0, -top / 44))
     }
 }
 
@@ -45,12 +51,16 @@ struct LibraryTitleRow: View {
 struct LibrarySearchHeader: View {
     let title: String
     let tags: [String]
+    let transitionProgress: CGFloat
     @Binding var searchText: String
     @Binding var favoritesOnly: Bool
     @Binding var selectedTag: String?
 
     var body: some View {
         LibrarySearchField(title: title, tags: tags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: false)
+            .opacity(1 - transitionProgress)
+            .allowsHitTesting(transitionProgress < 0.5)
+            .accessibilityHidden(transitionProgress >= 0.5)
             .padding(.horizontal, 16)
             .padding(.top, 4)
             .padding(.bottom, 14)
@@ -170,7 +180,7 @@ struct BookmarksListView: View {
     @State private var selectedTag: String?
     @State private var bookmarkToDelete: Bookmark?
     @State private var showingCreate = false
-    @State private var isCompact = false
+    @State private var searchTransitionProgress: CGFloat = 0
     @State private var hasMeasuredSearch = false
 
     private var availableTags: [String] {
@@ -197,9 +207,9 @@ struct BookmarksListView: View {
                 .listRowBackground(LibraryAppearance.blue)
                 .listRowSeparator(.hidden)
 
-            LibrarySearchHeader(title: "Search bookmarks", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+            LibrarySearchHeader(title: "Search bookmarks", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 .background(GeometryReader { geometry in
-                    Color.clear.preference(key: LibrarySearchBottomPreference.self, value: geometry.frame(in: .named("libraryScroll")).maxY)
+                    Color.clear.preference(key: LibrarySearchTopPreference.self, value: geometry.frame(in: .named("libraryScroll")).minY)
                 })
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
@@ -249,13 +259,12 @@ struct BookmarksListView: View {
         }
         .listStyle(.plain)
         .coordinateSpace(name: "libraryScroll")
-        .onPreferenceChange(LibrarySearchBottomPreference.self) { bottom in
-            if let bottom {
+        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
+            if let top {
                 hasMeasuredSearch = true
-                let shouldCompact = bottom <= 4
-                if isCompact != shouldCompact { isCompact = shouldCompact }
-            } else if hasMeasuredSearch && !isCompact {
-                isCompact = true
+                searchTransitionProgress = LibrarySearchTransition.progress(for: top)
+            } else if hasMeasuredSearch {
+                searchTransitionProgress = 1
             }
         }
         .scrollContentBackground(.hidden)
@@ -272,10 +281,15 @@ struct BookmarksListView: View {
                     .accessibilityLabel("New bookmark")
             }
             ToolbarItem(placement: .principal) {
-                if isCompact {
+                ZStack {
+                    Text("Bkmk")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .opacity(1 - searchTransitionProgress)
                     LibrarySearchField(title: "Search bookmarks", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
-                } else {
-                    Text("Bkmk").font(.subheadline.weight(.semibold)).foregroundColor(.white)
+                        .opacity(searchTransitionProgress)
+                        .allowsHitTesting(searchTransitionProgress >= 0.5)
+                        .accessibilityHidden(searchTransitionProgress < 0.5)
                 }
             }
         }

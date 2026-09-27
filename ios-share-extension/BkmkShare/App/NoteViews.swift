@@ -78,7 +78,7 @@ struct NotesListView: View {
     @State private var selectedTag: String?
     @State private var noteToDelete: Note?
     @State private var showingCreate = false
-    @State private var isCompact = false
+    @State private var searchTransitionProgress: CGFloat = 0
     @State private var hasMeasuredSearch = false
 
     private var availableTags: [String] {
@@ -104,9 +104,9 @@ struct NotesListView: View {
                 .listRowBackground(LibraryAppearance.blue)
                 .listRowSeparator(.hidden)
 
-            LibrarySearchHeader(title: "Search notes", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+            LibrarySearchHeader(title: "Search notes", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 .background(GeometryReader { geometry in
-                    Color.clear.preference(key: LibrarySearchBottomPreference.self, value: geometry.frame(in: .named("libraryScroll")).maxY)
+                    Color.clear.preference(key: LibrarySearchTopPreference.self, value: geometry.frame(in: .named("libraryScroll")).minY)
                 })
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
@@ -151,13 +151,12 @@ struct NotesListView: View {
         }
         .listStyle(.plain)
         .coordinateSpace(name: "libraryScroll")
-        .onPreferenceChange(LibrarySearchBottomPreference.self) { bottom in
-            if let bottom {
+        .onPreferenceChange(LibrarySearchTopPreference.self) { top in
+            if let top {
                 hasMeasuredSearch = true
-                let shouldCompact = bottom <= 4
-                if isCompact != shouldCompact { isCompact = shouldCompact }
-            } else if hasMeasuredSearch && !isCompact {
-                isCompact = true
+                searchTransitionProgress = LibrarySearchTransition.progress(for: top)
+            } else if hasMeasuredSearch {
+                searchTransitionProgress = 1
             }
         }
         .scrollContentBackground(.hidden)
@@ -174,10 +173,15 @@ struct NotesListView: View {
                     .accessibilityLabel("New note")
             }
             ToolbarItem(placement: .principal) {
-                if isCompact {
+                ZStack {
+                    Text("Bkmk")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .opacity(1 - searchTransitionProgress)
                     LibrarySearchField(title: "Search notes", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
-                } else {
-                    Text("Bkmk").font(.subheadline.weight(.semibold)).foregroundColor(.white)
+                        .opacity(searchTransitionProgress)
+                        .allowsHitTesting(searchTransitionProgress >= 0.5)
+                        .accessibilityHidden(searchTransitionProgress < 0.5)
                 }
             }
         }
