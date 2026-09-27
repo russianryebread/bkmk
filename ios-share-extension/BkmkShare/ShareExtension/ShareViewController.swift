@@ -92,7 +92,7 @@ class ShareViewController: UIViewController {
             activityIndicator.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: 16),
             activityIndicator.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
             
-            statusLabel.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: 16),
+            statusLabel.topAnchor.constraint(equalTo: activityIndicator.bottomAnchor, constant: 12),
             statusLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             statusLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
             
@@ -103,6 +103,7 @@ class ShareViewController: UIViewController {
     }
     
     private func extractURL() {
+        activityIndicator.startAnimating()
         guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else {
             showError("No content to share")
             return
@@ -122,6 +123,8 @@ class ShareViewController: UIViewController {
                                 self?.saveBookmark()
                             } else if let error = error {
                                 self?.showError("Failed to load URL: \(error.localizedDescription)")
+                            } else {
+                                self?.showError("No URL found in shared content")
                             }
                         }
                     }
@@ -138,6 +141,8 @@ class ShareViewController: UIViewController {
                                 self?.saveBookmark()
                             } else if let error = error {
                                 self?.showError("Failed to load text: \(error.localizedDescription)")
+                            } else {
+                                self?.showError("No URL found in shared content")
                             }
                         }
                     }
@@ -164,6 +169,7 @@ class ShareViewController: UIViewController {
     }
     
     private func showSuccess(_ message: String) {
+        activityIndicator.stopAnimating()
         statusLabel.text = "✅ \(message)"
         statusLabel.textColor = .systemGreen
         doneButton.setTitle("Done", for: .normal)

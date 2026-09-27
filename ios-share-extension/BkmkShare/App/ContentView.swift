@@ -22,6 +22,7 @@ struct ContentView: View {
                             onRefresh: { await refreshBookmarks() },
                             onDelete: { bookmark in await deleteBookmark(bookmark) },
                             onToggleFavorite: { bookmark in await favoriteBookmark(bookmark) },
+                            onCreate: { title, url, description in await createBookmark(title: title, url: url, description: description) },
                             onEdit: { bookmark, title, url, description in await editBookmark(bookmark, title: title, url: url, description: description) }
                         )
                         .navigationTitle("Bookmarks")
@@ -39,6 +40,7 @@ struct ContentView: View {
                             onRefresh: { await refreshNotes() },
                             onDelete: { note in await deleteNote(note) },
                             onToggleFavorite: { note in await favoriteNote(note) },
+                            onCreate: { content in await createNote(content: content) },
                             onEdit: { note, content in await editNote(note, content: content) }
                         )
                         .navigationTitle("Notes")
@@ -135,6 +137,16 @@ struct ContentView: View {
     private func editBookmark(_ bookmark: Bookmark, title: String, url: String, description: String) async -> Bool {
         guard let token = authManager.getToken() else { return false }
         return await apiManager.updateBookmark(id: bookmark.id, title: title, url: url, description: description, token: token)
+    }
+
+    private func createBookmark(title: String, url: String, description: String) async -> Bool {
+        guard let token = authManager.getToken() else { return false }
+        return await apiManager.createBookmark(title: title, url: url, description: description, token: token)
+    }
+
+    private func createNote(content: String) async -> Bool {
+        guard let token = authManager.getToken() else { return false }
+        return await apiManager.createNote(content: content, token: token)
     }
 
     private func editNote(_ note: Note, content: String) async -> Bool {

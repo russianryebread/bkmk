@@ -243,6 +243,13 @@ class APIManager: ObservableObject {
         await flushPendingEdits(token: token)
         return true
     }
+
+    func createBookmark(title: String, url: String, description: String, token: String) async -> Bool {
+        guard await performAction(endpoint: .bookmarks, method: "POST", token: token,
+                                  body: ["title": title, "url": url, "description": description]) else { return false }
+        await fetchBookmarks(token: token)
+        return true
+    }
     
     // MARK: - Note Methods
     func fetchNotes(token: String, page: Int = 1, limit: Int = 50) async {
@@ -293,6 +300,13 @@ class APIManager: ObservableObject {
         queueEdit(PendingNativeEdit(id: id, kind: "note", operation: "edit", content: content, title: nil, url: nil, isFavorite: nil))
         saveToDisk()
         await flushPendingEdits(token: token)
+        return true
+    }
+
+    func createNote(content: String, token: String) async -> Bool {
+        guard await performAction(endpoint: .notes, method: "POST", token: token,
+                                  body: ["content": content]) else { return false }
+        await fetchNotes(token: token)
         return true
     }
 

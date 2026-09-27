@@ -2,6 +2,158 @@ import SwiftUI
 import Textual
 import WebKit
 
+enum LibraryAppearance {
+    static let blue = Color(red: 0.14, green: 0.38, blue: 0.85)
+}
+
+struct LibrarySearchBottomPreference: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
+struct LibraryTitleRow: View {
+    let title: String
+    let onRefresh: () async -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(title)
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Spacer()
+                Button {
+                    Task { await onRefresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .frame(width: 36, height: 36)
+                        .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                }
+                .accessibilityLabel("Refresh \(title.lowercased())")
+            }
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 22)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LibraryAppearance.blue)
+    }
+}
+
+struct LibrarySearchHeader: View {
+    let title: String
+    let tags: [String]
+    @Binding var searchText: String
+    @Binding var favoritesOnly: Bool
+    @Binding var selectedTag: String?
+
+    var body: some View {
+        LibrarySearchField(title: title, tags: tags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: false)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity)
+            .background(LibraryAppearance.blue)
+    }
+}
+
+struct LibrarySearchField: View {
+    let title: String
+    let tags: [String]
+    @Binding var searchText: String
+    @Binding var favoritesOnly: Bool
+    @Binding var selectedTag: String?
+    let isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+            TextField(title, text: $searchText, prompt: Text(title).foregroundColor(.white.opacity(0.75)))
+                .foregroundColor(.white)
+                .tint(.white)
+                .autocorrectionDisabled()
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .accessibilityLabel("Clear search")
+            }
+            ListFilterMenu(tags: tags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+                .tint(.white)
+        }
+        .font(.subheadline)
+        .foregroundColor(.white)
+        .padding(.horizontal, isCompact ? 10 : 14)
+        .frame(height: isCompact ? 36 : 44)
+        .background(.white.opacity(0.17), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct LibraryFilterChip: View {
+    let title: String
+    let icon: String?
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let icon { Image(systemName: icon) }
+            Text(title).lineLimit(1)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundColor(isSelected ? .white : .secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(isSelected ? LibraryAppearance.blue : Color(.secondarySystemBackground), in: Capsule())
+    }
+}
+
+struct LibraryFilterRow: View {
+    let tags: [String]
+    @Binding var searchText: String
+    @Binding var favoritesOnly: Bool
+    @Binding var selectedTag: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Button {
+                    favoritesOnly = false
+                    selectedTag = nil
+                } label: {
+                    LibraryFilterChip(title: "All", icon: nil, isSelected: !favoritesOnly && selectedTag == nil)
+                }
+                Button {
+                    favoritesOnly.toggle()
+                } label: {
+                    LibraryFilterChip(title: "Favorites", icon: "star", isSelected: favoritesOnly)
+                }
+                Menu {
+                    Button("All tags") { selectedTag = nil }
+                    ForEach(tags, id: \.self) { tag in
+                        Button(tag) { selectedTag = tag }
+                    }
+                } label: {
+                    LibraryFilterChip(title: selectedTag ?? "Tags", icon: "tag", isSelected: selectedTag != nil)
+                }
+            }
+            if !searchText.isEmpty || favoritesOnly || selectedTag != nil {
+                Button("Clear filters") {
+                    searchText = ""
+                    favoritesOnly = false
+                    selectedTag = nil
+                }
+                .font(.caption.weight(.medium))
+            }
+        }
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 
 // MARK: - Bookmarks List View
 struct BookmarksListView: View {
@@ -11,11 +163,15 @@ struct BookmarksListView: View {
     let onRefresh: () async -> Void
     let onDelete: (Bookmark) async -> Void
     let onToggleFavorite: (Bookmark) async -> Void
+    let onCreate: (String, String, String) async -> Bool
     let onEdit: (Bookmark, String, String, String) async -> Bool
     @State private var searchText = ""
     @State private var favoritesOnly = false
     @State private var selectedTag: String?
     @State private var bookmarkToDelete: Bookmark?
+    @State private var showingCreate = false
+    @State private var isCompact = false
+    @State private var hasMeasuredSearch = false
 
     private var availableTags: [String] {
         Array(Set(bookmarks.flatMap { $0.tags ?? [] }))
@@ -35,102 +191,96 @@ struct BookmarksListView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search bookmarks", text: $searchText)
-                    .autocorrectionDisabled()
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .accessibilityLabel("Clear search")
-                }
-            }
-            .padding(10)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
+        List {
+            LibraryTitleRow(title: "Bookmarks", onRefresh: onRefresh)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(LibraryAppearance.blue)
+                .listRowSeparator(.hidden)
 
-            if !searchText.isEmpty || favoritesOnly || selectedTag != nil {
-                HStack {
-                    if favoritesOnly { Text("Favorites") }
-                    if let selectedTag { Text(selectedTag) }
-                    Spacer()
-                    Button("Clear filters") {
-                        searchText = ""
-                        favoritesOnly = false
-                        selectedTag = nil
+            LibrarySearchHeader(title: "Search bookmarks", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: LibrarySearchBottomPreference.self, value: geometry.frame(in: .named("libraryScroll")).maxY)
+                })
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(LibraryAppearance.blue)
+                .listRowSeparator(.hidden)
+
+            LibraryFilterRow(tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+                .listRowSeparator(.hidden)
+            if isLoading && bookmarks.isEmpty {
+                ProgressView("Loading...")
+                    .frame(maxWidth: .infinity)
+            } else if bookmarks.isEmpty && pendingSharedURLs.isEmpty {
+                EmptyBookmarksView()
+            } else {
+                if !pendingSharedURLs.isEmpty {
+                    ForEach(pendingSharedURLs) { item in
+                        PendingSharedURLRow(item: item)
                     }
                 }
-                .font(.subheadline)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-            }
-
-            Group {
-                if isLoading && bookmarks.isEmpty {
-                    ProgressView("Loading...")
-                } else if bookmarks.isEmpty && pendingSharedURLs.isEmpty {
-                    EmptyBookmarksView()
-                } else {
-                    List {
-                        if !pendingSharedURLs.isEmpty {
-                            Section("Waiting to sync") {
-                                ForEach(pendingSharedURLs) { item in
-                                    PendingSharedURLRow(item: item)
-                                }
-                            }
-                        }
-                        ForEach(filteredBookmarks) { bookmark in
-                            NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url, description in await onEdit(bookmark, title, url, description) })) {
-                                BookmarkRow(bookmark: bookmark)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    bookmarkToDelete = bookmark
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    Task { await onToggleFavorite(bookmark) }
-                                } label: {
-                                    Label(
-                                        bookmark.isFavorite == true ? "Unfavorite" : "Favorite",
-                                        systemImage: bookmark.isFavorite == true ? "star.slash" : "star"
-                                    )
-                                }
-                                .tint(.yellow)
-                            }
-                        }
-                        if filteredBookmarks.isEmpty {
-                            Text("No bookmarks match your search or filters")
-                                .foregroundColor(.secondary)
+                ForEach(filteredBookmarks) { bookmark in
+                    NavigationLink(destination: ReaderView(bookmark: bookmark, onEdit: { title, url, description in await onEdit(bookmark, title, url, description) })) {
+                        BookmarkRow(bookmark: bookmark)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            bookmarkToDelete = bookmark
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
                     }
-                    .listStyle(.plain)
-                    .refreshable {
-                        await onRefresh()
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            Task { await onToggleFavorite(bookmark) }
+                        } label: {
+                            Label(
+                                bookmark.isFavorite == true ? "Unfavorite" : "Favorite",
+                                systemImage: bookmark.isFavorite == true ? "star.slash" : "star"
+                            )
+                        }
+                        .tint(.yellow)
                     }
+                }
+                if filteredBookmarks.isEmpty {
+                    Text("No bookmarks match your search or filters")
+                        .foregroundColor(.secondary)
                 }
             }
         }
-        .navigationTitle("Bookmarks")
+        .listStyle(.plain)
+        .coordinateSpace(name: "libraryScroll")
+        .onPreferenceChange(LibrarySearchBottomPreference.self) { bottom in
+            if let bottom {
+                hasMeasuredSearch = true
+                let shouldCompact = bottom <= 4
+                if isCompact != shouldCompact { isCompact = shouldCompact }
+            } else if hasMeasuredSearch && !isCompact {
+                isCompact = true
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemBackground))
+        .refreshable { await onRefresh() }
+        .navigationTitle("Bkmk")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(LibraryAppearance.blue, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                ListFilterMenu(tags: availableTags, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
-                Button {
-                    Task { await onRefresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showingCreate = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("New bookmark")
+            }
+            ToolbarItem(placement: .principal) {
+                if isCompact {
+                    LibrarySearchField(title: "Search bookmarks", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
+                } else {
+                    Text("Bkmk").font(.subheadline.weight(.semibold)).foregroundColor(.white)
                 }
             }
+        }
+        .sheet(isPresented: $showingCreate) {
+            BookmarkEditorView(onSave: onCreate)
         }
         .alert("Delete bookmark?", isPresented: Binding(
             get: { bookmarkToDelete != nil },
@@ -370,11 +520,20 @@ private struct YouTubePlayer: UIViewRepresentable {
 
 struct ListFilterMenu: View {
     let tags: [String]
+    @Binding var searchText: String
     @Binding var favoritesOnly: Bool
     @Binding var selectedTag: String?
 
     var body: some View {
         Menu {
+            if !searchText.isEmpty || favoritesOnly || selectedTag != nil {
+                Button("Clear filters") {
+                    searchText = ""
+                    favoritesOnly = false
+                    selectedTag = nil
+                }
+                Divider()
+            }
             Button {
                 favoritesOnly.toggle()
             } label: {
@@ -417,12 +576,15 @@ private struct BookmarkEditorView: View {
         return true
     }
 
-    init(bookmark: Bookmark, onSave: @escaping (String, String, String) async -> Bool) {
+    init(bookmark: Bookmark? = nil, onSave: @escaping (String, String, String) async -> Bool) {
         self.onSave = onSave
-        _title = State(initialValue: bookmark.title)
-        _url = State(initialValue: bookmark.url)
-        _description = State(initialValue: bookmark.description ?? "")
+        _title = State(initialValue: bookmark?.title ?? "")
+        _url = State(initialValue: bookmark?.url ?? "")
+        _description = State(initialValue: bookmark?.description ?? "")
+        self.isNew = bookmark == nil
     }
+
+    private let isNew: Bool
 
     var body: some View {
         NavigationStack {
@@ -434,7 +596,7 @@ private struct BookmarkEditorView: View {
                         .frame(minHeight: 120)
                 }
             }
-            .navigationTitle("Edit Bookmark")
+            .navigationTitle(isNew ? "New Bookmark" : "Edit Bookmark")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

@@ -71,11 +71,15 @@ struct NotesListView: View {
     let onRefresh: () async -> Void
     let onDelete: (Note) async -> Void
     let onToggleFavorite: (Note) async -> Void
+    let onCreate: (String) async -> Bool
     let onEdit: (Note, String) async -> Bool
     @State private var searchText = ""
     @State private var favoritesOnly = false
     @State private var selectedTag: String?
     @State private var noteToDelete: Note?
+    @State private var showingCreate = false
+    @State private var isCompact = false
+    @State private var hasMeasuredSearch = false
 
     private var availableTags: [String] {
         Array(Set(notes.flatMap { $0.tags ?? [] }))
@@ -94,58 +98,91 @@ struct NotesListView: View {
     }
     
     var body: some View {
-        Group {
+        List {
+            LibraryTitleRow(title: "Notes", onRefresh: onRefresh)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(LibraryAppearance.blue)
+                .listRowSeparator(.hidden)
+
+            LibrarySearchHeader(title: "Search notes", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: LibrarySearchBottomPreference.self, value: geometry.frame(in: .named("libraryScroll")).maxY)
+                })
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(LibraryAppearance.blue)
+                .listRowSeparator(.hidden)
+
+            LibraryFilterRow(tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
+                .listRowSeparator(.hidden)
             if isLoading && notes.isEmpty {
                 ProgressView("Loading...")
+                    .frame(maxWidth: .infinity)
             } else if notes.isEmpty {
                 EmptyNotesView()
             } else {
-                List {
-                    ForEach(filteredNotes) { note in
-                        NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note, content) })) {
-                            NoteRow(note: note)
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                noteToDelete = note
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button {
-                                Task { await onToggleFavorite(note) }
-                            } label: {
-                                Label(
-                                    note.isFavorite == true ? "Unfavorite" : "Favorite",
-                                    systemImage: note.isFavorite == true ? "star.slash" : "star"
-                                )
-                            }
-                            .tint(.yellow)
+                ForEach(filteredNotes) { note in
+                    NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note, content) })) {
+                        NoteRow(note: note)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            noteToDelete = note
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
                     }
-                    if filteredNotes.isEmpty {
-                        Text("No notes match your search or filters")
-                            .foregroundColor(.secondary)
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            Task { await onToggleFavorite(note) }
+                        } label: {
+                            Label(
+                                note.isFavorite == true ? "Unfavorite" : "Favorite",
+                                systemImage: note.isFavorite == true ? "star.slash" : "star"
+                            )
+                        }
+                        .tint(.yellow)
                     }
                 }
-                .listStyle(.plain)
-                .refreshable {
-                    await onRefresh()
+                if filteredNotes.isEmpty {
+                    Text("No notes match your search or filters")
+                        .foregroundColor(.secondary)
                 }
             }
         }
-        .searchable(text: $searchText, prompt: "Search notes")
-        .navigationTitle("Notes")
+        .listStyle(.plain)
+        .coordinateSpace(name: "libraryScroll")
+        .onPreferenceChange(LibrarySearchBottomPreference.self) { bottom in
+            if let bottom {
+                hasMeasuredSearch = true
+                let shouldCompact = bottom <= 4
+                if isCompact != shouldCompact { isCompact = shouldCompact }
+            } else if hasMeasuredSearch && !isCompact {
+                isCompact = true
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemBackground))
+        .refreshable { await onRefresh() }
+        .navigationTitle("Bkmk")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(LibraryAppearance.blue, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                ListFilterMenu(tags: availableTags, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
-                Button {
-                    Task { await onRefresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showingCreate = true } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("New note")
+            }
+            ToolbarItem(placement: .principal) {
+                if isCompact {
+                    LibrarySearchField(title: "Search notes", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
+                } else {
+                    Text("Bkmk").font(.subheadline.weight(.semibold)).foregroundColor(.white)
                 }
             }
+        }
+        .fullScreenCover(isPresented: $showingCreate) {
+            NoteEditorView(onSave: onCreate)
         }
         .alert("Delete note?", isPresented: Binding(
             get: { noteToDelete != nil },
@@ -215,24 +252,25 @@ struct NoteView: View {
 }
 
 private struct NoteEditorView: View {
-    let note: Note
     let onSave: (String) async -> Bool
     @Environment(\.dismiss) private var dismiss
     @State private var content: String
     @State private var isSaving = false
     @State private var errorMessage: String?
 
-    init(note: Note, onSave: @escaping (String) async -> Bool) {
-        self.note = note
+    init(note: Note? = nil, onSave: @escaping (String) async -> Bool) {
+        self.isNew = note == nil
         self.onSave = onSave
-        _content = State(initialValue: note.content)
+        _content = State(initialValue: note?.content ?? "")
     }
+
+    private let isNew: Bool
 
     var body: some View {
         NavigationStack {
             MarkdownTextEditor(text: $content)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle("Edit Note")
+                .navigationTitle(isNew ? "New Note" : "Edit Note")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) {
