@@ -25,7 +25,6 @@ struct ContentView: View {
                             onCreate: { title, url, description in await createBookmark(title: title, url: url, description: description) },
                             onEdit: { bookmark, title, url, description in await editBookmark(bookmark, title: title, url: url, description: description) }
                         )
-                        .navigationTitle("Bookmarks")
                     }
                     .tabItem {
                         Label("Bookmarks", systemImage: "bookmark.fill")
@@ -41,9 +40,8 @@ struct ContentView: View {
                             onDelete: { note in await deleteNote(note) },
                             onToggleFavorite: { note in await favoriteNote(note) },
                             onCreate: { content in await createNote(content: content) },
-                            onEdit: { note, content in await editNote(note, content: content) }
+                            onEdit: { id, content in await editNote(id: id, content: content) }
                         )
-                        .navigationTitle("Notes")
                     }
                     .tabItem {
                         Label("Notes", systemImage: "note.text")
@@ -65,6 +63,7 @@ struct ContentView: View {
             apiManager.refreshPendingSharedURLs()
             if authManager.isLoggedIn {
                 Task { await refreshBookmarks() }
+                Task { await refreshNotes() }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -144,14 +143,14 @@ struct ContentView: View {
         return await apiManager.createBookmark(title: title, url: url, description: description, token: token)
     }
 
-    private func createNote(content: String) async -> Bool {
-        guard let token = authManager.getToken() else { return false }
-        return await apiManager.createNote(content: content, token: token)
+    private func createNote(content: String) async -> String? {
+        guard let token = authManager.getToken() else { return nil }
+        return apiManager.createNote(content: content, token: token)
     }
 
-    private func editNote(_ note: Note, content: String) async -> Bool {
+    private func editNote(id: String, content: String) async -> Bool {
         guard let token = authManager.getToken() else { return false }
-        return await apiManager.updateNote(id: note.id, content: content, token: token)
+        return await apiManager.updateNote(id: id, content: content, token: token)
     }
 }
 

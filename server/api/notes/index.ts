@@ -162,6 +162,13 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event)
     const { content, isFavorite, tags: tagNames } = body
 
+    // The native app supplies a stable ID for offline drafts. Retrying a POST
+    // after a lost response must update that same note instead of duplicating it.
+    const clientId = body.id
+    if (clientId !== undefined && (typeof clientId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId))) {
+      throw createError({ statusCode: 400, message: 'Invalid note ID' })
+    }
+
     if (typeof content !== 'string') {
       throw createError({ statusCode: 400, message: 'Content is required' })
     }
@@ -172,13 +179,20 @@ export default defineEventHandler(async (event) => {
     const tagsArray: string[] = Array.isArray(tagNames) ? tagNames : []
     const { ids: tagIds, names: canonicalTagNames } = await resolveTagIds(currentUser.id, tagsArray)
 
-    const [note] = await db
+    const noteId = clientId ?? crypto.randomUUID()
+    let [note] = await db
       .insert(notes)
-      .values({ id: crypto.randomUUID(), userId: currentUser.id, content, isFavorite: isFavorite ? 1 : 0 })
+      .values({ id: noteId, userId: currentUser.id, content, isFavorite: isFavorite ? 1 : 0 })
+      .onConflictDoNothing()
       .returning()
 
     if (!note) {
-      throw createError({ statusCode: 500, message: 'Failed to create note' })
+      const [existingNote] = await db.update(notes)
+        .set({ content, isFavorite: isFavorite ? 1 : 0, updatedAt: new Date().toISOString() })
+        .where(and(eq(notes.id, noteId), eq(notes.userId, currentUser.id)))
+        .returning()
+      note = existingNote
+      if (!note) throw createError({ statusCode: 409, message: 'Note ID is already in use' })
     }
 
     for (const tagId of tagIds) {

@@ -53,6 +53,7 @@ class ShareViewController: UIViewController {
         let button = UIButton(type: .system)
         button.setTitle("Done", for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 17, weight: .medium)
+        button.isEnabled = false
         button.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
@@ -160,11 +161,60 @@ class ShareViewController: UIViewController {
             return
         }
         statusLabel.text = "Saving on this device…"
-        let queued = SharedURLQueue.enqueue(urlString)
-        if queued != nil {
-            showSuccess("Saved for sync")
-        } else {
+        guard let queued = SharedURLQueue.enqueue(urlString) else {
             showError("Could not save this URL. Use an http or https link.")
+            return
+        }
+
+        guard let token = KeychainHelper.shared.getToken() else {
+            showQueued("Saved on this device. Sign in to Bkmk to finish saving.")
+            return
+        }
+
+        statusLabel.text = "Saving to Bkmk…"
+        statusLabel.textColor = .secondaryLabel
+        activityIndicator.startAnimating()
+        Task { [weak self] in
+            await self?.saveOnServer(queued, token: token)
+        }
+    }
+
+    private func saveOnServer(_ item: PendingSharedURL, token: String) async {
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/scrape") else {
+            showQueued("Saved on this device. Open Bkmk to finish saving.")
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 45
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["url": item.url])
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let response = response as? HTTPURLResponse else {
+                showQueued("Saved on this device. Open Bkmk to finish saving.")
+                return
+            }
+            switch response.statusCode {
+            case 200...299:
+                SharedURLQueue.remove(id: item.id)
+                showSuccess("Saved to Bkmk")
+            case 409:
+                SharedURLQueue.remove(id: item.id)
+                showSuccess("Already saved in Bkmk")
+            case 401, 403:
+                showQueued("Saved on this device. Sign in to Bkmk to finish saving.")
+            case 400...499 where response.statusCode != 408 && response.statusCode != 429:
+                SharedURLQueue.remove(id: item.id)
+                showError("This URL could not be saved to Bkmk.")
+            default:
+                showQueued("Saved on this device. Open Bkmk to finish saving.")
+            }
+        } catch {
+            showQueued("Saved on this device. Open Bkmk to finish saving.")
         }
     }
     
@@ -172,6 +222,15 @@ class ShareViewController: UIViewController {
         activityIndicator.stopAnimating()
         statusLabel.text = "✅ \(message)"
         statusLabel.textColor = .systemGreen
+        doneButton.isEnabled = true
+        doneButton.setTitle("Done", for: .normal)
+    }
+
+    private func showQueued(_ message: String) {
+        activityIndicator.stopAnimating()
+        statusLabel.text = message
+        statusLabel.textColor = .secondaryLabel
+        doneButton.isEnabled = true
         doneButton.setTitle("Done", for: .normal)
     }
     
@@ -179,6 +238,7 @@ class ShareViewController: UIViewController {
         statusLabel.text = "❌ \(message)"
         statusLabel.textColor = .systemRed
         activityIndicator.stopAnimating()
+        doneButton.isEnabled = true
         doneButton.setTitle("Close", for: .normal)
     }
     

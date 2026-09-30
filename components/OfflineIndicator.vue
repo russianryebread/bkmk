@@ -13,6 +13,7 @@
         'absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg',
         statusClasses
       ]"
+      :title="syncStatus === 'error' ? syncError || 'Sync failed' : undefined"
     >
       <!-- Status Icon -->
       <svg v-if="!isOnline" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,6 +22,9 @@
       <svg v-else-if="syncStatus === 'syncing'" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+      <svg v-else-if="syncStatus === 'error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
       <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -39,7 +43,7 @@
 
       <!-- Retry Button -->
       <button
-        v-if="!isOnline && pendingChanges > 0"
+        v-if="syncStatus === 'error' || (!isOnline && pendingChanges > 0)"
         @click="retrySync"
 
         class="ml-2 p-1 rounded-full hover:bg-white/20 transition-colors"
@@ -59,6 +63,7 @@ import type { SyncStatus } from '~/stores/useDataStore'
 interface Props {
   isOnline?: boolean
   syncStatus?: SyncStatus
+  syncError?: string | null
   pendingChanges?: number
   lastSyncTime?: Date | null
 }
@@ -66,6 +71,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   isOnline: true,
   syncStatus: 'idle',
+  syncError: null,
   pendingChanges: 0,
   lastSyncTime: null,
 })

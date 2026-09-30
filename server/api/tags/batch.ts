@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     for (const c of create) {
       const now = new Date().toISOString()
 
-      const [inserted] = await db
+      const [created] = await db
         .insert(tags)
         .values({
           id: c.id || crypto.randomUUID(),
@@ -38,7 +38,14 @@ export default defineEventHandler(async (event) => {
           icon: c.icon || null,
           createdAt: now,
         })
+        .onConflictDoNothing()
         .returning()
+
+      const [inserted] = created ? [created] : await db.update(tags)
+        .set({ name: c.name, parentTagId: c.parentTagId || null, color: c.color || null,
+          type: c.type || 'both', description: c.description || null, icon: c.icon || null })
+        .where(and(eq(tags.id, c.id), eq(tags.userId, currentUser.id))).returning()
+      if (!inserted) throw createError({ statusCode: 409, message: 'Tag ID or name is already in use' })
 
       results.created.push(inserted)
     }
@@ -75,6 +82,7 @@ export default defineEventHandler(async (event) => {
   if (del.length > 0) {
     for (const id of del) {
       await db.delete(tags).where(and(eq(tags.id, id), eq(tags.userId, currentUser.id)))
+      // A previous attempt may have committed before its response was lost.
       results.deleted.push(id)
     }
   }

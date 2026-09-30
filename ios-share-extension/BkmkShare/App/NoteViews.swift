@@ -65,40 +65,27 @@ private struct NativeImageAttachment: Textual.Attachment {
 
 
 // MARK: - Notes List View
-private struct NotesTitleTopPreference: PreferenceKey {
-    static var defaultValue: CGFloat? = nil
-    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-        if let next = nextValue() { value = next }
-    }
-}
-
 struct NotesListView: View {
     let notes: [Note]
     let isLoading: Bool
     let onRefresh: () async -> Void
     let onDelete: (Note) async -> Void
     let onToggleFavorite: (Note) async -> Void
-    let onCreate: (String) async -> Bool
-    let onEdit: (Note, String) async -> Bool
+    let onCreate: (String) async -> String?
+    let onEdit: (String, String) async -> Bool
     @State private var searchText = ""
     @State private var favoritesOnly = false
     @State private var selectedTag: String?
     @State private var noteToDelete: Note?
     @State private var showingCreate = false
+    @State private var draftNoteID: String?
     @State private var searchTop: CGFloat?
     @State private var viewportTop: CGFloat?
-    @State private var titleTop: CGFloat?
     @State private var hasMeasuredSearch = false
-    @State private var isRefreshing = false
 
     private var searchTransitionProgress: CGFloat {
         guard let searchTop, let viewportTop else { return hasMeasuredSearch ? 1 : 0 }
         return LibrarySearchTransition.progress(searchTop: searchTop, viewportTop: viewportTop)
-    }
-
-    private var pullDistance: CGFloat {
-        guard let titleTop, let viewportTop else { return 0 }
-        return max(0, titleTop - viewportTop)
     }
 
     private var availableTags: [String] {
@@ -119,14 +106,6 @@ struct NotesListView: View {
     
     var body: some View {
         List {
-            LibraryTitleRow(title: "Notes", onRefresh: onRefresh)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: NotesTitleTopPreference.self, value: geometry.frame(in: .global).minY)
-                })
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(LibraryAppearance.blue)
-                .listRowSeparator(.hidden)
-
             LibrarySearchHeader(title: "Search notes", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
@@ -141,7 +120,7 @@ struct NotesListView: View {
                 EmptyNotesView()
             } else {
                 ForEach(filteredNotes) { note in
-                    NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note, content) })) {
+                    NavigationLink(destination: NoteView(note: note, onEdit: { content in await onEdit(note.id, content) })) {
                         NoteRow(note: note)
                     }
                     .swipeActions(edge: .trailing) {
@@ -170,11 +149,7 @@ struct NotesListView: View {
             }
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color(.systemBackground))
-        .background(GeometryReader { geometry in
-            Color.clear.preference(key: LibraryViewportTopPreference.self, value: geometry.frame(in: .global).minY)
-        })
+        .modifier(LibraryRefreshStyle(onRefresh: onRefresh))
         .onPreferenceChange(LibrarySearchTopPreference.self) { top in
             if top != nil { hasMeasuredSearch = true }
             searchTop = top
@@ -182,62 +157,23 @@ struct NotesListView: View {
         .onPreferenceChange(LibraryViewportTopPreference.self) { top in
             viewportTop = top
         }
-        .onPreferenceChange(NotesTitleTopPreference.self) { top in
-            titleTop = top
-        }
-        .refreshable {
-            isRefreshing = true
-            await onRefresh()
-            isRefreshing = false
-        }
-        .overlay(alignment: .top) {
-            if pullDistance > 2 || isRefreshing {
-                let ready = pullDistance >= 80
-                HStack(spacing: 10) {
-                    if isRefreshing {
-                        ProgressView().tint(.white)
-                    } else {
-                        Image(systemName: "arrow.down")
-                            .rotationEffect(.degrees(ready ? 180 : 0))
-                            .animation(.easeInOut(duration: 0.2), value: ready)
-                    }
-                    Text(isRefreshing ? "Refreshing…" : ready ? "Release to refresh" : "Pull to refresh")
-                        .font(.subheadline.weight(.medium))
-                }
-                .foregroundColor(.white)
-                .opacity(isRefreshing ? 1 : min(1, max(0, (pullDistance - 18) / 28)))
-                .frame(maxWidth: .infinity)
-                .frame(height: max(pullDistance, isRefreshing ? 60 : 0))
-                .background(LibraryAppearance.blue)
-                .clipped()
-                .allowsHitTesting(false)
-            }
-        }
-        .navigationTitle("Bkmk")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(LibraryAppearance.blue, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showingCreate = true } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("New note")
-            }
-            ToolbarItem(placement: .principal) {
-                ZStack {
-                    Text("Bkmk")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.white)
-                        .opacity(1 - searchTransitionProgress)
-                    LibrarySearchField(title: "Search notes", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
-                        .opacity(searchTransitionProgress)
-                        .allowsHitTesting(searchTransitionProgress >= 0.5)
-                        .accessibilityHidden(searchTransitionProgress < 0.5)
-                }
+        .navigationTitle("Notes")
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            LibraryNavigationHeader(title: "Notes", searchTitle: "Search notes", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag) {
+                draftNoteID = nil
+                showingCreate = true
             }
         }
         .fullScreenCover(isPresented: $showingCreate) {
-            NoteEditorView(onSave: onCreate)
+            NoteEditorView { content in
+                if let draftNoteID {
+                    return await onEdit(draftNoteID, content)
+                }
+                guard let id = await onCreate(content) else { return false }
+                draftNoteID = id
+                return true
+            }
         }
         .alert("Delete note?", isPresented: Binding(
             get: { noteToDelete != nil },
@@ -289,7 +225,7 @@ struct NoteView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                MarkdownReader(markdown: note.content)
+                MarkdownReader(markdown: normalizedNoteTitleContent(note.content))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
@@ -309,36 +245,91 @@ struct NoteView: View {
 private struct NoteEditorView: View {
     let onSave: (String) async -> Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var content: String
     @State private var isSaving = false
+    @State private var isFinishing = false
     @State private var errorMessage: String?
+    @State private var lastSavedContent: String?
+    @State private var saveTask: Task<Void, Never>?
 
     init(note: Note? = nil, onSave: @escaping (String) async -> Bool) {
         self.isNew = note == nil
         self.onSave = onSave
-        _content = State(initialValue: note?.content ?? "")
+        _content = State(initialValue: note.map { normalizedNoteTitleContent($0.content) } ?? "# ")
+        _lastSavedContent = State(initialValue: note?.content)
     }
 
     private let isNew: Bool
 
+    private var hasMeaningfulContent: Bool {
+        let body = content.hasPrefix("# ") ? String(content.dropFirst(2)) : content
+        return !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        guard !isNew || lastSavedContent != nil || hasMeaningfulContent else { return }
+        saveTask = Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled else { return }
+            _ = await saveIfNeeded()
+        }
+    }
+
+    private func saveIfNeeded() async -> Bool {
+        guard !isSaving else { return false }
+        if isNew && lastSavedContent == nil && !hasMeaningfulContent { return true }
+        guard content != lastSavedContent else { return true }
+        isSaving = true
+        let snapshot = content
+        let saved = await onSave(snapshot)
+        if saved { lastSavedContent = snapshot }
+        isSaving = false
+        if saved && content != snapshot { scheduleSave() }
+        return saved
+    }
+
+    private func finishEditing() async {
+        guard !isFinishing else { return }
+        isFinishing = true
+        defer { isFinishing = false }
+        saveTask?.cancel()
+        while isSaving {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        while content != lastSavedContent {
+            if isNew && lastSavedContent == nil && !hasMeaningfulContent { break }
+            guard await saveIfNeeded() else {
+                errorMessage = "Could not save this note on this device. Please try again."
+                return
+            }
+        }
+        dismiss()
+    }
+
     var body: some View {
         NavigationStack {
-            MarkdownTextEditor(text: $content)
+            MarkdownTextEditor(text: $content, autoFocus: isNew)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(isNew ? "New Note" : "Edit Note")
+                .navigationTitle(isNew ? "" : "Edit Note")
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button(isSaving ? "Saving…" : "Save") {
-                            Task {
-                                isSaving = true
-                                if await onSave(content) { dismiss() }
-                                else { errorMessage = "Could not save note. Try again when online." }
-                                isSaving = false
-                            }
-                        }.disabled(isSaving || content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Done") { Task { await finishEditing() } }
+                            .disabled(isFinishing)
                     }
                 }
+                .onChange(of: content) { _ in scheduleSave() }
+                .onAppear {
+                    if content != lastSavedContent { scheduleSave() }
+                }
+                .onChange(of: scenePhase) { phase in
+                    if phase != .active {
+                        saveTask?.cancel()
+                        Task { _ = await saveIfNeeded() }
+                    }
+                }
+                .interactiveDismissDisabled()
                 .alert("Save failed", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
                     Button("OK", role: .cancel) { errorMessage = nil }
                 } message: { Text(errorMessage ?? "") }
@@ -346,12 +337,35 @@ private struct NoteEditorView: View {
     }
 }
 
+private func normalizedNoteTitleContent(_ content: String) -> String {
+    let firstLine = content.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+    guard firstLine.hasPrefix("# ") else { return content }
+    let title = String(firstLine.dropFirst(2))
+    if title.count > 128 || (title.isEmpty && content.contains("\n")) {
+        return String(content.dropFirst(2))
+    }
+    return content
+}
+
 /// Keeps Markdown source editable while giving the same lightweight cues as the web editor.
+private final class FocusableNoteTextView: UITextView {
+    var focusOnAttach = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard focusOnAttach, window != nil else { return }
+        focusOnAttach = false
+        DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() }
+    }
+}
+
 private struct MarkdownTextEditor: UIViewRepresentable {
     @Binding var text: String
+    let autoFocus: Bool
 
     func makeUIView(context: Context) -> UITextView {
-        let view = UITextView()
+        let view = FocusableNoteTextView()
+        view.focusOnAttach = autoFocus
         view.delegate = context.coordinator
         view.font = .monospacedSystemFont(ofSize: 16, weight: .regular)
         view.textColor = .label
@@ -363,6 +377,7 @@ private struct MarkdownTextEditor: UIViewRepresentable {
         view.keyboardDismissMode = .interactive
         view.text = text
         context.coordinator.decorate(view)
+        view.selectedRange = NSRange(location: (text as NSString).length, length: 0)
         return view
     }
 
@@ -381,8 +396,22 @@ private struct MarkdownTextEditor: UIViewRepresentable {
         init(_ parent: MarkdownTextEditor) { self.parent = parent }
 
         func textViewDidChange(_ textView: UITextView) {
+            normalizeTitle(in: textView)
             parent.text = textView.text
             decorate(textView)
+        }
+
+        private func normalizeTitle(in textView: UITextView) {
+            let source = textView.text ?? ""
+            let firstLine = source.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+            guard firstLine.hasPrefix("# ") else { return }
+            let title = String(firstLine.dropFirst(2))
+            guard title.count > 128 || (title.isEmpty && source.contains("\n")) else { return }
+            let selection = textView.selectedRange
+            textView.textStorage.replaceCharacters(in: NSRange(location: 0, length: 2), with: "")
+            let start = max(0, selection.location - 2)
+            let end = max(start, selection.location + selection.length - 2)
+            textView.selectedRange = NSRange(location: start, length: end - start)
         }
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText replacement: String) -> Bool {
@@ -462,6 +491,14 @@ private extension String {
 struct NoteRow: View {
     let note: Note
 
+    private var heading: String? {
+        let firstLine = note.content.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+        guard firstLine.hasPrefix("# ") else { return nil }
+        let title = String(firstLine.dropFirst(2))
+        guard !title.isEmpty, title.count <= 128 else { return nil }
+        return markdownPlainText(title)
+    }
+
     private var plainText: String { markdownPlainText(note.content) }
     private var lines: [String] {
         plainText.components(separatedBy: .newlines)
@@ -471,15 +508,22 @@ struct NoteRow: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(noteTitle(lines.first ?? "Untitled note"))
-                .font(.system(.headline, design: .serif))
-                .lineLimit(2)
-            
-            if lines.count > 1 {
-                Text(lines.dropFirst().joined(separator: " "))
+            if let heading {
+                Text(noteTitle(heading))
+                    .font(.system(.headline, design: .serif))
+                    .lineLimit(2)
+
+                if lines.count > 1 {
+                    Text(lines.dropFirst().joined(separator: " "))
+                        .font(.system(.subheadline, design: .serif))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            } else {
+                Text(plainText.isEmpty ? "Empty note" : plainText)
                     .font(.system(.subheadline, design: .serif))
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
             }
             
             HStack(spacing: 8) {

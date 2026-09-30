@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
     await db.transaction(async (tx) => {
       const { ids: tagIds } = resolveTags(c.tags || []);
 
-      const [inserted] = await tx
+      const [created] = await tx
         .insert(notes)
         .values({
           id: c.id || crypto.randomUUID(),
@@ -75,12 +75,18 @@ export default defineEventHandler(async (event) => {
           updatedAt: now,
           deletedAt: null,
         })
+        .onConflictDoNothing()
         .returning();
 
-      if (!inserted) {
-        throw createError({ statusCode: 500, message: "Failed to create note" });
-      }
+      // The queued create may have been edited while the first request was in
+      // flight, so replay its current fields when the ID already exists.
+      const [inserted] = created ? [created] : await tx.update(notes)
+        .set({ content: c.content, isFavorite: c.isFavorite ? 1 : 0, updatedAt: now })
+        .where(and(eq(notes.id, c.id), eq(notes.userId, currentUser.id)))
+        .returning();
+      if (!inserted) throw createError({ statusCode: 409, message: "Note ID is already in use" });
 
+      if (!created) await tx.delete(notesTags).where(eq(notesTags.noteId, inserted.id));
       if (tagIds.length > 0) {
         await tx.insert(notesTags).values(
           tagIds.map((tagId) => ({
@@ -156,9 +162,7 @@ export default defineEventHandler(async (event) => {
       .where(and(eq(notes.id, id), eq(notes.userId, currentUser.id)))
       .returning();
 
-    if (deleted) {
-      results.deleted.push(id);
-    }
+    results.deleted.push(deleted?.id ?? id);
   }
 
   return results;

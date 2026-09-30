@@ -6,6 +6,7 @@
     v-if="isAuthenticated"
     :is-online="isOnline"
     :sync-status="syncStatus"
+    :sync-error="syncError"
     :pending-changes="pendingChangesCount"
     :last-sync-time="lastSyncTime"
     @retry="triggerSync"
@@ -16,7 +17,7 @@
 const dataStore = useDataStore()
 const { init: initAuth, isAuthenticated } = useAuth()
 
-const { isOnline, syncStatus, lastSyncTime, pendingChangesCount } = storeToRefs(dataStore)
+const { isOnline, syncStatus, syncError, lastSyncTime, pendingChangesCount } = storeToRefs(dataStore)
 const triggerSync = () => dataStore.triggerSync()
 
 onMounted(async () => {

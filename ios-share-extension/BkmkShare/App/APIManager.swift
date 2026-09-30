@@ -5,7 +5,7 @@ enum APIEndpoint: String {
     case notes = "notes"
 }
 
-private struct PendingNativeEdit: Codable {
+private struct PendingNativeEdit: Codable, Equatable {
     let id: String
     let kind: String
     var operation: String?
@@ -86,7 +86,7 @@ class APIManager: ObservableObject {
             pendingEdits[existingIndex] = PendingNativeEdit(
                 id: edit.id,
                 kind: edit.kind,
-                operation: "update",
+                operation: existing.operation == "create" ? "create" : "update",
                 content: edit.content ?? existing.content,
                 title: edit.title ?? existing.title,
                 url: edit.url ?? existing.url,
@@ -103,7 +103,7 @@ class APIManager: ObservableObject {
         guard !isFlushingEdits else { return }
         isFlushingEdits = true
         defer { isFlushingEdits = false }
-        for edit in pendingEdits {
+        while let edit = pendingEdits.first {
             let endpoint: APIEndpoint
             var body: [String: Any]?
             var method = "PUT"
@@ -123,17 +123,26 @@ class APIManager: ObservableObject {
                 endpoint = .notes
                 if edit.operation == "delete" { method = "DELETE" }
                 else {
+                    if edit.operation == "create" { method = "POST" }
                     var values: [String: Any] = [:]
+                    if edit.operation == "create" { values["id"] = edit.id }
                     if let content = edit.content { values["content"] = content }
                     if let isFavorite = edit.isFavorite { values["isFavorite"] = isFavorite }
                     body = values
                 }
             default:
+                pendingEdits.removeFirst()
+                savePendingEdits()
                 continue
             }
-            guard await performAction(endpoint: endpoint, id: edit.id, method: method, token: token, body: body) else { break }
-            pendingEdits.removeAll { $0.id == edit.id && $0.kind == edit.kind }
-            savePendingEdits()
+            let requestID = method == "POST" ? nil : edit.id
+            guard await performAction(endpoint: endpoint, id: requestID, method: method, token: token, body: body,
+                                      allowNotFound: method == "DELETE" && edit.kind == "note", reportError: false) else { break }
+            if let index = pendingEdits.firstIndex(where: { $0.id == edit.id && $0.kind == edit.kind }),
+               pendingEdits[index] == edit {
+                pendingEdits.remove(at: index)
+                savePendingEdits()
+            }
         }
     }
 
@@ -255,7 +264,11 @@ class APIManager: ObservableObject {
     func fetchNotes(token: String, page: Int = 1, limit: Int = 50) async {
         await flushPendingEdits(token: token)
         guard let allNotes = await fetchAllNotes(token: token, limit: limit) else { return }
+        let pendingCreateIDs = Set(pendingEdits.filter { $0.kind == "note" && $0.operation == "create" }.map(\.id))
+        let serverIDs = Set(allNotes.map(\.id))
+        let localDrafts = notes.filter { pendingCreateIDs.contains($0.id) && !serverIDs.contains($0.id) }
         notes = allNotes
+        notes.insert(contentsOf: localDrafts, at: 0)
         applyPendingEditsToCache()
         saveToDisk()
     }
@@ -299,15 +312,20 @@ class APIManager: ObservableObject {
         notes[index].content = content
         queueEdit(PendingNativeEdit(id: id, kind: "note", operation: "edit", content: content, title: nil, url: nil, isFavorite: nil))
         saveToDisk()
-        await flushPendingEdits(token: token)
+        Task { await flushPendingEdits(token: token) }
         return true
     }
 
-    func createNote(content: String, token: String) async -> Bool {
-        guard await performAction(endpoint: .notes, method: "POST", token: token,
-                                  body: ["content": content]) else { return false }
-        await fetchNotes(token: token)
-        return true
+    func createNote(content: String, token: String) -> String {
+        let id = UUID().uuidString.lowercased()
+        let now = ISO8601DateFormatter().string(from: Date())
+        notes.insert(Note(id: id, content: content, isFavorite: false, sortOrder: nil,
+                          tags: [], createdAt: now, updatedAt: now, deletedAt: nil), at: 0)
+        queueEdit(PendingNativeEdit(id: id, kind: "note", operation: "create", content: content,
+                                    title: nil, url: nil, isFavorite: false))
+        saveToDisk()
+        Task { await flushPendingEdits(token: token) }
+        return id
     }
 
     // MARK: - Private Core Logic (Unchanged from original, but ensures persistence is called above)
@@ -337,7 +355,7 @@ class APIManager: ObservableObject {
         }
     }
 
-    private func performAction(endpoint: APIEndpoint, id: String? = nil, method: String, token: String, body: [String: Any]? = nil) async -> Bool {
+    private func performAction(endpoint: APIEndpoint, id: String? = nil, method: String, token: String, body: [String: Any]? = nil, allowNotFound: Bool = false, reportError: Bool = true) async -> Bool {
         let path = [endpoint.rawValue, id].compactMap { $0 }.joined(separator: "/")
         guard let url = URL(string: "\(baseURL)/\(path)") else { return false }
         
@@ -350,10 +368,12 @@ class APIManager: ObservableObject {
         
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
+            if allowNotFound, let response = response as? HTTPURLResponse, response.statusCode == 404 { return true }
             try validateResponse(response)
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            if (error as NSError).code == 401 { errorMessage = "Session expired" }
+            else if reportError { errorMessage = error.localizedDescription }
             return false
         }
     }

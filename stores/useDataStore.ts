@@ -59,6 +59,7 @@ export const useDataStore = defineStore("data", () => {
   // ==================== SYNC LOCK ====================
   // Prevents concurrent sync attempts that cause race conditions
   let syncInProgress = false;
+  let changesQueuedDuringSync = false;
 
   // ==================== LIFECYCLE ====================
   async function initialize() {
@@ -76,11 +77,8 @@ export const useDataStore = defineStore("data", () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // The local snapshot is already usable. Reconcile with the server in the
-    // background; a failed/offline pull never blocks startup.
-    if (isOnline.value) {
-      void syncWithServer();
-    }
+    // The auth watcher in the client plugin starts the first server sync once
+    // the user's session is known.
   }
 
   function cleanup() {
@@ -128,7 +126,7 @@ export const useDataStore = defineStore("data", () => {
       console.log("[DataStore] Sync already in progress, skipping");
       return false;
     }
-    if (!isOnline.value || syncing.value) return false;
+    if (!isOnline.value || syncing.value || !useAuth().isAuthenticated.value) return false;
 
     // Throttle background syncs to at most once per SYNC_THROTTLE_MS.
     if (!force && lastSyncTime.value) {
@@ -183,6 +181,10 @@ export const useDataStore = defineStore("data", () => {
       syncInProgress = false;
       syncing.value = false;
       await refreshPendingCount();
+      if (changesQueuedDuringSync && isOnline.value) {
+        changesQueuedDuringSync = false;
+        void syncWithServer(true);
+      }
     }
   }
 
@@ -196,13 +198,16 @@ export const useDataStore = defineStore("data", () => {
     const noteItems = queue.filter((q) => q.entity === "note");
     const tagItems = queue.filter((q) => q.entity === "tag");
 
-    const results = await Promise.all([
+    // Bookmark and note payloads can reference tags by name. Push explicit
+    // tag creates first so their batch resolvers do not race to create the
+    // same name under a different ID.
+    const tagsSucceeded = await pushQueueGroup(tagItems, pushTagsBatch, "tags");
+    const [bookmarksSucceeded, notesSucceeded] = await Promise.all([
       pushQueueGroup(bookmarkItems, pushBookmarksBatch, "bookmarks"),
       pushQueueGroup(noteItems, pushNotesBatch, "notes"),
-      pushQueueGroup(tagItems, pushTagsBatch, "tags"),
     ]);
 
-    return { allSucceeded: results.every((r) => r) };
+    return { allSucceeded: tagsSucceeded && bookmarksSucceeded && notesSucceeded };
   }
 
   type BatchFn = (
@@ -214,32 +219,54 @@ export const useDataStore = defineStore("data", () => {
   async function pushQueueGroup(items: SyncQueueItem[], batchFn: BatchFn, label: string): Promise<boolean> {
     if (items.length === 0) return true;
 
-    const creates = items.filter((q) => q.action === "create");
-    const updates = items.filter((q) => q.action === "update");
-    const deletes = items.filter((q) => q.action === "delete");
-
-    try {
-      await batchFn(creates, updates, deletes);
-      for (const item of items) await idb.removeSyncQueueItemIfUnchanged(item);
-      return true;
-    } catch (e) {
-      console.warn(`[DataStore] Batch push failed for ${label}, falling back to individual pushes`, e);
-    }
-
     let allOk = true;
-    for (const item of items) {
+    // The server caps bookmark and note batches at 500 items. Keep chunks
+    // small enough that a long offline period cannot make every retry fail.
+    for (let offset = 0; offset < items.length; offset += 500) {
+      const chunk = items.slice(offset, offset + 500);
       try {
-        await pushChange(item);
-        await idb.removeSyncQueueItemIfUnchanged(item);
-      } catch (err) {
-        allOk = false;
-        const expected = { ...item };
-        item.retries++;
-        await idb.updateSyncQueueItemIfUnchanged(item, expected);
-        console.warn(`[DataStore] Item kept in queue (retries=${item.retries}):`, item.entity, item.action, item.id);
+        await batchFn(
+          chunk.filter((q) => q.action === "create"),
+          chunk.filter((q) => q.action === "update"),
+          chunk.filter((q) => q.action === "delete"),
+        );
+        for (const item of chunk) await idb.removeSyncQueueItemIfUnchanged(item);
+      } catch (e) {
+        console.warn(`[DataStore] Batch push failed for ${label}, retrying items separately`, e);
+        for (const item of chunk) {
+          try {
+            // Use the same ID-preserving batch endpoint for one-item retries.
+            // The ordinary create endpoints do not all accept client IDs.
+            await batchFn(
+              item.action === "create" ? [item] : [],
+              item.action === "update" ? [item] : [],
+              item.action === "delete" ? [item] : [],
+            );
+            await idb.removeSyncQueueItemIfUnchanged(item);
+          } catch (err) {
+            allOk = false;
+            const expected = { ...item };
+            item.retries++;
+            await idb.updateSyncQueueItemIfUnchanged(item, expected);
+            console.warn(`[DataStore] Item kept in queue (retries=${item.retries}):`, item.entity, item.action, item.id, err);
+          }
+        }
       }
     }
     return allOk;
+  }
+
+  function assertBatchApplied(
+    result: { created: { id: string }[]; updated: { id: string }[]; deleted: string[] },
+    creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[],
+  ) {
+    const applied = new Set([
+      ...result.created.map((item) => item.id),
+      ...result.updated.map((item) => item.id),
+      ...result.deleted,
+    ]);
+    const missing = [...creates, ...updates, ...deletes].filter((item) => !applied.has(item.id));
+    if (missing.length) throw new Error(`Server did not apply ${missing.length} queued changes`);
   }
 
   async function pushBookmarksBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[]) {
@@ -260,6 +287,7 @@ export const useDataStore = defineStore("data", () => {
       method: "POST",
       body: batchData,
     });
+    assertBatchApplied(result, creates, updates, deletes);
 
     console.log(
       `[DataStore] Batch bookmark sync: ${result.created.length} created, ${result.updated.length} updated, ${result.deleted.length} deleted`,
@@ -284,6 +312,7 @@ export const useDataStore = defineStore("data", () => {
       method: "POST",
       body: batchData,
     });
+    assertBatchApplied(result, creates, updates, deletes);
 
     console.log(
       `[DataStore] Batch note sync: ${result.created.length} created, ${result.updated.length} updated, ${result.deleted.length} deleted`,
@@ -308,50 +337,11 @@ export const useDataStore = defineStore("data", () => {
       method: "POST",
       body: batchData,
     });
+    assertBatchApplied(result, creates, updates, deletes);
 
     console.log(
       `[DataStore] Batch tag sync: ${result.created.length} created, ${result.updated.length} updated, ${result.deleted.length} deleted`,
     );
-  }
-
-  async function pushChange(item: SyncQueueItem) {
-    const { action, entity, id } = item;
-
-    switch (entity) {
-      case "bookmark": {
-        const data = item.data as Partial<Bookmark>;
-        if (action === "delete") {
-          await $fetch(`/api/bookmarks/${id}`, { method: "DELETE" });
-        } else if (action === "create") {
-          await $fetch("/api/bookmarks", { method: "POST", body: data });
-        } else {
-          await $fetch(`/api/bookmarks/${id}`, { method: "PUT", body: data });
-        }
-        break;
-      }
-      case "note": {
-        const data = item.data as Partial<Note>;
-        if (action === "delete") {
-          await $fetch(`/api/notes/${id}`, { method: "DELETE" });
-        } else if (action === "create") {
-          await $fetch("/api/notes", { method: "POST", body: data });
-        } else {
-          await $fetch(`/api/notes/${id}`, { method: "PUT", body: data });
-        }
-        break;
-      }
-      case "tag": {
-        const data = item.data as Partial<Tag>;
-        if (action === "delete") {
-          await $fetch(`/api/tags/${id}`, { method: "DELETE" });
-        } else if (action === "create") {
-          await $fetch("/api/tags", { method: "POST", body: data });
-        } else {
-          await $fetch(`/api/tags/${id}`, { method: "PUT", body: data });
-        }
-        break;
-      }
-    }
   }
 
   async function pullServerData() {
@@ -591,8 +581,10 @@ export const useDataStore = defineStore("data", () => {
     await refreshPendingCount();
 
     // Try immediate sync if online (fire and forget)
-    if (isOnline.value && !syncing.value) {
-      syncWithServer();
+    if (syncInProgress) {
+      changesQueuedDuringSync = true;
+    } else if (isOnline.value) {
+      void syncWithServer();
     }
   }
 

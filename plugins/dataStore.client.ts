@@ -6,6 +6,11 @@ export default defineNuxtPlugin(async () => {
 
   await dataStore.initialize()
 
+  const { isAuthenticated } = useAuth()
+  watch(isAuthenticated, (authenticated) => {
+    if (authenticated) void dataStore.triggerSync()
+  }, { immediate: true })
+
   console.log('[Plugin] DataStore initialized')
 
   return {

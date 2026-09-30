@@ -103,11 +103,24 @@ export default defineEventHandler(async (event) => {
         deletedAt: null,
       };
 
-      const [inserted] = await tx.insert(bookmarks).values(newBookmark).returning();
-      if (!inserted) {
-        throw createError({ statusCode: 500, message: "Failed to create bookmark" });
-      }
+      // A response can be lost after an earlier item in the batch commits.
+      // A retry with the same client ID must acknowledge that item again.
+      const [created] = await tx.insert(bookmarks).values(newBookmark).onConflictDoNothing().returning();
+      const [inserted] = created ? [created] : await tx.update(bookmarks)
+        .set({
+          title: newBookmark.title, url: newBookmark.url, description: newBookmark.description,
+          cleanedMarkdown: newBookmark.cleanedMarkdown, originalHtml: newBookmark.originalHtml,
+          readingTimeMinutes: newBookmark.readingTimeMinutes, savedAt: newBookmark.savedAt,
+          isFavorite: newBookmark.isFavorite, sortOrder: newBookmark.sortOrder,
+          thumbnailImagePath: newBookmark.thumbnailImagePath, isRead: newBookmark.isRead,
+          readAt: newBookmark.readAt, sourceDomain: newBookmark.sourceDomain,
+          wordCount: newBookmark.wordCount, updatedAt: now,
+        })
+        .where(and(eq(bookmarks.id, newBookmark.id), eq(bookmarks.userId, currentUser.id)))
+        .returning();
+      if (!inserted) throw createError({ statusCode: 409, message: "Bookmark ID is already in use" });
 
+      if (!created) await tx.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, inserted.id));
       if (tagIds.length > 0) {
         await tx.insert(bookmarkTags).values(
           tagIds.map((tagId) => ({
@@ -219,9 +232,8 @@ export default defineEventHandler(async (event) => {
       .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, currentUser.id)))
       .returning({ id: bookmarks.id });
 
-    if (deleted) {
-      results.deleted.push(deleted.id);
-    }
+    // Deleting a row that is already gone also satisfies the queued delete.
+    results.deleted.push(deleted?.id ?? id);
   }
 
   return results;

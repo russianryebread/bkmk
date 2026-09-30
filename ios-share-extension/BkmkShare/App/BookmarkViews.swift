@@ -4,6 +4,7 @@ import WebKit
 
 enum LibraryAppearance {
     static let blue = Color(red: 0.14, green: 0.38, blue: 0.85)
+    static let uiBlue = UIColor(red: 0.14, green: 0.38, blue: 0.85, alpha: 1)
 }
 
 struct LibrarySearchTopPreference: PreferenceKey {
@@ -20,38 +21,105 @@ struct LibraryViewportTopPreference: PreferenceKey {
     }
 }
 
+struct LibraryFirstRowTopPreference: PreferenceKey {
+    static var defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
+struct LibraryRefreshStyle: ViewModifier {
+    let onRefresh: () async -> Void
+    @State private var firstRowTop: CGFloat?
+    @State private var viewportTop: CGFloat?
+    @State private var isRefreshing = false
+
+    private var pullDistance: CGFloat {
+        guard let firstRowTop, let viewportTop else { return 0 }
+        return max(0, firstRowTop - viewportTop)
+    }
+
+    private var refreshBandHeight: CGFloat {
+        max(pullDistance, isRefreshing ? 60 : 0)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background {
+                Color(.systemBackground)
+                    .overlay(alignment: .top) {
+                        LibraryAppearance.blue
+                            .frame(height: refreshBandHeight)
+                    }
+            }
+            .overlay(alignment: .top) {
+                if pullDistance > 24 || isRefreshing {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(width: 32, height: 32)
+                        .background(LibraryAppearance.blue, in: Circle())
+                        .frame(maxWidth: .infinity)
+                        .frame(height: refreshBandHeight)
+                        .allowsHitTesting(false)
+                }
+            }
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: LibraryViewportTopPreference.self, value: geometry.frame(in: .global).minY)
+            })
+            .onPreferenceChange(LibraryFirstRowTopPreference.self) { firstRowTop = $0 }
+            .onPreferenceChange(LibraryViewportTopPreference.self) { viewportTop = $0 }
+            .refreshable {
+                isRefreshing = true
+                await onRefresh()
+                isRefreshing = false
+            }
+    }
+}
+
 enum LibrarySearchTransition {
     static func progress(searchTop: CGFloat, viewportTop: CGFloat) -> CGFloat {
         min(1, max(0, (viewportTop - searchTop) / 44))
     }
 }
 
-struct LibraryTitleRow: View {
+struct LibraryNavigationHeader: View {
     let title: String
-    let onRefresh: () async -> Void
+    let searchTitle: String
+    let tags: [String]
+    let transitionProgress: CGFloat
+    @Binding var searchText: String
+    @Binding var favoritesOnly: Bool
+    @Binding var selectedTag: String?
+    let onCreate: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
+        HStack(spacing: 16) {
+            ZStack(alignment: .leading) {
                 Text(title)
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Spacer()
-                Button {
-                    Task { await onRefresh() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .frame(width: 36, height: 36)
-                        .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
-                }
-                .accessibilityLabel("Refresh \(title.lowercased())")
+                    .foregroundColor(.white)
+                    .opacity(1 - transitionProgress)
+                    .accessibilityHidden(transitionProgress >= 0.5)
+                LibrarySearchField(title: searchTitle, tags: tags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
+                    .opacity(transitionProgress)
+                    .allowsHitTesting(transitionProgress >= 0.5)
+                    .accessibilityHidden(transitionProgress < 0.5)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onCreate) {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.medium))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.white.opacity(0.14), in: Circle())
+            }
+            .accessibilityLabel("New \(title.dropLast().lowercased())")
         }
-        .foregroundColor(.white)
-        .padding(.horizontal, 22)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LibraryAppearance.blue)
+        .padding(.horizontal, 20)
+        .frame(height: 76)
+        .background(LibraryAppearance.blue.ignoresSafeArea(edges: .top))
     }
 }
 
@@ -75,6 +143,9 @@ struct LibrarySearchHeader: View {
             .padding(.top, 4)
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity)
+            .background(GeometryReader { geometry in
+                Color.clear.preference(key: LibraryFirstRowTopPreference.self, value: geometry.frame(in: .global).minY)
+            })
             .background(LibraryAppearance.blue)
     }
 }
@@ -218,11 +289,6 @@ struct BookmarksListView: View {
     
     var body: some View {
         List {
-            LibraryTitleRow(title: "Bookmarks", onRefresh: onRefresh)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(LibraryAppearance.blue)
-                .listRowSeparator(.hidden)
-
             LibrarySearchHeader(title: "Search bookmarks", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(LibraryAppearance.blue)
@@ -271,11 +337,7 @@ struct BookmarksListView: View {
             }
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Color(.systemBackground))
-        .background(GeometryReader { geometry in
-            Color.clear.preference(key: LibraryViewportTopPreference.self, value: geometry.frame(in: .global).minY)
-        })
+        .modifier(LibraryRefreshStyle(onRefresh: onRefresh))
         .onPreferenceChange(LibrarySearchTopPreference.self) { top in
             if top != nil { hasMeasuredSearch = true }
             searchTop = top
@@ -283,28 +345,11 @@ struct BookmarksListView: View {
         .onPreferenceChange(LibraryViewportTopPreference.self) { top in
             viewportTop = top
         }
-        .refreshable { await onRefresh() }
-        .navigationTitle("Bkmk")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(LibraryAppearance.blue, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showingCreate = true } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("New bookmark")
-            }
-            ToolbarItem(placement: .principal) {
-                ZStack {
-                    Text("Bkmk")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.white)
-                        .opacity(1 - searchTransitionProgress)
-                    LibrarySearchField(title: "Search bookmarks", tags: availableTags, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag, isCompact: true)
-                        .opacity(searchTransitionProgress)
-                        .allowsHitTesting(searchTransitionProgress >= 0.5)
-                        .accessibilityHidden(searchTransitionProgress < 0.5)
-                }
+        .navigationTitle("Bookmarks")
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            LibraryNavigationHeader(title: "Bookmarks", searchTitle: "Search bookmarks", tags: availableTags, transitionProgress: searchTransitionProgress, searchText: $searchText, favoritesOnly: $favoritesOnly, selectedTag: $selectedTag) {
+                showingCreate = true
             }
         }
         .sheet(isPresented: $showingCreate) {
