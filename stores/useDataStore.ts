@@ -20,6 +20,8 @@ export type SyncStatus = "idle" | "syncing" | "success" | "error" | "offline";
 // Background syncs are throttled to at most once per this interval. An explicit
 // pull-to-refresh / triggerSync passes force=true to bypass it.
 const SYNC_THROTTLE_MS = 60_000;
+const SYNC_REQUEST_TIMEOUT_MS = 30_000;
+const SYNC_ATTEMPT_TIMEOUT_MS = 120_000;
 // Holds a pending deferred sync scheduled while throttled, so queued changes
 // still flush once the throttle window elapses.
 let deferredSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -120,6 +122,12 @@ export const useDataStore = defineStore("data", () => {
   }
 
   // ==================== SERVER SYNC ====================
+  function syncRequestTimeout(deadline: number): number {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("Sync timed out. Please try again.");
+    return Math.min(SYNC_REQUEST_TIMEOUT_MS, remaining);
+  }
+
   async function syncWithServer(force = false): Promise<boolean> {
     // Prevent concurrent sync attempts that cause race conditions
     if (syncInProgress) {
@@ -156,13 +164,14 @@ export const useDataStore = defineStore("data", () => {
     syncing.value = true;
     syncStatus.value = "syncing";
     syncError.value = null;
+    const deadline = Date.now() + SYNC_ATTEMPT_TIMEOUT_MS;
 
     try {
       // 1. Push local changes via batch API
-      const pushed = await pushLocalChanges();
+      const pushed = await pushLocalChanges(deadline);
 
       // 2. Pull server data
-      await pullServerData();
+      await pullServerData(deadline);
 
       if (!pushed.allSucceeded) {
         throw new Error("Some local changes are still waiting to sync");
@@ -188,7 +197,7 @@ export const useDataStore = defineStore("data", () => {
     }
   }
 
-  async function pushLocalChanges(): Promise<{ allSucceeded: boolean }> {
+  async function pushLocalChanges(deadline: number): Promise<{ allSucceeded: boolean }> {
     const queue = await idb.getSyncQueue();
     if (queue.length === 0) return { allSucceeded: true };
 
@@ -201,10 +210,10 @@ export const useDataStore = defineStore("data", () => {
     // Bookmark and note payloads can reference tags by name. Push explicit
     // tag creates first so their batch resolvers do not race to create the
     // same name under a different ID.
-    const tagsSucceeded = await pushQueueGroup(tagItems, pushTagsBatch, "tags");
+    const tagsSucceeded = await pushQueueGroup(tagItems, pushTagsBatch, "tags", deadline);
     const [bookmarksSucceeded, notesSucceeded] = await Promise.all([
-      pushQueueGroup(bookmarkItems, pushBookmarksBatch, "bookmarks"),
-      pushQueueGroup(noteItems, pushNotesBatch, "notes"),
+      pushQueueGroup(bookmarkItems, pushBookmarksBatch, "bookmarks", deadline),
+      pushQueueGroup(noteItems, pushNotesBatch, "notes", deadline),
     ]);
 
     return { allSucceeded: tagsSucceeded && bookmarksSucceeded && notesSucceeded };
@@ -214,26 +223,30 @@ export const useDataStore = defineStore("data", () => {
     creates: SyncQueueItem[],
     updates: SyncQueueItem[],
     deletes: SyncQueueItem[],
+    deadline: number,
   ) => Promise<void>;
 
-  async function pushQueueGroup(items: SyncQueueItem[], batchFn: BatchFn, label: string): Promise<boolean> {
+  async function pushQueueGroup(items: SyncQueueItem[], batchFn: BatchFn, label: string, deadline: number): Promise<boolean> {
     if (items.length === 0) return true;
 
     let allOk = true;
     // The server caps bookmark and note batches at 500 items. Keep chunks
     // small enough that a long offline period cannot make every retry fail.
     for (let offset = 0; offset < items.length; offset += 500) {
+      if (Date.now() >= deadline) return false;
       const chunk = items.slice(offset, offset + 500);
       try {
         await batchFn(
           chunk.filter((q) => q.action === "create"),
           chunk.filter((q) => q.action === "update"),
           chunk.filter((q) => q.action === "delete"),
+          deadline,
         );
         for (const item of chunk) await idb.removeSyncQueueItemIfUnchanged(item);
       } catch (e) {
         console.warn(`[DataStore] Batch push failed for ${label}, retrying items separately`, e);
         for (const item of chunk) {
+          if (Date.now() >= deadline) return false;
           try {
             // Use the same ID-preserving batch endpoint for one-item retries.
             // The ordinary create endpoints do not all accept client IDs.
@@ -241,6 +254,7 @@ export const useDataStore = defineStore("data", () => {
               item.action === "create" ? [item] : [],
               item.action === "update" ? [item] : [],
               item.action === "delete" ? [item] : [],
+              deadline,
             );
             await idb.removeSyncQueueItemIfUnchanged(item);
           } catch (err) {
@@ -269,7 +283,7 @@ export const useDataStore = defineStore("data", () => {
     if (missing.length) throw new Error(`Server did not apply ${missing.length} queued changes`);
   }
 
-  async function pushBookmarksBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[]) {
+  async function pushBookmarksBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[], deadline: number) {
     const batchData = {
       create: creates.map((c) => c.data as Bookmark),
       update: updates.map((u) => {
@@ -286,6 +300,8 @@ export const useDataStore = defineStore("data", () => {
     const result = await $fetch("/api/bookmarks/batch", {
       method: "POST",
       body: batchData,
+      timeout: syncRequestTimeout(deadline),
+      retry: 0,
     });
     assertBatchApplied(result, creates, updates, deletes);
 
@@ -294,7 +310,7 @@ export const useDataStore = defineStore("data", () => {
     );
   }
 
-  async function pushNotesBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[]) {
+  async function pushNotesBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[], deadline: number) {
     const batchData = {
       create: creates.map((c) => c.data as Note),
       update: updates.map((u) => {
@@ -311,6 +327,8 @@ export const useDataStore = defineStore("data", () => {
     const result = await $fetch("/api/notes/batch", {
       method: "POST",
       body: batchData,
+      timeout: syncRequestTimeout(deadline),
+      retry: 0,
     });
     assertBatchApplied(result, creates, updates, deletes);
 
@@ -319,7 +337,7 @@ export const useDataStore = defineStore("data", () => {
     );
   }
 
-  async function pushTagsBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[]) {
+  async function pushTagsBatch(creates: SyncQueueItem[], updates: SyncQueueItem[], deletes: SyncQueueItem[], deadline: number) {
     const batchData = {
       create: creates.map((c) => c.data as Tag),
       update: updates.map((u) => {
@@ -336,6 +354,8 @@ export const useDataStore = defineStore("data", () => {
     const result = await $fetch("/api/tags/batch", {
       method: "POST",
       body: batchData,
+      timeout: syncRequestTimeout(deadline),
+      retry: 0,
     });
     assertBatchApplied(result, creates, updates, deletes);
 
@@ -344,14 +364,14 @@ export const useDataStore = defineStore("data", () => {
     );
   }
 
-  async function pullServerData() {
+  async function pullServerData(deadline: number) {
     console.log("[DataStore] Pulling data from server...");
 
     try {
       const [bookmarksRes, notesRes, tagsRes] = await Promise.allSettled([
-        fetchAllPages<Bookmark>("/api/bookmarks", "bookmarks"),
-        fetchAllPages<Note>("/api/notes", "notes"),
-        $fetch<{ tags: Tag[] }>("/api/tags"),
+        fetchAllPages<Bookmark>("/api/bookmarks", "bookmarks", deadline),
+        fetchAllPages<Note>("/api/notes", "notes", deadline),
+        $fetch<{ tags: Tag[] }>("/api/tags", { timeout: syncRequestTimeout(deadline), retry: 0 }),
       ]);
 
       if (bookmarksRes.status === "fulfilled") {
@@ -371,9 +391,8 @@ export const useDataStore = defineStore("data", () => {
         console.log(`[DataStore] Synced ${serverTags.length} tags`);
       }
 
-      if ([bookmarksRes, notesRes, tagsRes].some(result => result.status === "rejected")) {
-        throw new Error("Could not finish downloading server changes");
-      }
+      const failed = [bookmarksRes, notesRes, tagsRes].find(result => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
 
     } catch (e) {
       console.warn("[DataStore] Server pull failed:", e);
@@ -385,10 +404,11 @@ export const useDataStore = defineStore("data", () => {
   // later rows, while incremental watermarks were shared across accounts and
   // could permanently skip writes that landed during a pull. Full pagination
   // keeps counts stable and makes the server snapshot unambiguous.
-  async function fetchAllPages<T>(path: string, key: "bookmarks" | "notes"): Promise<T[]> {
+  async function fetchAllPages<T>(path: string, key: "bookmarks" | "notes", deadline: number): Promise<T[]> {
     type PageResponse = Partial<Record<"bookmarks" | "notes", T[]>> & { pagination?: { totalPages?: number } };
     const fetchPage = (page: number) => $fetch<PageResponse>(
       `${path}?limit=1000&includeDeleted=true&page=${page}`,
+      { timeout: syncRequestTimeout(deadline), retry: 0 },
     );
     const first = await fetchPage(1);
     const items = [...(first[key] || [])];
