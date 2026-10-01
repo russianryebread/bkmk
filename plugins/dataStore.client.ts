@@ -1,17 +1,22 @@
 // plugins/dataStore.client.ts
 // Initializes the data store on app startup (client-only)
 
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin(() => {
   const dataStore = useDataStore()
 
-  await dataStore.initialize()
-
   const { isAuthenticated } = useAuth()
-  watch(isAuthenticated, (authenticated) => {
-    if (authenticated) void dataStore.triggerSync()
-  }, { immediate: true })
+  onNuxtReady(async () => {
+    try {
+      await dataStore.initialize()
+      watch(isAuthenticated, (authenticated) => {
+        if (authenticated) void dataStore.triggerSync()
+      }, { immediate: true })
+    } catch (error) {
+      console.error('[Plugin] Local storage initialization failed:', error)
+    }
+  })
 
-  console.log('[Plugin] DataStore initialized')
+  console.log('[Plugin] DataStore initialization scheduled')
 
   return {
     provide: {

@@ -273,7 +273,18 @@ function scheduleAutoSave() {
 
 // Save immediately, bypassing the debounce. Used by the indicator click and
 // by flushSave() on cancel / route leave / tab hide.
-async function autoSave() {
+let saveInProgress: Promise<void> | null = null
+async function autoSave(): Promise<void> {
+  if (saveInProgress) {
+    await saveInProgress
+    if (hasChanges.value && saveStatus.value !== 'error') await autoSave()
+    return
+  }
+  saveInProgress = performSave()
+  try { await saveInProgress } finally { saveInProgress = null }
+}
+
+async function performSave() {
   if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
   if (savedFadeTimer) { clearTimeout(savedFadeTimer); savedFadeTimer = null }
   // Don't create empty new notes.
@@ -283,12 +294,14 @@ async function autoSave() {
   }
   if (!hasChanges.value && !isNew.value) return
 
+  const content = editorContent.value
+  const tags = [...editorTags.value]
   saveStatus.value = 'saving'
   try {
     if (isNew.value) {
       const created = await dataStore.createNote({
-        content: editorContent.value,
-        tags: [...editorTags.value],
+        content,
+        tags,
       })
       if (created) {
         note.value = created
@@ -297,17 +310,18 @@ async function autoSave() {
       }
     } else if (note.value) {
       await dataStore.updateNote(note.value.id, {
-        content: editorContent.value,
-        tags: [...editorTags.value],
+        content,
+        tags,
       })
       note.value = {
         ...note.value,
-        content: editorContent.value,
-        tags: [...editorTags.value],
+        content,
+        tags,
         updatedAt: new Date().toISOString(),
       }
     }
-    saveStatus.value = 'saved'
+    saveStatus.value = hasChanges.value ? 'pending' : 'saved'
+    if (hasChanges.value) scheduleAutoSave()
     savedFadeTimer = setTimeout(() => {
       if (saveStatus.value === 'saved') saveStatus.value = 'idle'
     }, 2000)
@@ -323,9 +337,8 @@ async function autoSave() {
 
 // Flush any pending save now (no-op if nothing pending).
 async function flushSave() {
-  if (saveStatus.value === 'pending') {
-    await autoSave()
-  }
+  if (saveInProgress) await saveInProgress
+  if (hasChanges.value) await autoSave()
 }
 
 async function toggleFavorite() {
@@ -344,6 +357,7 @@ async function deleteNoteConfirm() {
 }
 
 async function loadForRoute(id: string | string[] | undefined) {
+  await dataStore.initialize()
   if (id === 'new') {
     initNewNote()
     loading.value = false

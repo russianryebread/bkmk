@@ -62,9 +62,19 @@ export const useDataStore = defineStore("data", () => {
   // Prevents concurrent sync attempts that cause race conditions
   let syncInProgress = false;
   let changesQueuedDuringSync = false;
+  let syncRequestedDuringSync = false;
 
   // ==================== LIFECYCLE ====================
-  async function initialize() {
+  let initialization: Promise<void> | null = null;
+  function initialize(): Promise<void> {
+    if (!initialization) initialization = initializeStorage().catch(error => {
+      initialization = null;
+      throw error;
+    });
+    return initialization;
+  }
+
+  async function initializeStorage() {
     console.log("[DataStore] Initializing...");
 
     // Initialize IndexedDB first
@@ -84,6 +94,8 @@ export const useDataStore = defineStore("data", () => {
   }
 
   function cleanup() {
+    if (deferredSyncTimer) clearTimeout(deferredSyncTimer);
+    deferredSyncTimer = null;
     window.removeEventListener("online", handleOnline);
     window.removeEventListener("offline", handleOffline);
   }
@@ -131,6 +143,7 @@ export const useDataStore = defineStore("data", () => {
   async function syncWithServer(force = false): Promise<boolean> {
     // Prevent concurrent sync attempts that cause race conditions
     if (syncInProgress) {
+      if (force) syncRequestedDuringSync = true;
       console.log("[DataStore] Sync already in progress, skipping");
       return false;
     }
@@ -190,8 +203,9 @@ export const useDataStore = defineStore("data", () => {
       syncInProgress = false;
       syncing.value = false;
       await refreshPendingCount();
-      if (changesQueuedDuringSync && isOnline.value) {
+      if ((changesQueuedDuringSync || syncRequestedDuringSync) && isOnline.value) {
         changesQueuedDuringSync = false;
+        syncRequestedDuringSync = false;
         void syncWithServer(true);
       }
     }
@@ -211,12 +225,15 @@ export const useDataStore = defineStore("data", () => {
     // tag creates first so their batch resolvers do not race to create the
     // same name under a different ID.
     const tagsSucceeded = await pushQueueGroup(tagItems, pushTagsBatch, "tags", deadline);
-    const [bookmarksSucceeded, notesSucceeded] = await Promise.all([
+    const results = await Promise.allSettled([
       pushQueueGroup(bookmarkItems, pushBookmarksBatch, "bookmarks", deadline),
       pushQueueGroup(noteItems, pushNotesBatch, "notes", deadline),
     ]);
 
-    return { allSucceeded: tagsSucceeded && bookmarksSucceeded && notesSucceeded };
+    // Keep the sync lock until both pushes settle, even if one fails early.
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
+    return { allSucceeded: tagsSucceeded && results.every(result => result.status === "fulfilled" && result.value) };
   }
 
   type BatchFn = (
@@ -244,7 +261,11 @@ export const useDataStore = defineStore("data", () => {
         );
         for (const item of chunk) await idb.removeSyncQueueItemIfUnchanged(item);
       } catch (e) {
-        console.warn(`[DataStore] Batch push failed for ${label}, retrying items separately`, e);
+        console.warn(`[DataStore] Batch push failed for ${label}`, e);
+        // Network/server failures affect the whole batch. Retrying every row
+        // separately keeps a broken connection busy for the entire deadline.
+        const status = (e as any)?.statusCode ?? (e as any)?.status;
+        if (!status || status >= 500 || status === 401 || status === 403 || status === 429) throw e;
         for (const item of chunk) {
           if (Date.now() >= deadline) return false;
           try {

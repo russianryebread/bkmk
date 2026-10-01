@@ -1,24 +1,22 @@
 <template>
-  <div class="markdown-editor" :class="{ 'markdown-editor--compact': compact }">
-    <pre ref="preview" class="markdown-editor__preview" aria-hidden="true" v-html="decoratedContent"></pre>
-    <textarea
-      ref="input"
-      :value="modelValue"
-      :placeholder="placeholder"
-      :aria-label="ariaLabel"
-      :autofocus="autofocus"
-      class="markdown-editor__input"
-      spellcheck="true"
-      @input="onInput"
-      @keydown="onKeydown"
-      @scroll="syncScroll"
-    />
-  </div>
+  <div
+    ref="input"
+    class="markdown-editor"
+    :class="{ 'markdown-editor--compact': compact }"
+    contenteditable="plaintext-only"
+    role="textbox"
+    aria-multiline="true"
+    :aria-label="ariaLabel"
+    :data-placeholder="placeholder"
+    spellcheck="true"
+    @input="onInput"
+    @keydown="onKeydown"
+    @paste="onPaste"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { decorateMarkdown } from '~/utils/markdownEditor'
+import { onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -33,105 +31,105 @@ const props = withDefaults(defineProps<{
   autofocus: false,
 })
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
-const input = ref<HTMLTextAreaElement | null>(null)
-const preview = ref<HTMLElement | null>(null)
-const decoratedContent = computed(() => decorateMarkdown(props.modelValue))
+const input = ref<HTMLDivElement | null>(null)
 
-function onInput(event: Event) {
-  emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
+// Browsers represent Enter as DIV/BR nodes. Serialize those as markdown
+// newlines, excluding the trailing BR used to keep an empty line editable.
+function plainText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+  const children = Array.from(node.childNodes)
+  if (children.length === 1 && children[0]?.nodeName === 'BR') return ''
+  return children.map((child, index) => {
+    if (child.nodeName === 'BR') return '\n'
+    const block = child.nodeName === 'DIV' || child.nodeName === 'P'
+    return (block && index > 0 ? '\n' : '') + plainText(child)
+  }).join('')
 }
 
-function syncScroll() {
-  if (!input.value || !preview.value) return
-  preview.value.scrollTop = input.value.scrollTop
-  preview.value.scrollLeft = input.value.scrollLeft
+function readContent() {
+  return input.value ? plainText(input.value).replace(/\r\n/g, '\n') : ''
+}
+
+function onInput() {
+  emit('update:modelValue', readContent())
+}
+
+function applyValue(value: string) {
+  if (input.value && readContent() !== value) input.value.textContent = value
+}
+
+// Do not rewrite the editable DOM on a local keystroke: that would reset the
+// browser's selection and undo history. Only apply actual external changes.
+watch(() => props.modelValue, applyValue)
+onMounted(() => {
+  applyValue(props.modelValue)
+  if (props.autofocus) input.value?.focus()
+})
+
+function insertText(text: string) {
+  // Native editing retains the browser undo stack, unlike replacing innerHTML.
+  document.execCommand('insertText', false, text)
+  onInput()
+}
+
+function onPaste(event: ClipboardEvent) {
+  event.preventDefault()
+  insertText(event.clipboardData?.getData('text/plain') ?? '')
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return
+  if (event.key !== 'Enter' || event.isComposing || event.altKey || event.metaKey || event.ctrlKey) return
   const el = input.value
-  if (!el || el.selectionStart !== el.selectionEnd) return
-  const before = el.value.slice(0, el.selectionStart)
-  const line = before.slice(before.lastIndexOf('\n') + 1)
-  const match = line.match(/^(\s*)([-*+]\s+|\d+[.)]\s+)(.*)$/)
-  if (!match) return
+  const selection = window.getSelection()
+  if (!el || !selection?.rangeCount) return
+  const range = selection.getRangeAt(0)
+  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return
 
   event.preventDefault()
+  const beforeRange = range.cloneRange()
+  beforeRange.selectNodeContents(el)
+  beforeRange.setEnd(range.startContainer, range.startOffset)
+  const before = plainText(beforeRange.cloneContents())
+  const line = before.slice(before.lastIndexOf('\n') + 1)
+  const match = !event.shiftKey && range.collapsed && line.match(/^(\s*)([-*+]\s+|\d+[.)]\s+)(.*)$/)
+  if (!match) {
+    insertText('\n')
+    return
+  }
+
   const [, indent, marker, text] = match
-  const start = el.selectionStart
   if (!text.trim()) {
-    // An empty list item ends the list on the next Return.
-    const lineStart = before.lastIndexOf('\n') + 1
-    el.setRangeText(`\n${indent}`, lineStart, start, 'end')
+    // Select the empty marker so Return ends the list.
+    selection.modify('extend', 'backward', 'lineboundary')
+    insertText(`\n${indent}`)
   } else {
     const nextMarker = /^\d/.test(marker) ? `${Number.parseInt(marker, 10) + 1}. ` : marker
-    el.setRangeText(`\n${indent}${nextMarker}`, start, start, 'end')
+    insertText(`\n${indent}${nextMarker}`)
   }
-  emit('update:modelValue', el.value)
-  nextTick(syncScroll)
 }
 </script>
 
 <style scoped>
 .markdown-editor {
-  --editor-font-size: 14px;
-  position: relative;
-  min-height: var(--markdown-editor-min-height, 12rem);
-  height: 100%;
-  overflow: hidden;
-  color: rgb(17 24 39);
-}
-.markdown-editor__preview,
-.markdown-editor__input {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  min-height: inherit;
-  margin: 0;
+  min-height: var(--markdown-editor-min-height, 12rem);
   padding: 1rem;
-  border: 0;
-  font: 400 var(--editor-font-size)/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: normal;
+  overflow: auto;
+  outline: none;
+  color: rgb(17 24 39);
+  font: 400 14px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
   tab-size: 2;
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
-.markdown-editor__preview {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
+.markdown-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
   pointer-events: none;
-  color: inherit;
 }
-.markdown-editor__input {
-  position: relative;
-  display: block;
-  resize: none;
-  overflow: auto;
-  background: transparent;
-  color: transparent;
-  caret-color: #111827;
-  outline: none;
-  -webkit-text-fill-color: transparent;
-}
-.markdown-editor__input::selection { background: rgb(59 130 246 / 28%); }
-.markdown-editor__preview :deep(.md-heading) {
-  display: inline-block;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 700;
-  line-height: inherit;
-  color: inherit;
-  /* Enlarge visually without changing the text's layout width or line height;
-     this keeps the transparent textarea's caret and selection aligned. */
-  transform: scale(1.08);
-  transform-origin: left center;
-}
-.markdown-editor__preview :deep(.md-strong) { font-weight: 700; }
-.markdown-editor__preview :deep(.md-em) { font-style: italic; }
-.markdown-editor__preview :deep(.md-list-marker) { color: #64748b; }
-.markdown-editor__preview :deep(.md-marker) { opacity: .45; }
+.markdown-editor::selection { background: rgb(59 130 246 / 28%); }
 .markdown-editor--compact { min-height: 8rem; }
 :global(.dark) .markdown-editor { color: rgb(243 244 246); }
-:global(.dark) .markdown-editor__input { caret-color: #f3f4f6; }
 </style>

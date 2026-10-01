@@ -16,52 +16,8 @@ export async function resolveTagIds(
   userId: string,
   tagNames: string[] = [],
 ): Promise<{ ids: string[]; names: string[] }> {
-  const trimmed = [...new Set(tagNames.map((n) => String(n).trim()).filter(Boolean))]
-  if (trimmed.length === 0) return { ids: [], names: [] }
-
-  const trimmedLower = trimmed.map((n) => n.toLowerCase())
-
-  const existing = await db
-    .select({
-      id: tags.id,
-      name: tags.name,
-      nameLower: sql<string>`lower(${tags.name})`,
-    })
-    .from(tags)
-    .where(and(eq(tags.userId, userId), inArray(sql`lower(${tags.name})`, trimmedLower)))
-
-  const existingByLower = new Map<string, { id: string; name: string }>(
-    existing.map((t) => [t.nameLower, { id: t.id, name: t.name }]),
-  )
-
-  const missing = trimmed.filter((n) => !existingByLower.has(n.toLowerCase()))
-  if (missing.length > 0) {
-    const inserted = await db
-      .insert(tags)
-      .values(
-        missing.map((name) => ({
-          id: crypto.randomUUID(),
-          userId,
-          name,
-          parentTagId: null,
-          color: null,
-        })),
-      )
-      .returning({ id: tags.id, name: tags.name })
-
-    for (const t of inserted) existingByLower.set(t.name.toLowerCase(), t)
-  }
-
-  const ids: string[] = []
-  const names: string[] = []
-  for (const n of trimmed) {
-    const row = existingByLower.get(n.toLowerCase())
-    if (row) {
-      ids.push(row.id)
-      names.push(row.name)
-    }
-  }
-  return { ids, names }
+  const resolve = await resolveTagIdsBatch(userId, [tagNames])
+  return resolve(tagNames)
 }
 
 // Resolve tag names for many items in a single DB round-trip. Pass the array
@@ -125,9 +81,16 @@ export async function resolveTagIdsBatch(
             color: null,
           })),
         )
+        .onConflictDoNothing()
         .returning({ id: tags.id, name: tags.name })
 
       for (const t of inserted) existingByLower.set(t.name.toLowerCase(), t)
+      // Another sync request can create the same tag between our select and
+      // insert. Resolve the winner instead of failing the entire batch with 500.
+      const winners = await db.select({ id: tags.id, name: tags.name })
+        .from(tags)
+        .where(and(eq(tags.userId, userId), inArray(sql`lower(${tags.name})`, [...allLower])))
+      for (const t of winners) existingByLower.set(t.name.toLowerCase(), t)
     }
   }
 
@@ -139,7 +102,7 @@ export async function resolveTagIdsBatch(
     const names: string[] = []
     for (const n of trimmed) {
       const row = existingByLower.get(n.toLowerCase())
-      if (row) {
+      if (row && !ids.includes(row.id)) {
         ids.push(row.id)
         names.push(row.name)
       }

@@ -116,8 +116,14 @@ export function useIdb() {
       console.log('[IDB] Opening database...')
 
       const request = indexedDB.open(DB_NAME, DB_VERSION)
+      let timedOut = false
+      const timer = setTimeout(() => {
+        timedOut = true
+        reject(new Error('Local storage is blocked. Close other Bkmk tabs and retry.'))
+      }, 10_000)
 
       request.onerror = () => {
+        clearTimeout(timer)
         const err = `Failed to open database: ${request.error?.message}`
         console.error('[IDB] Error:', err)
         error = err
@@ -125,7 +131,16 @@ export function useIdb() {
       }
 
       request.onsuccess = () => {
+        clearTimeout(timer)
+        if (timedOut) {
+          request.result.close()
+          return
+        }
         dbInstance = request.result
+        dbInstance.onversionchange = () => {
+          dbInstance?.close()
+          dbInstance = null
+        }
         console.log('[IDB] Database opened successfully')
         isReady = true
         resolve(dbInstance)
@@ -231,6 +246,7 @@ export function useIdb() {
         resolve()
       }
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Local storage transaction aborted'))
     })
   }
 
@@ -273,6 +289,7 @@ export function useIdb() {
 
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Local storage transaction aborted'))
     })
   }
 
@@ -331,6 +348,7 @@ export function useIdb() {
 
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Local storage transaction aborted'))
     })
   }
 
@@ -432,6 +450,7 @@ export function useIdb() {
       }
       tx.oncomplete = () => resolve(removed)
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Local storage transaction aborted'))
     })
   }
 
@@ -466,6 +485,7 @@ export function useIdb() {
       }
       tx.oncomplete = () => resolve(updated)
       tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Local storage transaction aborted'))
     })
   }
 
